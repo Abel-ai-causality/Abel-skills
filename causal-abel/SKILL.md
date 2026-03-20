@@ -104,6 +104,7 @@ Query: [terms derived from both nodes or the proxy dimension]
    - Lead with a plain-language conclusion.
    - Then say which CAP surface supports it.
    - Then state the caveats that materially change interpretation.
+   - When organizing a fuller write-up, follow `assets/report-template.md`: start from the user's original question, map that question to graph nodes, then separate each verb's result from what that result means for the question.
    - Do not lead with retrieval-date phrasing such as "2026-03-20 live Abel CAP" unless the user explicitly wants an audit timestamp. Default to "in the current CAP graph" or "on the current Abel CAP surface."
    - In user-facing narrative, prefer semantic labels over raw node IDs when the node is acting as a proxy or an indirect anchor.
    - Only inspect repository code when the user asks for implementation detail or wrapper changes.
