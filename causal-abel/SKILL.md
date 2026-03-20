@@ -45,7 +45,7 @@ Suggested `.env.skills` contents:
 
 ```env
 ABEL_API_KEY=abel_xxx
-CAP_BASE_URL=https://cap-sit.abel.ai
+CAP_BASE_URL=https://cap.abel.ai
 ```
 
 ## Two Modes
@@ -79,7 +79,7 @@ In these cases, do NOT stop at "the graph only has equities and crypto." Instead
 ## The Loop
 
 1. Start from the live server and the causal question.
-   - Default target: `https://cap-sit.abel.ai` unless the user gives a different `base_url`.
+   - Default target: `https://cap.abel.ai` unless the user gives a different `base_url`.
    - Use the bundled probe script first so the call path is deterministic.
 
 2. Classify the question.
@@ -224,7 +224,7 @@ Common direct calls:
 
 ```bash
 export SKILL_DIR="<installed causal-abel skill directory>"
-export BASE_URL="https://cap-sit.abel.ai"
+export BASE_URL="https://cap.abel.ai"
 export ABEL_API_KEY="<abel-api-key>"
 
 python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" capabilities

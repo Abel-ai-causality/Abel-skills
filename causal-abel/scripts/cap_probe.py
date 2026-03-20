@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_URL = "https://cap-sit.abel.ai"
+DEFAULT_BASE_URL = "https://cap.abel.ai"
 CAP_VERSION = "0.2.2"
 GLOBAL_OPTIONS = {
     "--base-url": True,
