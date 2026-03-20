@@ -15,7 +15,7 @@ This skill is for cause-effect questions on the Abel CAP wrapper. Financial mark
 
 ## Authorization On Install
 
-Treat `references/llms.txt` as the source of truth when this skill is being installed, connected, or blocked on missing Abel AI credentials.
+Treat `references/setup-guide.md` as the source of truth when this skill is being installed, connected, or blocked on missing Abel AI credentials.
 
 - If the user installs this skill, asks to connect Abel, or the workflow needs an Abel API key, start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - First call `GET https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`.
@@ -57,7 +57,7 @@ In these cases, do NOT stop at "the graph only has equities and crypto." Instead
 ## The Loop
 
 1. Start from the live server and the causal question.
-   - Default target: `https://cap-sit.abel.ai/api` unless the user gives a different `base_url`.
+   - Default target: `https://cap-sit.abel.ai` unless the user gives a different `base_url`.
    - Use the bundled probe script first so the call path is deterministic.
 
 2. Classify the question.
@@ -106,7 +106,7 @@ Query: [terms derived from both nodes or the proxy dimension]
    - Then state the caveats that materially change interpretation.
    - Do not lead with retrieval-date phrasing such as "2026-03-20 live Abel CAP" unless the user explicitly wants an audit timestamp. Default to "in the current CAP graph" or "on the current Abel CAP surface."
    - In user-facing narrative, prefer semantic labels over raw node IDs when the node is acting as a proxy or an indirect anchor.
-   - Only inspect repository code when the user asks for implementation detail or wrapper changes.
+   - Only dive into implementation detail when the user explicitly asks for it.
 
 ## Universal Question Routing
 
@@ -201,7 +201,7 @@ Deterministic subcommands:
 Common direct calls:
 
 ```bash
-BASE_URL="https://cap-sit.abel.ai/api"
+BASE_URL="https://cap-sit.abel.ai"
 
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" capabilities
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" observe NVDA_close
@@ -223,29 +223,3 @@ python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" route exten
 ```
 
 For narrower output, use `--pick-fields` and `--compact`.
-
-## Implementation Work
-
-Only inspect repository code for wrapper work.
-
-- Start with `references/repo-map.md`.
-- For verb changes, read `references/verb-change-checklist.md`.
-- For deeper exposure, read `references/capability-layers.md`.
-- Keep implementation explanations tied to public semantics, not internal speculation.
-
-## Validation
-
-Probe the live surface first:
-
-```bash
-python skill/causal-abel/scripts/cap_probe.py capabilities
-python skill/causal-abel/scripts/cap_probe.py observe NVDA_close
-python skill/causal-abel/scripts/cap_probe.py paths NVDA_close AMD_close --max-paths 3
-```
-
-Then, for implementation changes:
-
-```bash
-./.venv/bin/python -m pytest -q tests/test_cap_graph.py tests/test_health.py tests/test_config.py tests/test_cap_protocol_sdk.py
-uv run python -m ruff check abel_cap_server cap_protocol tests abel_cap_client
-```

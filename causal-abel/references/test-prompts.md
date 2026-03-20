@@ -18,7 +18,7 @@ Expected shape:
 ## Prompt 1: Live Capability Layering
 
 ```text
-Use $causal-abel to inspect the live Abel CAP server at https://cap-sit.abel.ai/api and tell me what it supports, grouped by public CAP, Abel extensions, and any semantic caveats I should know before using them.
+Use $causal-abel to inspect the live Abel CAP server at https://cap-sit.abel.ai and tell me what it supports, grouped by public CAP, Abel extensions, and any semantic caveats I should know before using them.
 ```
 
 Expected shape:
@@ -30,7 +30,7 @@ Expected shape:
 ## Prompt 2: Direct Graph Question
 
 ```text
-Use $causal-abel to tell me what is driving `NVDA_close` on https://cap-sit.abel.ai/api.
+Use $causal-abel to tell me what is driving `NVDA_close` on https://cap-sit.abel.ai.
 ```
 
 Expected shape:
@@ -41,7 +41,7 @@ Expected shape:
 ## Prompt 3: Off-Graph Human Question
 
 ```text
-Use $causal-abel to help me think about whether a child should pursue music or writing in the AI era, using https://cap-sit.abel.ai/api if it can help.
+Use $causal-abel to help me think about whether a child should pursue music or writing in the AI era, using https://cap-sit.abel.ai if it can help.
 ```
 
 Expected shape:
@@ -67,7 +67,7 @@ Expected shape:
 ## Prompt 5: Capability Or Extension Audit
 
 ```text
-Use $causal-abel to check whether https://cap-sit.abel.ai/api already exposes a connectivity-style capability. If it does not, tell me whether it should live in CAP core or under extensions.abel.*.
+Use $causal-abel to check whether https://cap-sit.abel.ai already exposes a connectivity-style capability. If it does not, tell me whether it should live in CAP core or under extensions.abel.*.
 ```
 
 Expected shape:
@@ -82,6 +82,6 @@ Use $causal-abel with the default SIT server and give me the exact `cap_probe.py
 ```
 
 Expected shape:
-- Use `https://cap-sit.abel.ai/api` as the default target
+- Use `https://cap-sit.abel.ai` as the default target
 - Return commands aligned with `skill/causal-abel/scripts/cap_probe.py`
 - Prefer copy-pastable command blocks over prose

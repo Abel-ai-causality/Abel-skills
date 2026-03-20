@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_URL = "https://cap-sit.abel.ai/api"
+DEFAULT_BASE_URL = "https://cap-sit.abel.ai"
 CAP_VERSION = "0.2.2"
 GLOBAL_OPTIONS = {
     "--base-url": True,
@@ -66,7 +66,14 @@ def _cap_endpoint(base_url: str) -> str:
     parsed = urllib.parse.urlsplit(base_url)
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid base URL: {base_url!r}")
-    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "/api/v1/cap", "", ""))
+    normalized_path = parsed.path.rstrip("/")
+    if normalized_path in ("", "/", "/api", "/api/v1"):
+        endpoint_path = "/cap"
+    elif normalized_path.endswith("/cap"):
+        endpoint_path = normalized_path
+    else:
+        endpoint_path = f"{normalized_path}/cap"
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, endpoint_path, "", ""))
 
 
 def _resolve_headers(api_key: str | None) -> dict[str, str]:
