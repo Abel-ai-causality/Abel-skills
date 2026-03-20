@@ -16,18 +16,33 @@ Every report should answer four things in order:
 ## Output Rules
 
 - Start from the original question, not from raw graph output.
+- Include a short `intent_read` before graph mechanics when the user's request could be interpreted in more than one way.
 - Explain the relationship between the question and the chosen nodes before interpreting verb results.
+- Name the `surface_used` as the minimum sufficient capability set rather than as an exhaustive log of everything available.
 - For each verb used, separate `result` from `meaning`.
 - Prefer semantic names over raw node IDs when a node is acting as a proxy or bridge.
 - If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject.
 - Keep command, route, OAuth, and script details out of the main report unless the user asks for them.
 - Do not dump raw JSON when a short natural-language rendering will preserve the meaning.
 
+When this template is used together with `references/inversion-flow.md`, the report should preserve these contract fields even in compact form:
+
+- `intent_read`
+- `graph_mapping`
+- `surface_used`
+- `finding`
+- `meaning`
+- `caveat`
+
 ## Stable Report Structure
 
 ### 1. Original Question
 
 State the user's real cause-effect question in one or two lines.
+
+Optional but recommended field:
+
+- `intent_read`: what the user is actually trying to obtain from this analysis
 
 Prompt for the generator:
 
@@ -47,6 +62,10 @@ Required fields:
 - `mapping_type`: `direct_graph` or `proxy_routed`
 - `mapping_reason`: why these nodes are relevant to the question
 
+Compact contract name:
+
+- `graph_mapping`: a concise rendering of the mapping fields above
+
 Generator guidance:
 
 - If the graph contains direct nodes for the topic, say that this is a direct graph read.
@@ -59,6 +78,11 @@ Group findings by verb. Each verb section should contain two parts only:
 
 - `result`: what the graph returned
 - `meaning`: what that result contributes to the original question
+
+Before the verb sections, add:
+
+- `surface_used`: the minimum sufficient capability set selected for the user's intent
+- `finding`: a compact statement of the most decision-relevant graph result when a short answer is needed
 
 Recommended verb sections:
 
@@ -126,6 +150,10 @@ Prompt for the generator:
 What should the user not over-interpret from these graph findings?
 ```
 
+Compact contract name:
+
+- `caveat`: the highest-priority limit that changes interpretation
+
 ## Preferred Output Shape
 
 Use this markdown skeleton when presenting the report:
@@ -136,12 +164,17 @@ Use this markdown skeleton when presenting the report:
 ## Original Question
 [Restate the user's actual causal question.]
 
+- Intent read:
+
 ## Question To Graph Mapping
 - Question focus:
 - Core nodes:
 - Supporting nodes:
 - Mapping type:
 - Why these nodes fit:
+
+## Surface Used
+- Minimum sufficient capability set:
 
 ## Verb Findings
 ### [Verb name]
@@ -155,6 +188,12 @@ Use this markdown skeleton when presenting the report:
 ## Integrated Interpretation
 [Tie the node mapping and verb findings back to the original question.]
 
+## Compact Contract
+- Graph mapping:
+- Finding:
+- Meaning:
+- Caveat:
+
 ## Boundaries And Caveats
 - [Limit 1]
 - [Limit 2]
@@ -166,7 +205,9 @@ Use this markdown skeleton when presenting the report:
 Before finalizing a report, verify that:
 
 - the original question appears before any graph mechanics
+- the user's intent is explicit when ambiguity would otherwise change the result
 - each chosen node is explained, not just listed
+- the surface used is the smallest honest capability set, not an exhaustive dump
 - each verb section has both a result and a meaning
 - the integrated interpretation answers the user's question directly
 - caveats are strong enough to prevent overclaiming

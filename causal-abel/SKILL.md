@@ -42,6 +42,7 @@ Do not use this skill for:
    - Use the bundled probe path first for deterministic execution.
 
 2. Classify the task.
+   - First do user-intent inversion: infer the result the user actually wants, then map that intent to direct graph or proxy-routed analysis.
    - `capability_discovery`: what the server exposes
    - `direct_graph`: direct node, path, blanket, or intervention question
    - `proxy_routed`: real-world question that must be represented through market proxies
@@ -73,6 +74,7 @@ If the user installs this skill, asks to connect Abel, or the workflow needs an 
 ## Detailed References
 
 - Detailed routing logic, proxy dimensions, narration rules, and semantic guardrails: `references/question-routing.md`
+- User-intent inversion from desired answer to graph mapping and capability choice: `references/inversion-flow.md`
 - Report organization for results and meaning: `assets/report-template.md`
 - OAuth install flow and polling behavior: `references/llms.txt`
 - Probe script commands and reusable examples: `references/probe-usage.md`
