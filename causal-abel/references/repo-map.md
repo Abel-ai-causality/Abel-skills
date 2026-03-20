@@ -1,6 +1,6 @@
 # Repository Map
 
-Read this first when using the skill.
+Read this first when using the skill for implementation work inside the wrapper repo.
 
 ## Core Boundary
 
@@ -48,3 +48,9 @@ Abel extension verbs:
 - `extensions.abel.markov_blanket`
 - `extensions.abel.counterfactual_preview`
 - `extensions.abel.intervene_time_lag`
+
+## See Also
+
+- `../SKILL.md` for the short agent-facing framework
+- `capability-layers.md` for how much of the stack to expose
+- `verb-change-checklist.md` for edit order and gateway mapping checks

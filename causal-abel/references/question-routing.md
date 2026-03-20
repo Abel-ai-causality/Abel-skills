@@ -1,10 +1,10 @@
 # Question Routing Guide
 
-Use this file for the detailed decision logic behind `causal-abel`.
+Use this file for the detailed decision logic behind `causal-abel` after `SKILL.md` has already told you that the skill applies.
 
 ## Two Modes
 
-### 1. Direct CAP mode
+### 1. Direct CAP Mode
 
 Use this when the user is already asking about graph structure or CAP verbs.
 
@@ -18,7 +18,7 @@ Examples:
 - If `X` had been different, what would happen to `Y`?
 - What causal capabilities does this server expose?
 
-### 2. Proxy-routing mode
+### 2. Proxy-Routing Mode
 
 Use this when the user is asking a real cause-effect question, but the graph does not contain direct nodes for the topic itself.
 
@@ -68,7 +68,7 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
 
 ## Universal Question Routing
 
-### Direct graph questions
+### Direct Graph Questions
 
 - **"What can this server do?"** -> `capabilities`
 - **"What's driving X?"** -> `neighbors`, `markov-blanket`, `traverse-parents`
@@ -78,7 +78,7 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
 - **"If X had been different?"** -> `counterfactual-preview`
 - **"Is this a CAP feature or an Abel extension?"** -> `capabilities`, then interpret the namespace and notes
 
-### Proxy-routed questions
+### Proxy-Routed Questions
 
 Map the question to decision dimensions, then choose 3-5 proxy tickers that encode those dimensions as market signals.
 
@@ -120,7 +120,7 @@ Query: [terms derived from both nodes or the proxy dimension]
 
 ## Narration And Semantic Guardrails
 
-### Structure over prediction
+### Structure Over Prediction
 
 Read the graph for structure, not just directional output.
 
@@ -132,14 +132,14 @@ Read the graph for structure, not just directional output.
 
 For proxy-routed human questions, the graph is not modeling the child, the writer, or the life choice directly. It is modeling the financial shadow of the underlying forces. Be explicit about that.
 
-### User-facing narration rules
+### User-Facing Narration Rules
 
 - Prefer present-tense framing such as "in the current graph" or "on the current CAP surface" over date-stamped retrieval language, unless the user asks for a dated audit trail.
 - Use human or industry descriptions first when a node is only a proxy or a bridge.
 - Keep raw node IDs and tickers for trace, verification, command examples, or when the user explicitly asks for exact nodes.
 - If the relationship is indirect, say that plainly.
 
-### Semantic guardrails
+### Semantic Guardrails
 
 - `observe.predict` is observational prediction, not causal effect.
 - `intervene.do` is the smaller public intervention surface.
@@ -149,3 +149,10 @@ For proxy-routed human questions, the graph is not modeling the child, the write
 - CAP core and Abel extensions should be explained separately when that distinction matters.
 - This wrapper is thin: it exposes contracts, capability metadata, and gateway-backed public semantics; it does not invent new causal computation.
 - Proxy-routed answers are market-signal reads, not direct models of personal talent, family fit, or values.
+
+## See Also
+
+- `../SKILL.md` for the short agent-facing framework
+- `../assets/report-template.md` for result organization centered on question, nodes, verb findings, and meaning
+- `capability-layers.md` for CAP core versus Abel extension disclosure depth
+- `probe-usage.md` for command details and reusable `cap_probe.py` examples

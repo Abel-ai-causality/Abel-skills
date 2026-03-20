@@ -1,6 +1,6 @@
 # Capability Layers
 
-Use this file when the user should see more than the protocol surface.
+Use this file when the user should see more than the protocol surface and you need a consistent depth model for explanation.
 
 The goal is progressive disclosure. Expose the shallowest layer that answers the task, then move down only if needed.
 
@@ -87,3 +87,9 @@ When exposing deeper capability to skill users:
 - Explain hidden-field stripping and summary-safe defaults
 - Do not expose forbidden internal statistics just because the skill user asked for implementation detail
 - Treat tests as the canonical statement of public behavior
+
+## See Also
+
+- `../SKILL.md` for the short agent-facing framework
+- `question-routing.md` for when to stay on graph structure versus move into richer semantics
+- `repo-map.md` for implementation entry points behind each layer

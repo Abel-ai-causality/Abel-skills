@@ -85,3 +85,9 @@ Expected shape:
 - Use `https://cap-sit.abel.ai/api` as the default target
 - Return commands aligned with `skill/causal-abel/scripts/cap_probe.py`
 - Prefer copy-pastable command blocks over prose
+
+## See Also
+
+- `../SKILL.md` for the short agent-facing framework
+- `question-routing.md` for the detailed routing and narration rules these prompts are checking
+- `probe-usage.md` for the command patterns referenced here

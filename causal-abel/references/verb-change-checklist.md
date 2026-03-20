@@ -1,6 +1,6 @@
 # Verb Change Checklist
 
-Use this file when adding or materially changing a CAP verb.
+Use this file when adding or materially changing a CAP verb in the Abel wrapper.
 
 ## Decide The Layer
 
@@ -47,3 +47,9 @@ Current mapping:
 - Hidden fields must stay stripped from public responses.
 - Do not expose raw internal stats or confidence internals unless the public contract explicitly allows them.
 - Re-run tests that assert hidden-field removal and summary-safe output.
+
+## See Also
+
+- `../SKILL.md` for the short agent-facing framework
+- `repo-map.md` for the files that own each public surface
+- `capability-layers.md` for deciding whether a behavior belongs in CAP core or `extensions.abel.*`
