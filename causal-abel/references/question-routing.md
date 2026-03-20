@@ -35,7 +35,8 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
 ## Working Loop
 
 1. Start from the live server and the causal question.
-   - Default CAP target: `https://cap-sit.abel.ai` unless the user gives a different `base_url`.
+   - Default CAP target: `https://cap.abel.ai` unless the user gives a different `base_url`.
+   - `https://cap-sit.abel.ai` is the SIT variant when you need the staging environment.
    - Treat `https://api.abel.ai/echo/` as the OAuth and business API host, not as the default CAP graph probe host.
    - Use the bundled probe script first so the call path is deterministic.
 

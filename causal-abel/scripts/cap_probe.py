@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_URL = "https://cap-sit.abel.ai"
+DEFAULT_BASE_URL = "https://cap.abel.ai"
 CAP_VERSION = "0.2.2"
 GLOBAL_OPTIONS = {
     "--base-url": True,
@@ -72,12 +72,12 @@ def _cap_endpoint(base_url: str) -> str:
     path = parsed.path.rstrip("/")
     if path.endswith("/api/v1/cap") or path.endswith("/cap"):
         endpoint_path = path or "/cap"
-    elif path in ("", "/api"):
+    elif path in ("", "/", "/api", "/api/v1"):
         endpoint_path = "/cap"
     elif path.endswith("/echo"):
         endpoint_path = f"{path}/api/v1/cap"
     else:
-        endpoint_path = f"{path}/api/v1/cap"
+        endpoint_path = f"{path}/cap"
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, endpoint_path, "", "")
     )
@@ -363,7 +363,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Probe Abel CAP server verbs as atomic operations."
     )
-    default_env = str(Path(__file__).resolve().parents[3] / ".env.skills")
+    default_env = str(Path(__file__).resolve().parents[1] / ".env.skills")
     parser.add_argument(
         "--base-url",
         default="",

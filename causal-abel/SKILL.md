@@ -38,8 +38,9 @@ Do not use this skill for:
 ## How To Use
 
 1. Start from the user's causal question and the live CAP surface.
-   - Default CAP target: `https://cap-sit.abel.ai` unless the user provides another `base_url`.
-   - Treat `https://api.abel.ai/echo/` as the OAuth and business API host from `references/llms.txt`, not as the default public CAP probe target.
+   - Default CAP target: `https://cap.abel.ai` unless the user provides another `base_url`.
+   - `https://cap-sit.abel.ai` is the SIT variant when you need the staging environment.
+   - Treat `https://api.abel.ai/echo/` as the OAuth and business API host from `references/setup-guide.md`, not as the default public CAP probe target.
    - Use the bundled probe path first for deterministic execution.
 
 2. Classify the task.
@@ -65,11 +66,12 @@ Do not use this skill for:
 
 ## Install And Authorization
 
-If the user installs this skill, asks to connect Abel, or the workflow needs an Abel API key, follow `references/llms.txt` exactly.
+If the user installs this skill, asks to connect Abel, or the workflow needs an Abel API key, follow `references/setup-guide.md` exactly.
 
 - Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
 - Store `data.resultUrl` or `data.pollToken` and poll until the result is `authorized`, `failed`, or expired.
+- Persist the resulting `data.apiKey` in session state and `.env.skills` when local storage is available.
 - Never ask the user to paste an email address or Google OAuth code.
 
 ## Detailed References
@@ -77,7 +79,7 @@ If the user installs this skill, asks to connect Abel, or the workflow needs an 
 - Detailed routing logic, proxy dimensions, narration rules, and semantic guardrails: `references/question-routing.md`
 - User-intent inversion from desired answer to graph mapping and capability choice: `references/inversion-flow.md`
 - Report organization for results and meaning: `assets/report-template.md`
-- OAuth install flow and polling behavior: `references/llms.txt`
+- OAuth install flow, polling behavior, and API key reuse: `references/setup-guide.md`
 - Probe script commands and reusable examples: `references/probe-usage.md`
 - Capability layering and progressive disclosure: `references/capability-layers.md`
 - Repo entry points for implementation work: `references/repo-map.md`
