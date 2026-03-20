@@ -26,6 +26,28 @@ Treat `references/setup-guide.md` as the source of truth when this skill is bein
 - Never ask the user to paste an email address or Google OAuth code.
 - If authorization expires or fails, explain the failure clearly and restart from the agent authorize endpoint when a retry is needed.
 
+## Credential Handling
+
+- After OAuth succeeds, store `data.apiKey` for the current session and treat it as the active Abel credential.
+- Also persist it in `.env.skills` when local file storage is available, so later CAP calls can reuse it without another OAuth round-trip.
+- Prefer storing it in `ABEL_API_KEY`. `CAP_API_KEY` is also accepted by the bundled probe script.
+- Do not force the user to paste the key back into chat once the agent has already received it from the result endpoint.
+- For all CAP calls after authorization, send the key as `Authorization: Bearer <apiKey>`.
+- The bundled `cap_probe.py` script already does this for you:
+  - `--api-key <token>` becomes `Authorization: Bearer <token>`
+  - `ABEL_API_KEY` or `CAP_API_KEY` in the environment becomes the same header automatically
+  - if the token already starts with `Bearer `, pass it through unchanged
+- The default env file path for the bundled script is `.env.skills` in the skill directory.
+- Prefer environment-based reuse over repeating `--api-key` on every command when the client can preserve session state.
+- If a CAP call fails with missing-auth or unauthorized behavior and there is no known-good cached key, restart the OAuth handoff from `references/setup-guide.md`.
+
+Suggested `.env.skills` contents:
+
+```env
+ABEL_API_KEY=abel_xxx
+CAP_BASE_URL=https://cap-sit.abel.ai
+```
+
 ## Two Modes
 
 ### 1. Direct CAP mode
@@ -180,7 +202,7 @@ For proxy-routed human questions, the graph is not modeling the child, the write
 Prefer bundled scripts over ad hoc payload construction.
 
 Primary script:
-- `skill/causal-abel/scripts/cap_probe.py`
+- `scripts/cap_probe.py`
 
 Deterministic subcommands:
 - `capabilities`
@@ -201,16 +223,18 @@ Deterministic subcommands:
 Common direct calls:
 
 ```bash
-BASE_URL="https://cap-sit.abel.ai"
+export SKILL_DIR="<installed causal-abel skill directory>"
+export BASE_URL="https://cap-sit.abel.ai"
+export ABEL_API_KEY="<abel-api-key>"
 
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" capabilities
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" observe NVDA_close
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA_close --scope children --max-neighbors 5
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA_close AMD_close --max-paths 3
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" markov-blanket NVDA_close --max-neighbors 10
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" intervene-do NVDA_close 0.05 --outcome-node AMD_close
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" validate-connectivity NVDA_close AMD_close SOXX_close
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" intervene-time-lag NVDA_close 0.05 --outcome-node AMD_close --horizon-steps 24 --model linear
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" capabilities
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" observe NVDA_close
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" neighbors NVDA_close --scope children --max-neighbors 5
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" paths NVDA_close AMD_close --max-paths 3
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" markov-blanket NVDA_close --max-neighbors 10
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" intervene-do NVDA_close 0.05 --outcome-node AMD_close
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" validate-connectivity NVDA_close AMD_close SOXX_close
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" intervene-time-lag NVDA_close 0.05 --outcome-node AMD_close --horizon-steps 24 --model linear
 ```
 
 Proxy routing still uses the same script. The difference is which anchors you choose and how you compare them.
@@ -218,8 +242,14 @@ Proxy routing still uses the same script. The difference is which anchors you ch
 Generic fallbacks stay inside the same script:
 
 ```bash
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate_connectivity --params-json '{"variables":["NVDA_close","AMD_close","SOXX_close"]}'
-python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" route extensions/abel/counterfactual_preview --params-json '{"intervene_node":"NVDA_close","intervene_time":"2024-01-01T00:00:00Z","observe_node":"AMD_close","observe_time":"2024-01-02T00:00:00Z","intervene_new_value":0.05}'
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" verb extensions.abel.validate_connectivity --params-json '{"variables":["NVDA_close","AMD_close","SOXX_close"]}'
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" route extensions/abel/counterfactual_preview --params-json '{"intervene_node":"NVDA_close","intervene_time":"2024-01-01T00:00:00Z","observe_node":"AMD_close","observe_time":"2024-01-02T00:00:00Z","intervene_new_value":0.05}'
 ```
 
 For narrower output, use `--pick-fields` and `--compact`.
+
+If you want to pass the API key for just one command, without relying on `.env.skills`:
+
+```bash
+python "$SKILL_DIR/scripts/cap_probe.py" --base-url "$BASE_URL" --api-key "$ABEL_API_KEY" capabilities
+```

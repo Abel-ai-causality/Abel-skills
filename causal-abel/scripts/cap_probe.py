@@ -354,7 +354,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Probe Abel CAP server verbs as atomic operations."
     )
-    default_env = str(Path(__file__).resolve().parents[3] / ".env.skills")
+    default_env = str(Path(__file__).resolve().parents[1] / ".env.skills")
     parser.add_argument(
         "--base-url", default="", help=f"CAP server base URL (default: {DEFAULT_BASE_URL})."
     )
