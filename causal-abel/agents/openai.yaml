@@ -1,0 +1,16 @@
+interface:
+  display_name: "Causal Abel"
+  short_description: "Route direct and proxy-based causal questions through the Abel CAP server."
+  default_prompt: >
+    Use $causal-abel to answer direct CAP graph questions or proxy-routed life
+    and decision questions through the live Abel CAP server at
+    https://cap-sit.abel.ai with the bundled cap_probe script, and prefer
+    semantic proxy labels over raw node IDs in user-facing output. If the skill
+    is being installed, connected, or blocked on missing Abel credentials,
+    automatically follow the Abel agent OAuth handoff from
+    `references/llms.txt`: call
+    https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent,
+    return only `data.authUrl` to the user, store `data.resultUrl` or
+    `data.pollToken`, poll the result yourself until it is authorized or
+    failed, and never ask the user for an email, OAuth code, or a follow-up
+    "done" message before polling.
