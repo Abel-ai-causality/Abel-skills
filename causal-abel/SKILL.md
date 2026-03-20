@@ -38,7 +38,8 @@ Do not use this skill for:
 ## How To Use
 
 1. Start from the user's causal question and the live CAP surface.
-   - Default target: `https://cap-sit.abel.ai/api` unless the user provides another `base_url`.
+   - Default CAP target: `https://cap-sit.abel.ai` unless the user provides another `base_url`.
+   - Treat `https://api.abel.ai/echo/` as the OAuth and business API host from `references/llms.txt`, not as the default public CAP probe target.
    - Use the bundled probe path first for deterministic execution.
 
 2. Classify the task.

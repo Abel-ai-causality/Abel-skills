@@ -28,7 +28,7 @@ Deterministic subcommands:
 ## Common Direct Calls
 
 ```bash
-BASE_URL="https://cap-sit.abel.ai/api"
+BASE_URL="https://cap-sit.abel.ai"
 
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" capabilities
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" observe NVDA_close
@@ -62,6 +62,12 @@ python skill/causal-abel/scripts/cap_probe.py paths NVDA_close AMD_close --max-p
 ```
 
 For implementation changes beyond probing, use the repo and test guidance in `repo-map.md`, `verb-change-checklist.md`, and `test-prompts.md`.
+
+Endpoint note:
+
+- The current public SIT CAP surface answers on `https://cap-sit.abel.ai/cap`.
+- The probe accepts base URLs such as `https://cap-sit.abel.ai` and resolves them to `/cap`.
+- `https://api.abel.ai/echo/` is used for OAuth and business API flows in `llms.txt`; it is not the default CAP probe base.
 
 ## See Also
 

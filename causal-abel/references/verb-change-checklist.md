@@ -16,7 +16,7 @@ Use this file when adding or materially changing a CAP verb in the Abel wrapper.
 4. Register the verb in `abel_cap_server/cap/catalog.py`.
 5. Expose a matching service method in `abel_cap_server/cap/service.py`.
 6. Add/update gateway client methods in `abel_cap_server/clients/abel_gateway_client.py`.
-7. Verify `POST /api/v1/cap` dispatch still works through the shared registry.
+7. Verify the public CAP dispatch route still works through the shared registry.
 8. Re-check capability-card output and extension notes.
 
 ## Gateway Mapping Rules

@@ -12,7 +12,7 @@ Read this first when using the skill for implementation work inside the wrapper 
 
 - `abel_cap_server/main.py`: app assembly and shared wiring.
 - `abel_cap_server/api/meta.py`: root metadata and `/.well-known/cap.json`.
-- `abel_cap_server/api/v1/endpoints/cap_dispatch.py`: unified `POST /api/v1/cap` entrypoint.
+- `abel_cap_server/api/v1/endpoints/cap_dispatch.py`: unified CAP dispatch entrypoint backing the public `/cap` surface.
 - `abel_cap_server/cap/catalog.py`: registry wiring, supported verbs, capability-card assembly.
 - `abel_cap_server/cap/service.py`: CAP service dispatch surface.
 - `abel_cap_server/cap/handlers.py`: request-driven handlers pulling `CapService` from app state.
