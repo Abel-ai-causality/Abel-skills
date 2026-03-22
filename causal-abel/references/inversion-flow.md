@@ -102,6 +102,10 @@ Selection rules:
 - Do not run all verbs just because they exist.
 - Use richer Abel extensions only when CAP core is insufficient for the user's actual question.
 - Prefer one clean causal chain over many weak exploratory calls.
+- Choose exactly one primary workflow for the current turn: `driver_explanation`, `reachability_check`, `intervention_effect`, `counterfactual_read`, or `capability_audit`.
+- Avoid overlapping local-structure probes by default. For example, start with `traverse.parents` or `graph.neighbors(scope=parents)`, then add `graph.markov_blanket` only when a specific structural question remains.
+- Treat `graph.paths` as a narrowed structural test, not a bulk discovery substitute.
+- Do not escalate to `intervene.do` until the treatment-outcome structural question is already clear enough to justify an effect query.
 
 Prompt for the agent:
 

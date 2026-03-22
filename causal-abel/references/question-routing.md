@@ -68,6 +68,79 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
    - Good follow-ups are: who are the immediate drivers, is there a path, does a proxy node look real or just a bridge, what changes under intervention, and does a richer Abel extension materially change the interpretation.
    - Stop when the public CAP surface has answered the user's question or can honestly say no more.
 
+## Standard Direct Graph Workflows
+
+Use one workflow at a time. Do not mix driver discovery, reachability audit, and intervention testing into one long default chain.
+
+### 1. `driver_explanation`
+
+Use this for questions like "what is driving `X`" or "why did `X` move".
+
+Default sequence:
+
+1. Start with one direct-parent surface:
+   - `traverse.parents`, or
+   - `graph.neighbors` with `scope=parents`
+2. If immediate drivers are still unclear, add `graph.markov_blanket`.
+3. If the user then asks how a specific candidate reaches the node, run `graph.paths` only for that narrowed candidate.
+
+Decision gates:
+
+- Do not run `neighbors`, `traverse.parents`, `graph.markov_blanket`, and `extensions.abel.markov_blanket` all by default.
+- Use `extensions.abel.markov_blanket` only when CAP core blanket output is insufficient for the real question.
+- Do not default to `observe.predict` or `intervene.do` once the driver question has already been answered structurally.
+
+Stop when:
+
+- immediate drivers are clear enough to answer the user, or
+- the remaining uncertainty is about transmission or effect rather than local drivers
+
+### 2. `reachability_check`
+
+Use this for questions like "can `X` influence `Y`" or "how does `X` reach `Y`".
+
+Default sequence:
+
+1. Run `graph.paths(source, target)` on the specific ordered pair.
+2. If the user has a small candidate set and wants to know which are even worth path inspection, use `extensions.abel.validate_connectivity` as a screening step.
+3. If a path exists and the user now wants effect semantics, move to an intervention workflow instead of continuing to fan out more path calls.
+
+Decision gates:
+
+- Do not probe both directions by default in a directed causal graph. Reverse the direction only if the user asks for the opposite claim or the first answer leaves direction itself unresolved.
+- Do not sweep many unrelated tickers through repeated `graph.paths` calls unless the user explicitly wants a comparative screening task.
+- Path existence answers reachability, not effect size.
+
+Stop when:
+
+- the graph has established whether a path exists,
+- the main intermediaries are known, and
+- the remaining question is no longer structural
+
+### 3. `intervention_effect`
+
+Use this for questions like "what happens if `X` changes".
+
+Default sequence:
+
+1. Confirm minimal structure first with one of:
+   - `graph.paths(treatment, outcome)`, or
+   - `traverse.parents(outcome)` when the question is about a likely direct driver
+2. If the structural case is plausible, run `intervene.do`.
+3. If the user cares about rollout over time, add `extensions.abel.intervene_time_lag`.
+
+Decision gates:
+
+- Do not run intervention by default after a broad exploratory sweep.
+- Do not use `observe.predict` as a substitute for intervention effect.
+- If `intervene.do` fails, do not compensate by launching many more exploratory structure calls. Surface the failure honestly and note that intervention feasibility and complexity controls belong in the CAP package or server behavior.
+
+Stop when:
+
+- the intervention answer is returned,
+- the intervention is rejected by the server, or
+- the remaining question is really about temporal rollout or counterfactual framing
+
 ## Universal Question Routing
 
 ### Direct Graph Questions
