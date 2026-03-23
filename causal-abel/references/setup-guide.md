@@ -39,6 +39,19 @@ Only after a successful authorization result should the skill continue with CAP 
 
 The browser callback page only shows the authorization status and that the user can return to Abel AI. The API key is retrieved from the result endpoint, not displayed in the HTML callback page.
 
+## Local Env File
+
+If local storage is available, persist the authorized key in `<skill-root>/.env.skills` so later probe calls can reuse it.
+
+Example:
+
+```dotenv
+ABEL_API_KEY=abel_xxx
+CAP_BASE_URL=https://cap.abel.ai
+```
+
+This is a runtime-created local file, not a bundled artifact. Do not ship `.env.skills` or `.env.skills.example` inside the published skill bundle.
+
 ## Endpoint: Get Agent OAuth Authorization URL
 
 Method: `GET`

@@ -73,7 +73,11 @@ CLAWHUB_OPENAI_YAML = """interface:
 def ignore_copy_patterns(_directory: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     for name in names:
-        if name == "__pycache__" or name.endswith(".pyc"):
+        if (
+            name == "__pycache__"
+            or name.endswith(".pyc")
+            or name in {".env.skills", ".env.skills.example"}
+        ):
             ignored.add(name)
     return ignored
 
@@ -211,6 +215,8 @@ def main() -> int:
     write_text(output_dir / "agents" / "openai.yaml", CLAWHUB_OPENAI_YAML)
 
     remove_if_exists(output_dir / "CHANGELOG.md")
+    remove_if_exists(output_dir / ".env.skills")
+    remove_if_exists(output_dir / ".env.skills.example")
     remove_if_exists(output_dir / "scripts" / "check_skill_update.py")
     remove_if_exists(output_dir / "references" / "update-flow.md")
 
