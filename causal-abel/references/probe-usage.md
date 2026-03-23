@@ -18,6 +18,7 @@ Primary script:
 Deterministic subcommands:
 - `capabilities`
 - `normalize-node`
+- `methods`
 - `observe`
 - `neighbors`
 - `paths`
@@ -40,6 +41,9 @@ BASE_URL="https://cap.abel.ai"
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" capabilities
 python skill/causal-abel/scripts/cap_probe.py normalize-node NVDA
 python skill/causal-abel/scripts/cap_probe.py normalize-node NVDA_volume
+python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods
+python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict traverse.parents
+python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict --detail full --include-examples
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" observe NVDA_close
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA_close --scope children --max-neighbors 5
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA_close AMD_close --max-paths 3
@@ -58,6 +62,12 @@ Normalization rule:
 - Use `--default-suffix volume` only when the question is genuinely about volume or participation.
 - Free-form phrases such as `Spotify` or `music streaming` are not normalized automatically; map them to a ticker first.
 
+For capability discovery, avoid redundant full dumps:
+
+- Use `capabilities` to inventory the mounted surface.
+- Use `methods <verb...>` when you need method metadata for a small set of verbs.
+- Prefer server-side filtering through `params.verbs` over fetching every method and trimming it later with `jq`.
+
 ## Generic Fallbacks
 
 ```bash
@@ -67,12 +77,20 @@ python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" route exten
 
 For narrower output, use `--pick-fields` and `--compact`.
 
+Examples:
+
+```bash
+python skill/causal-abel/scripts/cap_probe.py methods observe.predict traverse.parents --pick-fields result.methods --compact
+python skill/causal-abel/scripts/cap_probe.py methods observe.predict --pick-fields result.methods.0.arguments,result.methods.0.result_fields
+```
+
 ## Validation
 
 Probe the live surface first:
 
 ```bash
 python skill/causal-abel/scripts/cap_probe.py capabilities
+python skill/causal-abel/scripts/cap_probe.py methods observe.predict
 python skill/causal-abel/scripts/cap_probe.py observe NVDA_close
 python skill/causal-abel/scripts/cap_probe.py paths NVDA_close AMD_close --max-paths 3
 ```
