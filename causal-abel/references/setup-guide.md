@@ -3,7 +3,7 @@
 Base URL: `https://api.abel.ai/echo/`
 
 This API key flow is designed for agents and assistants.
-It is the required entrypoint whenever a skill-driven Abel API call starts without an existing user API key in session state or `.env.skills`.
+It is the required entrypoint whenever a skill-driven Abel API call starts without an existing user API key in session state, `--api-key`, or `.env.skills`.
 Do not ask the user to manually type an email address.
 Always start by requesting an agent OAuth authorization URL, send that URL back to the user, and then poll for the final result yourself.
 
@@ -24,6 +24,8 @@ Always start by requesting an agent OAuth authorization URL, send that URL back 
 
 ## Recommended Agent Flow
 
+If this is the first Abel use in the session, treat the missing key as a hard prerequisite and complete this flow before any live CAP usage.
+
 1. Call `GET /web/credentials/oauth/google/authorize/agent`.
 2. Read the `data.authUrl` field from the response. This returned `data.authUrl` is the user-facing authorization link.
 3. Store `data.resultUrl` or `data.pollToken`.
@@ -32,6 +34,8 @@ Always start by requesting an agent OAuth authorization URL, send that URL back 
 6. Continue polling while the result response is `pending` and the handoff is not expired.
 7. If the result response is `authorized`, read `data.apiKey`, `data.ratePerMinute`, and `data.expireTime` from the result response, then return them to the user.
 8. If the result response is `failed`, return the failure message to the user.
+
+Only after a successful authorization result should the skill continue with CAP probing, capability discovery, or other live Abel usage.
 
 The browser callback page only shows the authorization status and that the user can return to Abel AI. The API key is retrieved from the result endpoint, not displayed in the HTML callback page.
 

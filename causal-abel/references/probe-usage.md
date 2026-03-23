@@ -67,7 +67,7 @@ python skill/causal-abel/scripts/cap_probe.py observe NVDA_close
 python skill/causal-abel/scripts/cap_probe.py paths NVDA_close AMD_close --max-paths 3
 ```
 
-For implementation changes beyond probing, use the repo and test guidance in `repo-map.md`, `verb-change-checklist.md`, and `test-prompts.md`.
+For implementation changes beyond probing, verify the affected routing, auth, and command examples directly in the tracked skill docs and scripts.
 
 Endpoint note:
 
@@ -82,4 +82,3 @@ Endpoint note:
 - `../SKILL.md` for the short agent-facing framework
 - `question-routing.md` for choosing direct versus proxy-routed analysis and picking verbs
 - `../assets/report-template.md` for presenting findings without centering command details
-- `test-prompts.md` for behavior checks against expected output shape
