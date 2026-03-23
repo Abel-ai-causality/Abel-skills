@@ -1,10 +1,10 @@
 ---
 name: causal-abel
-version: 1.0.0
+version: 1.0.1
 update_repo: Abel-ai-causality/Abel-skills
 update_branch: main
 update_skill_path: causal-abel
-update_changelog_path: CHANGELOG.md
+update_changelog_path: /CHANGELOG.md
 description: >
   Abel CAP causal exploration skill. Use for direct CAP graph questions and for
   off-graph life or decision questions that should be routed through market
@@ -14,6 +14,15 @@ description: >
   or when a career, education, lifestyle, or macro decision should be read
   through Abel's market signal layer. Do not use for pure quote lookups,
   generic news summaries, raw node dumps, or unrelated coding tasks.
+metadata:
+  openclaw:
+    requires:
+      env:
+        - ABEL_API_KEY
+      bins:
+        - python
+    primaryEnv: ABEL_API_KEY
+    homepage: https://github.com/Abel-ai-causality/Abel-skills
 ---
 
 Use this skill for cause-effect questions on the Abel CAP wrapper. Financial markets are the signal layer, not the product: the CAP server exposes finance and crypto price or volume nodes, and those nodes can be used either directly or as proxy signals for larger real-world questions.
@@ -24,12 +33,12 @@ Treat skill update detection as a soft prerequisite on the first use of this ski
 
 - Before the first live Abel API call in a session, attempt the bundled update check from `references/update-flow.md`.
 - Prefer the bundled script: `python scripts/check_skill_update.py`.
-- If the script reports `update_available: true`, tell the user the current version, latest version, and a concise summary from `CHANGELOG.md`.
+- If the script reports `update_available: true`, tell the user the current version, latest version, and a concise summary from the repository `CHANGELOG.md`.
 - Keep the update prompt warm, concise, and human. Avoid mechanical release-note dumps.
 - End the prompt with a short `Y/N` choice so the user can answer quickly.
 - Ask for approval before running the single-skill refresh command returned by the script.
 - Only check and refresh the installed `causal-abel` skill. Do not propose a full `npx skills update`.
-- If the update check fails, times out, or returns malformed data, continue with the normal skill flow without blocking the user.
+- If the script reports no update, or the check fails, times out, or returns malformed data, continue the normal skill flow without blocking the user.
 - Do not repeat the update check again in the same session once you have recorded that it was attempted.
 - Do not assume a freshly updated skill has been reloaded into the current turn. Continue safely, and treat the next skill invocation as the point where the updated files are guaranteed to apply.
 

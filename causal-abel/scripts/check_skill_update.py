@@ -96,6 +96,15 @@ def _build_raw_url(repo: str, branch: str, path: str) -> str:
     )
 
 
+def _resolve_repo_path(skill_path: str, path: str) -> str:
+    normalized = path.strip()
+    if not normalized:
+        raise ValueError("Repository path cannot be empty.")
+    if normalized.startswith("/"):
+        return normalized.strip("/")
+    return f"{skill_path.strip('/')}/{normalized.lstrip('./')}"
+
+
 def _fetch_text(url: str, timeout: float) -> str:
     request = urllib.request.Request(
         url,
@@ -455,7 +464,7 @@ def main() -> int:
             remote_changelog_url = _build_raw_url(
                 repo,
                 branch,
-                f"{skill_path}/{changelog_path}",
+                _resolve_repo_path(skill_path, changelog_path),
             )
             remote_changelog_text = _fetch_text(remote_changelog_url, args.timeout)
             sections = _parse_changelog_sections(remote_changelog_text)
