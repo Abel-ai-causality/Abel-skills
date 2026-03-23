@@ -1,5 +1,10 @@
 ---
 name: causal-abel
+version: 1.0.0
+update_repo: Abel-ai-causality/Abel-skills
+update_branch: main
+update_skill_path: causal-abel
+update_changelog_path: CHANGELOG.md
 description: >
   Abel CAP causal exploration skill. Use for direct CAP graph questions and for
   off-graph life or decision questions that should be routed through market
@@ -12,6 +17,21 @@ description: >
 ---
 
 Use this skill for cause-effect questions on the Abel CAP wrapper. Financial markets are the signal layer, not the product: the CAP server exposes finance and crypto price or volume nodes, and those nodes can be used either directly or as proxy signals for larger real-world questions.
+
+## First-Use Update Check
+
+Treat skill update detection as a soft prerequisite on the first use of this skill in a session.
+
+- Before the first live Abel API call in a session, attempt the bundled update check from `references/update-flow.md`.
+- Prefer the bundled script: `python scripts/check_skill_update.py`.
+- If the script reports `update_available: true`, tell the user the current version, latest version, and a concise summary from `CHANGELOG.md`.
+- Keep the update prompt warm, concise, and human. Avoid mechanical release-note dumps.
+- End the prompt with a short `Y/N` choice so the user can answer quickly.
+- Ask for approval before running the single-skill refresh command returned by the script.
+- Only check and refresh the installed `causal-abel` skill. Do not propose a full `npx skills update`.
+- If the update check fails, times out, or returns malformed data, continue with the normal skill flow without blocking the user.
+- Do not repeat the update check again in the same session once you have recorded that it was attempted.
+- Do not assume a freshly updated skill has been reloaded into the current turn. Continue safely, and treat the next skill invocation as the point where the updated files are guaranteed to apply.
 
 ## Authorization Gate
 
@@ -48,6 +68,10 @@ Do not use this skill for:
 ## How To Use
 
 1. Check authorization state before any live API call.
+   - On the first use of this skill in the session, attempt the soft update check from `references/update-flow.md` before live Abel API usage.
+   - If the check reports an available update, summarize the changelog briefly and ask whether to run the single-skill refresh command returned by the script.
+   - Phrase that prompt in a friendly way and end with a short `Y/N`.
+   - If the user declines, or the check cannot complete, continue normally.
    - If `ABEL_API_KEY` is missing from session state, `--api-key`, and `.env.skills`, start the OAuth handoff from `references/setup-guide.md` first.
    - Treat missing credentials as a hard stop for live Abel API usage, not as a minor warning.
 
@@ -91,6 +115,7 @@ Do not use this skill for:
 
 If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
 
+- If this is the first session use and update check has not yet been attempted, run the soft update check first from `references/update-flow.md`.
 - Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
 - Store `data.resultUrl` or `data.pollToken` and poll until the result is `authorized`, `failed`, or expired.
@@ -104,5 +129,6 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - User-intent inversion from desired answer to graph mapping and capability choice: `references/inversion-flow.md`
 - Report organization for results and meaning: `assets/report-template.md`
 - OAuth install flow, polling behavior, and API key reuse: `references/setup-guide.md`
+- First-use soft update detection and changelog summary flow: `references/update-flow.md`
 - Probe script commands and reusable examples: `references/probe-usage.md`
 - Capability layering and progressive disclosure: `references/capability-layers.md`

@@ -5,11 +5,17 @@ interface:
     Use $causal-abel to answer direct CAP graph questions or proxy-routed life
     and decision questions through the live Abel CAP server at
     https://cap.abel.ai with the bundled cap_probe script, and prefer semantic
-    proxy labels over raw node IDs in user-facing output. Before any live Abel
-    CAP or business API call, check whether an Abel API key is already present
-    in session state, `--api-key`, or `.env.skills`. If no key is present,
-    stop and automatically follow the Abel agent OAuth handoff from
-    `references/setup-guide.md`: call
+    proxy labels over raw node IDs in user-facing output. On the first use of
+    this skill in a session, first attempt the soft update check from
+    `references/update-flow.md` with `python scripts/check_skill_update.py`.
+    If it reports an update, keep the prompt warm and concise, briefly mention
+    the key changes, and ask before running the script-provided refresh command
+    that targets only `causal-abel`. End that prompt with a short `Y/N` so the
+    user can reply quickly. If the update check fails, continue normally.
+    Before any live Abel CAP or business API call, check whether an Abel API
+    key is already present in session state, `--api-key`, or `.env.skills`. If
+    no key is present, stop and automatically follow the Abel agent OAuth
+    handoff from `references/setup-guide.md`: call
     https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent,
     return only `data.authUrl` to the user, store `data.resultUrl` or
     `data.pollToken`, poll the result yourself until it is authorized or
