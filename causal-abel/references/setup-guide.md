@@ -3,12 +3,14 @@
 Base URL: `https://api.abel.ai/echo/`
 
 This API key flow is designed for agents and assistants.
+It is the required entrypoint whenever a skill-driven Abel API call starts without an existing user API key in session state or `.env.skills`.
 Do not ask the user to manually type an email address.
 Always start by requesting an agent OAuth authorization URL, send that URL back to the user, and then poll for the final result yourself.
 
 ## Agent Rules
 
 - Always call the agent authorize endpoint first and return the `data.authUrl` value to the user.
+- Do not continue to CAP probing, capability inspection, or other live Abel API calls until this authorization flow has succeeded and a user API key is available.
 - The URL `GET /web/credentials/oauth/google/authorize/agent` is the backend endpoint the agent calls to obtain the authorization link. It is not the link the user should open in the browser.
 - Prefer opening `data.authUrl` for the user automatically when the client supports it. Otherwise render it as a directly clickable link instead of plain text that must be copied manually.
 - Never ask the user to open or click `https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent` directly. The user-facing authorization link is the Google OAuth URL returned in `data.authUrl`.

@@ -88,9 +88,7 @@ def _resolve_headers(api_key: str | None) -> dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
-    token = (
-        api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
-    ).strip()
+    token = _resolve_api_token(api_key)
     if not token:
         return headers
     if token.lower().startswith("bearer "):
@@ -98,6 +96,35 @@ def _resolve_headers(api_key: str | None) -> dict[str, str]:
     else:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+
+def _resolve_api_token(api_key: str | None) -> str:
+    return (
+        api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
+    ).strip()
+
+
+def _missing_api_key_result(env_file: str) -> dict[str, Any]:
+    env_path = str(Path(env_file).expanduser())
+    message = (
+        "Missing Abel API key. Complete the agent OAuth handoff from "
+        "references/setup-guide.md or populate .env.skills before probing live "
+        "Abel APIs."
+    )
+    return {
+        "ok": False,
+        "status_code": 401,
+        "message": message,
+        "error": {
+            "code": "missing_api_key",
+            "message": message,
+            "authorize_endpoint": (
+                "https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent"
+            ),
+            "env_file": env_path,
+        },
+        "response_payload": {},
+    }
 
 
 def _extract_path(obj: Any, path: str) -> tuple[bool, Any]:
@@ -216,6 +243,8 @@ def _post_cap(
 def _call_verb(
     args: argparse.Namespace, verb: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
+    if not _resolve_api_token(args.api_key):
+        return _missing_api_key_result(args.env_file)
     return _post_cap(
         _resolve_base_url(args.base_url),
         verb,

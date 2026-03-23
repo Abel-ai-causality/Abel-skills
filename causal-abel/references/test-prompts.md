@@ -2,6 +2,10 @@
 
 Use these prompts to verify that the skill behaves like an Abel-style causal router over the CAP wrapper: it should use the bundled `cap_probe.py` script, distinguish direct graph questions from proxy-routed human questions, and stay honest about what is direct graph signal versus proxy inference.
 
+## Authorization Precondition
+
+Unless a valid Abel API key is already present in session state or `.env.skills`, every live Abel prompt below should first trigger the authorization behavior in Prompt 0 before any CAP probing or business API call.
+
 ## Prompt 0: Install And Authorize
 
 ```text
@@ -14,6 +18,7 @@ Expected shape:
 - Store `data.resultUrl` or `data.pollToken` and poll immediately
 - Do not ask the user for the Google OAuth code or a "done" reply before polling
 - Continue the skill setup once the result becomes `authorized`
+- Persist the resulting API key so later prompts can reuse it without reopening the auth flow
 
 ## Prompt 1: Live Capability Layering
 

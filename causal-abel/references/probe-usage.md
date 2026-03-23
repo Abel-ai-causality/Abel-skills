@@ -2,6 +2,12 @@
 
 Use this file for `cap_probe.py` details and reusable command patterns after the routing decision is already clear.
 
+## Authorization First
+
+- Do not run the bundled probe against live Abel APIs until an Abel user API key is available in session state, `--api-key`, or `.env.skills`.
+- If the key is missing, start the OAuth handoff from `setup-guide.md` first and persist the resulting key before probing.
+- `cap_probe.py` loads `skill/causal-abel/.env.skills` by default and should be treated as an authorized probe, not an anonymous public probe.
+
 ## Bundled Script
 
 Prefer the bundled probe script over ad hoc payload construction.
@@ -69,6 +75,7 @@ Endpoint note:
 - `https://cap-sit.abel.ai/cap` is the SIT variant when you need staging.
 - The probe accepts base URLs such as `https://cap.abel.ai` and resolves them to `/cap`.
 - `https://api.abel.ai/echo/` is used for OAuth and business API flows in `setup-guide.md`; it is not the default CAP probe base.
+- If `.env.skills` does not yet contain `ABEL_API_KEY`, pause here and complete the OAuth handoff before using these examples.
 
 ## See Also
 
