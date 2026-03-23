@@ -88,9 +88,7 @@ def _resolve_headers(api_key: str | None) -> dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
-    token = (
-        api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
-    ).strip()
+    token = _resolve_api_token(api_key)
     if not token:
         return headers
     if token.lower().startswith("bearer "):
@@ -98,6 +96,12 @@ def _resolve_headers(api_key: str | None) -> dict[str, str]:
     else:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+
+def _resolve_api_token(api_key: str | None) -> str:
+    return (
+        api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
+    ).strip()
 
 
 def _extract_path(obj: Any, path: str) -> tuple[bool, Any]:

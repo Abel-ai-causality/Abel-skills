@@ -1,6 +1,6 @@
 interface:
   display_name: "Causal Abel"
-  short_description: "Route direct and proxy-based causal questions through the Abel CAP server, with Abel OAuth required before first live use when no API key is present."
+  short_description: "Route direct and proxy-based causal questions through the Abel CAP server, with Abel OAuth as the required first step when no API key is present."
   default_prompt: >
     Use $causal-abel to answer direct CAP graph questions or proxy-routed life
     and decision questions through the live Abel CAP server at

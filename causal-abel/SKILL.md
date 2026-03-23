@@ -15,12 +15,12 @@ Use this skill for cause-effect questions on the Abel CAP wrapper. Financial mar
 
 ## Authorization Gate
 
-Authorization is a required entry step for this skill before it makes any live Abel API call on the user's behalf.
+Authorization is a required entry step for this skill when it will call Abel APIs on the user's behalf.
 
-- Before CAP probing, capability inspection, or any other live Abel API call, check whether an Abel API key is already available in session state, `--api-key`, or `.env.skills`.
-- If no key is available, stop and follow `references/setup-guide.md` immediately. Do not continue with CAP usage first and only recover after failure.
-- Start with `GET https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`.
-- Return only `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, and poll until the result is `authorized`, `failed`, or expired.
+- Before any live Abel CAP or business API call, check whether an Abel user API key is already available in session state, `--api-key`, or `.env.skills`.
+- If no key is available, stop and follow `references/setup-guide.md` immediately. Do not start CAP probing, capability inspection, or any other live API call first.
+- The agent entrypoint is `GET https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`.
+- Return only the resulting `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, and poll until the result is `authorized`, `failed`, or expired.
 - Never ask the user to paste an email address, OAuth code, or raw API key when the handoff flow can obtain the key directly.
 
 ## When To Use
@@ -48,8 +48,8 @@ Do not use this skill for:
 ## How To Use
 
 1. Check authorization state before any live API call.
-   - If no Abel API key is present in session state, `--api-key`, or `.env.skills`, start the OAuth handoff from `references/setup-guide.md` first.
-   - Treat missing credentials as a hard stop for live Abel API usage, not as a warning that can be deferred until after probing.
+   - If `ABEL_API_KEY` is missing from session state, `--api-key`, and `.env.skills`, start the OAuth handoff from `references/setup-guide.md` first.
+   - Treat missing credentials as a hard stop for live Abel API usage, not as a minor warning.
 
 2. Start from the user's causal question and the live CAP surface.
    - Default CAP target: `https://cap.abel.ai` unless the user provides another `base_url`.

@@ -92,4 +92,3 @@ When exposing deeper capability to skill users:
 
 - `../SKILL.md` for the short agent-facing framework
 - `question-routing.md` for when to stay on graph structure versus move into richer semantics
-- `repo-map.md` for implementation entry points behind each layer
