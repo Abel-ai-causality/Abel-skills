@@ -108,7 +108,7 @@ Do not use this skill for:
 7. Use decision gates, not verb dumps.
    - For `driver_explanation`, start with `traverse.parents` or `graph.neighbors(scope=parents)`, then add `graph.markov_blanket` only if direct drivers are still unclear.
    - For `reachability_check`, start with `graph.paths` on the specific proposed source and target. Use `extensions.abel.validate_connectivity` only when screening a small candidate set is more honest than many repeated path probes.
-   - For `intervention_effect`, do a minimal structural confirmation first, then call `intervene.do` only if the structural question is already clear.
+   - For `intervention_effect`, require a minimal structural confirmation first. Default to `graph.paths(treatment, outcome)`, and call `intervene.do` only if that path check succeeds. Use `traverse.parents(outcome)` only for a narrowly direct-driver question.
    - For `capability_audit`, do not pair a full `meta.capabilities` dump with a full `meta.methods` dump unless the user explicitly needs both views. Inventory first, then targeted method detail for the verbs that remain in question.
    - Only upgrade from CAP core to `extensions.abel.*` when CAP core cannot answer the user's actual question.
    - After each call, ask what single open causal question remains. If none remains, stop.

@@ -49,7 +49,7 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
     - Local structure: `neighbors`, `markov-blanket`, `traverse-parents`, `traverse-children`
     - Transmission and reachability: `paths`, `validate-connectivity`
     - Observational regime: `observe`
-   - Intervention and rollout: `intervene-do`, `intervene-time-lag`
+    - Intervention and rollout: `intervene-do` (with required path gate), `intervene-time-lag`
    - Counterfactual preview: `counterfactual-preview`
 
 4. Explore structure before making strong claims.
@@ -144,13 +144,14 @@ Default sequence:
 1. Confirm minimal structure first with one of:
    - `graph.paths(treatment, outcome)`, or
    - `traverse.parents(outcome)` when the question is about a likely direct driver
-2. If the structural case is plausible, run `intervene.do`.
+2. If the structural case is plausible, run `intervene.do`. In the bundled probe, `intervene-do` now performs the `graph.paths` check first and skips the intervention when no directed path is found.
 3. If the user cares about rollout over time, add `extensions.abel.intervene_time_lag`.
 
 Decision gates:
 
 - Do not run intervention by default after a broad exploratory sweep.
 - Do not use `observe.predict` as a substitute for intervention effect.
+- If the path check finds no directed treatment-outcome path, stop and say the intervention was skipped for lack of structural support.
 - If `intervene.do` fails, do not compensate by launching many more exploratory structure calls. Surface the failure honestly and note that intervention feasibility and complexity controls belong in the CAP package or server behavior.
 
 Stop when:
