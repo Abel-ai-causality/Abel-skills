@@ -10,6 +10,7 @@ Use this layer for users asking what the server can do at the protocol level.
 
 Primary verbs:
 - `meta.capabilities`
+- `meta.methods`
 - `observe.predict`
 - `intervene.do`
 - `graph.neighbors`
@@ -27,8 +28,15 @@ Primary files:
 What to show:
 - Supported verbs
 - Capability-card claims
+- Targeted method descriptors for the verbs actually under discussion
 - Request/response envelope shape
 - Public reasoning modes and identification status
+
+Discovery de-duplication rule:
+
+- `meta.capabilities` answers "what is mounted here?"
+- `meta.methods` answers "how do I invoke this specific mounted verb?"
+- Do not present both as interchangeable full dumps. Inventory first, then request method detail only for verbs that still matter.
 
 ## Layer 2: Abel Extension Surface
 
@@ -51,6 +59,7 @@ What to show:
 - Abel-only semantic honesty notes such as `proxy_only`, `preview_only`, and approximate semantics
 - Where Abel exposes richer summaries than CAP core
 - Why a capability should stay in the extension namespace instead of CAP core
+- Why a richer extension should not duplicate an already-sufficient CAP core discovery surface
 
 ## Layer 3: Abel Implementation Surface
 

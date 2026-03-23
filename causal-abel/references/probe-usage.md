@@ -17,6 +17,7 @@ Primary script:
 
 Deterministic subcommands:
 - `capabilities`
+- `methods`
 - `observe`
 - `neighbors`
 - `paths`
@@ -37,6 +38,9 @@ Deterministic subcommands:
 BASE_URL="https://cap.abel.ai"
 
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" capabilities
+python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods
+python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict traverse.parents
+python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict --detail full --include-examples
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" observe NVDA_close
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA_close --scope children --max-neighbors 5
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA_close AMD_close --max-paths 3
@@ -48,6 +52,12 @@ python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" intervene-t
 
 Proxy routing still uses the same script. The difference is which anchors you choose and how you compare them.
 
+For capability discovery, avoid redundant full dumps:
+
+- Use `capabilities` to inventory the mounted surface.
+- Use `methods <verb...>` when you need method metadata for a small set of verbs.
+- Prefer server-side filtering through `params.verbs` over fetching every method and trimming it later with `jq`.
+
 ## Generic Fallbacks
 
 ```bash
@@ -57,12 +67,20 @@ python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" route exten
 
 For narrower output, use `--pick-fields` and `--compact`.
 
+Examples:
+
+```bash
+python skill/causal-abel/scripts/cap_probe.py methods observe.predict traverse.parents --pick-fields result.methods --compact
+python skill/causal-abel/scripts/cap_probe.py methods observe.predict --pick-fields result.methods.0.arguments,result.methods.0.result_fields
+```
+
 ## Validation
 
 Probe the live surface first:
 
 ```bash
 python skill/causal-abel/scripts/cap_probe.py capabilities
+python skill/causal-abel/scripts/cap_probe.py methods observe.predict
 python skill/causal-abel/scripts/cap_probe.py observe NVDA_close
 python skill/causal-abel/scripts/cap_probe.py paths NVDA_close AMD_close --max-paths 3
 ```

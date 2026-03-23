@@ -25,6 +25,7 @@ GLOBAL_OPTIONS = {
 }
 COMMANDS = {
     "capabilities",
+    "methods",
     "observe",
     "neighbors",
     "paths",
@@ -232,6 +233,17 @@ def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, "meta.capabilities")
 
 
+def _cmd_methods(args: argparse.Namespace) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    if args.verbs:
+        params["verbs"] = args.verbs
+    if args.detail != "compact":
+        params["detail"] = args.detail
+    if args.include_examples:
+        params["include_examples"] = True
+    return _call_verb(args, "meta.methods", params or None)
+
+
 def _cmd_observe(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, "observe.predict", {"target_node": args.target_node})
 
@@ -393,6 +405,28 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("capabilities", help="Call meta.capabilities.").set_defaults(
         func=_cmd_capabilities
     )
+
+    methods = sub.add_parser(
+        "methods",
+        help="Call meta.methods, optionally narrowed to specific verbs.",
+    )
+    methods.add_argument(
+        "verbs",
+        nargs="*",
+        help="Optional verb names to request through params.verbs.",
+    )
+    methods.add_argument(
+        "--detail",
+        choices=("compact", "full"),
+        default="compact",
+        help="Requested method metadata profile (default: compact).",
+    )
+    methods.add_argument(
+        "--include-examples",
+        action="store_true",
+        help="Ask the server to include examples when supported.",
+    )
+    methods.set_defaults(func=_cmd_methods)
 
     observe = sub.add_parser("observe", help="Call observe.predict.")
     observe.add_argument("target_node")
