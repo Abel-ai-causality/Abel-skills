@@ -3,12 +3,14 @@
 Base URL: `https://api.abel.ai/echo/`
 
 This API key flow is designed for agents and assistants.
+It is the required entrypoint whenever a skill-driven Abel API call starts without an existing user API key in session state, `--api-key`, or `.env.skills`.
 Do not ask the user to manually type an email address.
 Always start by requesting an agent OAuth authorization URL, send that URL back to the user, and then poll for the final result yourself.
 
 ## Agent Rules
 
 - Always call the agent authorize endpoint first and return the `data.authUrl` value to the user.
+- Do not continue to CAP probing, capability inspection, or other live Abel API calls until this authorization flow has succeeded and a user API key is available.
 - The URL `GET /web/credentials/oauth/google/authorize/agent` is the backend endpoint the agent calls to obtain the authorization link. It is not the link the user should open in the browser.
 - Prefer opening `data.authUrl` for the user automatically when the client supports it. Otherwise render it as a directly clickable link instead of plain text that must be copied manually.
 - Never ask the user to open or click `https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent` directly. The user-facing authorization link is the Google OAuth URL returned in `data.authUrl`.
@@ -22,6 +24,8 @@ Always start by requesting an agent OAuth authorization URL, send that URL back 
 
 ## Recommended Agent Flow
 
+If this is the first Abel use in the session, treat the missing key as a hard prerequisite and complete this flow before any live CAP usage.
+
 1. Call `GET /web/credentials/oauth/google/authorize/agent`.
 2. Read the `data.authUrl` field from the response. This returned `data.authUrl` is the user-facing authorization link.
 3. Store `data.resultUrl` or `data.pollToken`.
@@ -30,6 +34,8 @@ Always start by requesting an agent OAuth authorization URL, send that URL back 
 6. Continue polling while the result response is `pending` and the handoff is not expired.
 7. If the result response is `authorized`, read `data.apiKey`, `data.ratePerMinute`, and `data.expireTime` from the result response, then return them to the user.
 8. If the result response is `failed`, return the failure message to the user.
+
+Only after a successful authorization result should the skill continue with CAP probing, capability discovery, or other live Abel usage.
 
 The browser callback page only shows the authorization status and that the user can return to Abel AI. The API key is retrieved from the result endpoint, not displayed in the HTML callback page.
 

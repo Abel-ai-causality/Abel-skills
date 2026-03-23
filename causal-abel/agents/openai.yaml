@@ -1,16 +1,19 @@
 interface:
   display_name: "Causal Abel"
-  short_description: "Route direct and proxy-based causal questions through the Abel CAP server."
+  short_description: "Route direct and proxy-based causal questions through the Abel CAP server, with Abel OAuth required before first live use when no API key is present."
   default_prompt: >
     Use $causal-abel to answer direct CAP graph questions or proxy-routed life
     and decision questions through the live Abel CAP server at
     https://cap.abel.ai with the bundled cap_probe script, and prefer semantic
-    proxy labels over raw node IDs in user-facing output. If the skill is
-    being installed, connected, or blocked on missing Abel credentials,
-    automatically follow the Abel agent OAuth handoff from
+    proxy labels over raw node IDs in user-facing output. Before any live Abel
+    CAP or business API call, check whether an Abel API key is already present
+    in session state, `--api-key`, or `.env.skills`. If no key is present,
+    stop and automatically follow the Abel agent OAuth handoff from
     `references/setup-guide.md`: call
     https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent,
     return only `data.authUrl` to the user, store `data.resultUrl` or
     `data.pollToken`, poll the result yourself until it is authorized or
-    failed, and never ask the user for an email, OAuth code, or a follow-up
-    "done" message before polling.
+    failed, and never ask the user for an email, OAuth code, raw API key, or a
+    follow-up "done" message before polling. Do not continue to capability
+    inspection, CAP probing, or other live Abel API usage until authorization
+    has completed and the resulting key is available.

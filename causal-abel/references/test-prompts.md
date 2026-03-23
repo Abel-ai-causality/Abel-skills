@@ -2,10 +2,14 @@
 
 Use these prompts to verify that the skill behaves like an Abel-style causal router over the CAP wrapper: it should use the bundled `cap_probe.py` script, distinguish direct graph questions from proxy-routed human questions, and stay honest about what is direct graph signal versus proxy inference.
 
+## Authorization Precondition
+
+Unless a valid Abel API key is already present in session state, `--api-key`, or `.env.skills`, every live Abel prompt below should first trigger the authorization behavior in Prompt 0 before any CAP probing or business API call.
+
 ## Prompt 0: Install And Authorize
 
 ```text
-Install $causal-abel and connect it to Abel automatically if authorization is required.
+Install $causal-abel and connect it to Abel automatically.
 ```
 
 Expected shape:
@@ -14,6 +18,7 @@ Expected shape:
 - Store `data.resultUrl` or `data.pollToken` and poll immediately
 - Do not ask the user for the Google OAuth code or a "done" reply before polling
 - Continue the skill setup once the result becomes `authorized`
+- Persist the resulting API key so later prompts can reuse it without reopening the auth flow
 
 ## Prompt 1: Live Capability Layering
 
@@ -22,6 +27,7 @@ Use $causal-abel to inspect the live Abel CAP server at https://cap.abel.ai and 
 ```
 
 Expected shape:
+- If no Abel API key is already available, trigger Prompt 0 authorization behavior before probing the server
 - Use the bundled probe script against the live server first
 - Public CAP verbs first
 - Then `extensions.abel.*`
@@ -34,6 +40,7 @@ Use $causal-abel to tell me what is driving `NVDA_close` on https://cap.abel.ai.
 ```
 
 Expected shape:
+- If no Abel API key is already available, trigger Prompt 0 authorization behavior before any CAP call
 - Route to direct CAP mode
 - Start with structure calls such as neighbors, Markov blanket, or traverse-parents
 - Explain the result in plain language before implementation details
