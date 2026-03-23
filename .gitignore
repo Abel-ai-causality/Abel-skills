@@ -2,6 +2,7 @@ __pycache__/
 causal-abel/.env.skills
 causal-abel/.local-dev.md
 causal-abel/scripts/sync-local-codex-skill.ps1
+causal-abel/references/llms.txt
 causal-abel/references/repo-map.md
 causal-abel/references/test-prompts.md
 causal-abel/references/verb-change-checklist.md
