@@ -28,10 +28,26 @@ The source skill lives in `causal-abel/`.
 
 ### Build The ClawHub Artifact
 
-This repository keeps the source skill in `causal-abel/SKILL.md` and generates a ClawHub-safe artifact into `dist/clawhub/causal-abel`.
+This repository keeps the source skill in `causal-abel/SKILL.md`.
+
+- Local throwaway build output: `dist/clawhub/causal-abel`
+- Repository-committed ClawHub import path: `clawhub/causal-abel`
+- `main` automatically refreshes `clawhub/causal-abel` through `.github/workflows/sync-clawhub-artifact.yml`
 
 ```bash
 python3 scripts/build_clawhub_release.py
+```
+
+Build the committed import path locally:
+
+```bash
+python3 scripts/build_clawhub_release.py --output-root clawhub
+```
+
+Import into ClawHub from the repository tree path:
+
+```text
+Abel-ai-causality/Abel-skills/tree/main/clawhub/causal-abel
 ```
 
 ### Verify The Publish Command
