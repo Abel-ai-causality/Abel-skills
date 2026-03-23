@@ -87,6 +87,17 @@ Do not use this skill for:
    - `direct_graph`: direct node, path, blanket, or intervention question
    - `proxy_routed`: real-world question that must be represented through market proxies
 
+4. Read structure before telling a story.
+    - Start with local or path structure first.
+    - Move to observational, intervention, or preview surfaces only after the structural question is clear.
+    - Pick one intent-first workflow and stay on it: `driver_explanation`, `reachability_check`, `intervention_effect`, `counterfactual_read`, or `capability_audit`.
+    - Do not stack overlapping local-structure verbs by default. Start with one core structural read, then escalate only if a specific open question remains.
+
+5. Normalize node inputs before any live probe.
+   - If the user already gives a legal Abel node id, keep it as is.
+   - If the user gives a bare ticker such as `NVDA` or `SPOT`, default to `<ticker>_close` unless the question is explicitly about trading activity or volume.
+   - If the user gives a company or proxy phrase such as `Spotify` or `music streaming`, map it to a real ticker first; do not probe a free-form phrase.
+   - If you cannot honestly map the phrase to a ticker, stop and say the live CAP call is not grounded enough yet.
 4. For capability discovery, avoid redundant full-surface dumps.
    - Start with `meta.capabilities` when the question is "what surfaces or tiers exist here?"
    - Move to `meta.methods` only when you need invocation metadata such as `arguments` or `result_fields`.
@@ -99,7 +110,13 @@ Do not use this skill for:
    - Pick one intent-first workflow and stay on it: `driver_explanation`, `reachability_check`, `intervention_effect`, `counterfactual_read`, or `capability_audit`.
    - Do not stack overlapping local-structure verbs by default. Start with one core structural read, then escalate only if a specific open question remains.
 
-6. Use decision gates, not verb dumps.
+6. Normalize node inputs before any live probe.
+   - If the user already gives a legal Abel node id, keep it as is.
+   - If the user gives a bare ticker such as `NVDA` or `SPOT`, default to `<ticker>_close` unless the question is explicitly about trading activity or volume.
+   - If the user gives a company or proxy phrase such as `Spotify` or `music streaming`, map it to a real ticker first; do not probe a free-form phrase.
+   - If you cannot honestly map the phrase to a ticker, stop and say the live CAP call is not grounded enough yet.
+
+7. Use decision gates, not verb dumps.
    - For `driver_explanation`, start with `traverse.parents` or `graph.neighbors(scope=parents)`, then add `graph.markov_blanket` only if direct drivers are still unclear.
    - For `reachability_check`, start with `graph.paths` on the specific proposed source and target. Use `extensions.abel.validate_connectivity` only when screening a small candidate set is more honest than many repeated path probes.
    - For `intervention_effect`, do a minimal structural confirmation first, then call `intervene.do` only if the structural question is already clear.
@@ -107,13 +124,13 @@ Do not use this skill for:
    - Only upgrade from CAP core to `extensions.abel.*` when CAP core cannot answer the user's actual question.
    - After each call, ask what single open causal question remains. If none remains, stop.
 
-7. Answer in layers.
+8. Answer in layers.
    - Lead with a plain-language conclusion.
    - Then say which CAP surface supports it.
    - Then state the caveats that materially change interpretation.
    - When organizing a fuller write-up, follow `assets/report-template.md`: start from the user's original question, map that question to graph nodes, then separate each verb's result from what that result means for the question.
 
-8. Stay semantically honest.
+9. Stay semantically honest.
    - Distinguish CAP core from Abel extensions when that matters.
    - Treat proxy-routed answers as market-signal reads, not direct models of people or life outcomes.
    - Treat `observe.predict` as observational, `intervene.do` as intervention, and `counterfactual_preview` as preview-only.

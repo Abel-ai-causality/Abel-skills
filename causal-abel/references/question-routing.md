@@ -46,9 +46,9 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
    - `proxy_routed`: map to proxy dimensions and proxy tickers.
 
 3. Pick the right graph surface.
-   - Local structure: `neighbors`, `markov-blanket`, `traverse-parents`, `traverse-children`
-   - Transmission and reachability: `paths`, `validate-connectivity`
-   - Observational regime: `observe`
+    - Local structure: `neighbors`, `markov-blanket`, `traverse-parents`, `traverse-children`
+    - Transmission and reachability: `paths`, `validate-connectivity`
+    - Observational regime: `observe`
    - Intervention and rollout: `intervene-do`, `intervene-time-lag`
    - Counterfactual preview: `counterfactual-preview`
 
@@ -64,9 +64,27 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
    - `extensions.abel.counterfactual_preview` gives a preview-only what-if result.
 
 6. Keep the loop question-driven.
-   - After each call, ask what open causal question remains.
-   - Good follow-ups are: who are the immediate drivers, is there a path, does a proxy node look real or just a bridge, what changes under intervention, and does a richer Abel extension materially change the interpretation.
-   - Stop when the public CAP surface has answered the user's question or can honestly say no more.
+    - After each call, ask what open causal question remains.
+    - Good follow-ups are: who are the immediate drivers, is there a path, does a proxy node look real or just a bridge, what changes under intervention, and does a richer Abel extension materially change the interpretation.
+    - Stop when the public CAP surface has answered the user's question or can honestly say no more.
+
+## Node Normalization Gate
+
+Before any live CAP call, normalize the input into the actual public Abel node-id form.
+
+Decision order:
+
+1. If the input is already `<ticker>_close` or `<ticker>_volume`, use it unchanged.
+2. If the input looks like a real ticker such as `NVDA`, `SPOT`, or `ETHUSD`, default to `<ticker>_close`.
+3. Only switch the default to `<ticker>_volume` when the question is explicitly about volume, trading activity, participation, or liquidity rather than price regime.
+4. If the input is a company name, brand, or proxy phrase such as `Spotify`, `New York Times`, or `music streaming`, map it to a real ticker first.
+5. If there is no honest ticker mapping, stop instead of probing a guessed node.
+
+Interpretation rule:
+
+- Proxy words are not executable nodes.
+- Bare tickers are query shapes.
+- `<ticker>_close` and `<ticker>_volume` are executable Abel public node ids.
 
 ## Standard Direct Graph Workflows
 
@@ -174,6 +192,8 @@ Routing rules:
 - Pick 3-5 proxies that span the decision's key dimensions.
 - Include at least one proxy from the opposite side of the decision when possible.
 - Prefer layered routing over only mega-caps; mid-cap or supply-chain-specific names often carry cleaner signal.
+- For live Abel CAP calls, map proxies to real Abel node ids before probing; the current public graph expects `<ticker>_close` or `<ticker>_volume`, not free-form proxy labels.
+- Treat proxy tickers in this table as routing anchors, not as proof that the exact node is present in the current graph. Normalize first, then validate with the live surface if existence is uncertain.
 - The user should not see tickers as the answer. Tickers are intermediate routing signals.
 - In user-facing prose, translate proxy nodes into economic roles first.
 - If no honest proxy set exists, say so instead of forcing a story.

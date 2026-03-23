@@ -17,6 +17,7 @@ Primary script:
 
 Deterministic subcommands:
 - `capabilities`
+- `normalize-node`
 - `methods`
 - `observe`
 - `neighbors`
@@ -38,6 +39,8 @@ Deterministic subcommands:
 BASE_URL="https://cap.abel.ai"
 
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" capabilities
+python skill/causal-abel/scripts/cap_probe.py normalize-node NVDA
+python skill/causal-abel/scripts/cap_probe.py normalize-node NVDA_volume
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict traverse.parents
 python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict --detail full --include-examples
@@ -51,6 +54,13 @@ python skill/causal-abel/scripts/cap_probe.py --base-url "$BASE_URL" intervene-t
 ```
 
 Proxy routing still uses the same script. The difference is which anchors you choose and how you compare them.
+
+Normalization rule:
+
+- `normalize-node` is the safest first step when a prompt gives a bare ticker and you want deterministic probe input.
+- Bare tickers default to `_close`.
+- Use `--default-suffix volume` only when the question is genuinely about volume or participation.
+- Free-form phrases such as `Spotify` or `music streaming` are not normalized automatically; map them to a ticker first.
 
 For capability discovery, avoid redundant full dumps:
 
