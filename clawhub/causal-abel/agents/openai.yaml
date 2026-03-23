@@ -1,0 +1,8 @@
+interface:
+  display_name: "Causal Abel"
+  short_description: "Causal reads through the Abel CAP surface."
+  default_prompt: >
+    Use $causal-abel to answer direct CAP graph questions, capability audits,
+    or proxy-routed decision questions through the live Abel CAP server, and
+    if `ABEL_API_KEY` is missing start the Abel OAuth handoff from
+    `references/setup-guide.md` before any live API call.
