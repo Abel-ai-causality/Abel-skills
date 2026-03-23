@@ -13,7 +13,6 @@ Use this file for `cap_probe.py` details and reusable command patterns after the
 Prefer the bundled probe script over ad hoc payload construction.
 
 Primary script:
-
 - `scripts/cap_probe.py`
 
 Deterministic subcommands:
@@ -65,6 +64,7 @@ Normalization rule:
 - Bare tickers default to `_close`.
 - Use `--default-suffix volume` only when the question is genuinely about volume or participation.
 - Free-form phrases such as `Spotify` or `music streaming` are not normalized automatically; map them to a ticker first.
+- `intervene-do` now runs a required `graph.paths` gate before calling `intervene.do`; if no directed path is found, the probe returns a skipped intervention instead of calling the intervention verb.
 
 For capability discovery, avoid redundant full dumps:
 
@@ -88,6 +88,44 @@ python scripts/cap_probe.py methods observe.predict traverse.parents --pick-fiel
 python scripts/cap_probe.py methods observe.predict --pick-fields result.methods.0.arguments,result.methods.0.result_fields
 ```
 
+`intervene-do` output shape now includes the structural gate result. Typical examples:
+
+```json
+{
+  "ok": false,
+  "status_code": 200,
+  "verb": "intervene.do",
+  "message": "No directed path found between treatment and outcome nodes; intervention skipped.",
+  "treatment_node": "NVDA_close",
+  "outcome_node": "AMD_close",
+  "treatment_value": 0.05,
+  "intervention_skipped": true,
+  "skip_reason": "no_directed_path_found",
+  "structural_check": {
+    "ok": true,
+    "status_code": 200,
+    "verb": "graph.paths"
+  }
+}
+```
+
+```json
+{
+  "ok": true,
+  "status_code": 200,
+  "verb": "intervene.do",
+  "intervention_skipped": false,
+  "structural_check": {
+    "ok": true,
+    "status_code": 200,
+    "verb": "graph.paths"
+  },
+  "result": {
+    "effect": 0.0123
+  }
+}
+```
+
 ## Validation
 
 Probe the live surface first:
@@ -97,6 +135,7 @@ python scripts/cap_probe.py capabilities
 python scripts/cap_probe.py methods observe.predict
 python scripts/cap_probe.py observe NVDA_close
 python scripts/cap_probe.py paths NVDA_close AMD_close --max-paths 3
+python scripts/cap_probe.py intervene-do NVDA_close 0.05 --outcome-node AMD_close --max-paths 3
 ```
 
 For implementation changes beyond probing, verify the affected routing, auth, and command examples directly in the tracked skill docs and scripts.

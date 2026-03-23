@@ -287,6 +287,61 @@ def _call_verb(
     )
 
 
+def _coerce_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.isdigit() or (stripped.startswith("-") and stripped[1:].isdigit()):
+            return int(stripped)
+    return None
+
+
+def _extract_paths_verdict(payload: Any) -> bool | None:
+    if isinstance(payload, dict):
+        for key in (
+            "path_exists",
+            "has_path",
+            "reachable",
+            "connected",
+            "is_connected",
+        ):
+            value = payload.get(key)
+            if isinstance(value, bool):
+                return value
+
+        for key in ("path_count", "paths_count", "num_paths", "count"):
+            count = _coerce_int(payload.get(key))
+            if count is not None:
+                return count > 0
+
+        for key in ("paths", "path", "results"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return len(value) > 0
+
+        for key in ("result", "data", "response", "response_payload"):
+            if key in payload:
+                verdict = _extract_paths_verdict(payload[key])
+                if verdict is not None:
+                    return verdict
+
+        for value in payload.values():
+            verdict = _extract_paths_verdict(value)
+            if verdict is not None:
+                return verdict
+        return None
+
+    if isinstance(payload, list):
+        return len(payload) > 0
+
+    return None
+
+
 def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, "meta.capabilities")
 
@@ -377,21 +432,86 @@ def _cmd_markov_blanket(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_intervene_do(args: argparse.Namespace) -> dict[str, Any]:
-    return _call_verb(
+    treatment_node = _normalize_public_node_id(
+        args.treatment_node,
+        default_suffix=args.default_suffix,
+    )
+    outcome_node = _normalize_public_node_id(
+        args.outcome_node,
+        default_suffix=args.default_suffix,
+    )
+
+    structural_check = _call_verb(
+        args,
+        "graph.paths",
+        {
+            "source_node_id": treatment_node,
+            "target_node_id": outcome_node,
+            "max_paths": getattr(args, "max_paths", 3),
+        },
+    )
+    structural_ok = _extract_paths_verdict(structural_check)
+
+    if structural_check.get("ok") is False:
+        return {
+            "ok": False,
+            "status_code": structural_check.get("status_code", -1),
+            "verb": "intervene.do",
+            "message": (
+                "Structural path check failed before intervene.do; intervention skipped."
+            ),
+            "treatment_node": treatment_node,
+            "outcome_node": outcome_node,
+            "treatment_value": args.treatment_value,
+            "intervention_skipped": True,
+            "skip_reason": "structural_check_failed",
+            "structural_check": structural_check,
+        }
+
+    if structural_ok is None:
+        return {
+            "ok": False,
+            "status_code": structural_check.get("status_code", 0),
+            "verb": "intervene.do",
+            "message": (
+                "Structural path check returned an unrecognized payload; intervention skipped."
+            ),
+            "treatment_node": treatment_node,
+            "outcome_node": outcome_node,
+            "treatment_value": args.treatment_value,
+            "intervention_skipped": True,
+            "skip_reason": "structural_check_unrecognized",
+            "structural_check": structural_check,
+        }
+
+    if not structural_ok:
+        return {
+            "ok": False,
+            "status_code": structural_check.get("status_code", 0),
+            "verb": "intervene.do",
+            "message": (
+                "No directed path found between treatment and outcome nodes; intervention skipped."
+            ),
+            "treatment_node": treatment_node,
+            "outcome_node": outcome_node,
+            "treatment_value": args.treatment_value,
+            "intervention_skipped": True,
+            "skip_reason": "no_directed_path_found",
+            "structural_check": structural_check,
+        }
+
+    intervention_result = _call_verb(
         args,
         "intervene.do",
         {
-            "treatment_node": _normalize_public_node_id(
-                args.treatment_node,
-                default_suffix=args.default_suffix,
-            ),
+            "treatment_node": treatment_node,
             "treatment_value": args.treatment_value,
-            "outcome_node": _normalize_public_node_id(
-                args.outcome_node,
-                default_suffix=args.default_suffix,
-            ),
+            "outcome_node": outcome_node,
         },
     )
+    intervention_result["structural_check"] = structural_check
+    intervention_result["intervention_skipped"] = False
+    return intervention_result
 
 
 def _cmd_traverse_parents(args: argparse.Namespace) -> dict[str, Any]:
@@ -591,10 +711,19 @@ def _build_parser() -> argparse.ArgumentParser:
     blanket.add_argument("--max-neighbors", type=int, default=10)
     blanket.set_defaults(func=_cmd_markov_blanket)
 
-    intervene_do = sub.add_parser("intervene-do", help="Call intervene.do.")
+    intervene_do = sub.add_parser(
+        "intervene-do",
+        help="Check graph.paths, then call intervene.do when supported.",
+    )
     intervene_do.add_argument("treatment_node")
     intervene_do.add_argument("treatment_value", type=float)
     intervene_do.add_argument("--outcome-node", required=True)
+    intervene_do.add_argument(
+        "--max-paths",
+        type=int,
+        default=3,
+        help="Maximum paths requested for the required structural check.",
+    )
     intervene_do.set_defaults(func=_cmd_intervene_do)
 
     traverse_parents = sub.add_parser("traverse-parents", help="Call traverse.parents.")
