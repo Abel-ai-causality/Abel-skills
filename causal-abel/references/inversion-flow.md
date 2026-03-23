@@ -80,6 +80,13 @@ Prompt for the agent:
 Which nodes best represent the user's question, and is this a direct graph read or a proxy-routed read?
 ```
 
+Node grounding rule:
+
+- Finish proxy-routed mapping in two stages: proxy role -> ticker candidate -> executable Abel node id.
+- Treat bare tickers as query shapes that still need normalization before a live CAP call.
+- Default a bare ticker to `<ticker>_close`; switch to `<ticker>_volume` only when the user is clearly asking about volume or trading activity.
+- Do not treat a company name or free-form proxy phrase as an executable node.
+
 ### 4. Select The Minimum Sufficient Capability Set
 
 Pick the smallest set of CAP surfaces that can answer the user's intent.

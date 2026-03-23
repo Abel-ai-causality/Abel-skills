@@ -25,6 +25,7 @@ GLOBAL_OPTIONS = {
 }
 COMMANDS = {
     "capabilities",
+    "normalize-node",
     "observe",
     "neighbors",
     "paths",
@@ -39,6 +40,8 @@ COMMANDS = {
     "verb",
     "route",
 }
+
+SUPPORTED_NODE_SUFFIXES = {"close", "volume"}
 
 
 def _load_env_file(path: str) -> None:
@@ -164,6 +167,61 @@ def _build_payload(verb: str, params: dict[str, Any] | None = None) -> dict[str,
     return payload
 
 
+def _looks_like_ticker(value: str) -> bool:
+    if not value:
+        return False
+    if len(value) > 6 and value != value.upper():
+        return False
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.")
+    upper = value.upper()
+    return all(char in allowed for char in upper)
+
+
+def _normalize_public_node_id(value: str, *, default_suffix: str = "close") -> str:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("Node input cannot be empty.")
+
+    if default_suffix not in SUPPORTED_NODE_SUFFIXES:
+        raise ValueError(
+            f"Unsupported default suffix {default_suffix!r}; expected one of {sorted(SUPPORTED_NODE_SUFFIXES)}."
+        )
+
+    normalized = raw.upper()
+    ticker, separator, suffix = normalized.partition("_")
+    if separator:
+        if not ticker or not suffix:
+            raise ValueError(
+                "Node input must use '<ticker>_<field>' when an underscore is present."
+            )
+        suffix = suffix.lower()
+        if suffix not in SUPPORTED_NODE_SUFFIXES:
+            if suffix == "close_price":
+                raise ValueError(
+                    "Abel public node ids use '<ticker>_close', not '<ticker>_close_price'."
+                )
+            raise ValueError(
+                "Abel public node ids currently support only '<ticker>_close' or '<ticker>_volume'."
+            )
+        return f"{ticker}_{suffix}"
+
+    if _looks_like_ticker(raw):
+        return f"{normalized}_{default_suffix}"
+
+    raise ValueError(
+        "Input does not look like a ticker or public node id. Map the proxy phrase to a ticker first, then probe '<ticker>_close' or '<ticker>_volume'."
+    )
+
+
+def _normalize_node_list(
+    values: list[str], *, default_suffix: str = "close"
+) -> list[str]:
+    return [
+        _normalize_public_node_id(value, default_suffix=default_suffix)
+        for value in values
+    ]
+
+
 def _json_or_text(raw: bytes) -> Any:
     text = raw.decode("utf-8", errors="replace")
     try:
@@ -232,8 +290,31 @@ def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, "meta.capabilities")
 
 
+def _cmd_normalize_node(args: argparse.Namespace) -> dict[str, Any]:
+    normalized = _normalize_public_node_id(
+        args.input_value,
+        default_suffix=args.default_suffix,
+    )
+    return {
+        "ok": True,
+        "status_code": 0,
+        "input": args.input_value,
+        "normalized_node_id": normalized,
+        "default_suffix": args.default_suffix,
+    }
+
+
 def _cmd_observe(args: argparse.Namespace) -> dict[str, Any]:
-    return _call_verb(args, "observe.predict", {"target_node": args.target_node})
+    return _call_verb(
+        args,
+        "observe.predict",
+        {
+            "target_node": _normalize_public_node_id(
+                args.target_node,
+                default_suffix=args.default_suffix,
+            )
+        },
+    )
 
 
 def _cmd_neighbors(args: argparse.Namespace) -> dict[str, Any]:
@@ -241,7 +322,10 @@ def _cmd_neighbors(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "graph.neighbors",
         {
-            "node_id": args.node_id,
+            "node_id": _normalize_public_node_id(
+                args.node_id,
+                default_suffix=args.default_suffix,
+            ),
             "scope": args.scope,
             "max_neighbors": args.max_neighbors,
         },
@@ -253,8 +337,14 @@ def _cmd_paths(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "graph.paths",
         {
-            "source_node_id": args.source_node_id,
-            "target_node_id": args.target_node_id,
+            "source_node_id": _normalize_public_node_id(
+                args.source_node_id,
+                default_suffix=args.default_suffix,
+            ),
+            "target_node_id": _normalize_public_node_id(
+                args.target_node_id,
+                default_suffix=args.default_suffix,
+            ),
             "max_paths": args.max_paths,
         },
     )
@@ -265,7 +355,10 @@ def _cmd_markov_blanket(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "graph.markov_blanket",
         {
-            "node_id": args.node_id,
+            "node_id": _normalize_public_node_id(
+                args.node_id,
+                default_suffix=args.default_suffix,
+            ),
             "max_neighbors": args.max_neighbors,
         },
     )
@@ -276,9 +369,15 @@ def _cmd_intervene_do(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "intervene.do",
         {
-            "treatment_node": args.treatment_node,
+            "treatment_node": _normalize_public_node_id(
+                args.treatment_node,
+                default_suffix=args.default_suffix,
+            ),
             "treatment_value": args.treatment_value,
-            "outcome_node": args.outcome_node,
+            "outcome_node": _normalize_public_node_id(
+                args.outcome_node,
+                default_suffix=args.default_suffix,
+            ),
         },
     )
 
@@ -288,7 +387,10 @@ def _cmd_traverse_parents(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "traverse.parents",
         {
-            "node_id": args.node_id,
+            "node_id": _normalize_public_node_id(
+                args.node_id,
+                default_suffix=args.default_suffix,
+            ),
             "top_k": args.top_k,
         },
     )
@@ -299,7 +401,10 @@ def _cmd_traverse_children(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "traverse.children",
         {
-            "node_id": args.node_id,
+            "node_id": _normalize_public_node_id(
+                args.node_id,
+                default_suffix=args.default_suffix,
+            ),
             "top_k": args.top_k,
         },
     )
@@ -309,7 +414,12 @@ def _cmd_validate_connectivity(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(
         args,
         "extensions.abel.validate_connectivity",
-        {"variables": args.variables},
+        {
+            "variables": _normalize_node_list(
+                args.variables,
+                default_suffix=args.default_suffix,
+            )
+        },
     )
 
 
@@ -317,7 +427,12 @@ def _cmd_abel_markov_blanket(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(
         args,
         "extensions.abel.markov_blanket",
-        {"target_node": args.target_node},
+        {
+            "target_node": _normalize_public_node_id(
+                args.target_node,
+                default_suffix=args.default_suffix,
+            )
+        },
     )
 
 
@@ -326,9 +441,15 @@ def _cmd_counterfactual_preview(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "extensions.abel.counterfactual_preview",
         {
-            "intervene_node": args.intervene_node,
+            "intervene_node": _normalize_public_node_id(
+                args.intervene_node,
+                default_suffix=args.default_suffix,
+            ),
             "intervene_time": args.intervene_time,
-            "observe_node": args.observe_node,
+            "observe_node": _normalize_public_node_id(
+                args.observe_node,
+                default_suffix=args.default_suffix,
+            ),
             "observe_time": args.observe_time,
             "intervene_new_value": args.intervene_new_value,
         },
@@ -340,9 +461,15 @@ def _cmd_intervene_time_lag(args: argparse.Namespace) -> dict[str, Any]:
         args,
         "extensions.abel.intervene_time_lag",
         {
-            "treatment_node": args.treatment_node,
+            "treatment_node": _normalize_public_node_id(
+                args.treatment_node,
+                default_suffix=args.default_suffix,
+            ),
             "treatment_value": args.treatment_value,
-            "outcome_node": args.outcome_node,
+            "outcome_node": _normalize_public_node_id(
+                args.outcome_node,
+                default_suffix=args.default_suffix,
+            ),
             "horizon_steps": args.horizon_steps,
             "model": args.model,
         },
@@ -387,12 +514,25 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--compact", action="store_true", help="Print compact single-line JSON."
     )
+    parser.add_argument(
+        "--default-suffix",
+        choices=("close", "volume"),
+        default="close",
+        help="Default suffix to append when a bare ticker is provided.",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("capabilities", help="Call meta.capabilities.").set_defaults(
         func=_cmd_capabilities
     )
+
+    normalize = sub.add_parser(
+        "normalize-node",
+        help="Normalize a ticker or node candidate to Abel public node-id form.",
+    )
+    normalize.add_argument("input_value")
+    normalize.set_defaults(func=_cmd_normalize_node)
 
     observe = sub.add_parser("observe", help="Call observe.predict.")
     observe.add_argument("target_node")
