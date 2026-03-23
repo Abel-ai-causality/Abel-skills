@@ -91,6 +91,3 @@ If the user installs this skill, asks to connect Abel, or the workflow needs an 
 - OAuth install flow, polling behavior, and API key reuse: `references/setup-guide.md`
 - Probe script commands and reusable examples: `references/probe-usage.md`
 - Capability layering and progressive disclosure: `references/capability-layers.md`
-- Repo entry points for implementation work: `references/repo-map.md`
-- Verb-change workflow for wrapper edits: `references/verb-change-checklist.md`
-- Validation prompts for this skill: `references/test-prompts.md`
