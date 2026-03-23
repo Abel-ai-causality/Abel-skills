@@ -58,7 +58,10 @@ def _load_env_file(path: str) -> None:
 
 def _resolve_base_url(value: str | None) -> str:
     return (
-        value or os.getenv("CAP_BASE_URL") or os.getenv("ABEL_CAP_BASE_URL") or DEFAULT_BASE_URL
+        value
+        or os.getenv("CAP_BASE_URL")
+        or os.getenv("ABEL_CAP_BASE_URL")
+        or DEFAULT_BASE_URL
     ).strip()
 
 
@@ -66,14 +69,18 @@ def _cap_endpoint(base_url: str) -> str:
     parsed = urllib.parse.urlsplit(base_url)
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid base URL: {base_url!r}")
-    normalized_path = parsed.path.rstrip("/")
-    if normalized_path in ("", "/", "/api", "/api/v1"):
+    path = parsed.path.rstrip("/")
+    if path.endswith("/api/v1/cap") or path.endswith("/cap"):
+        endpoint_path = path or "/cap"
+    elif path in ("", "/", "/api", "/api/v1"):
         endpoint_path = "/cap"
-    elif normalized_path.endswith("/cap"):
-        endpoint_path = normalized_path
+    elif path.endswith("/echo"):
+        endpoint_path = f"{path}/api/v1/cap"
     else:
-        endpoint_path = f"{normalized_path}/cap"
-    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, endpoint_path, "", ""))
+        endpoint_path = f"{path}/cap"
+    return urllib.parse.urlunsplit(
+        (parsed.scheme, parsed.netloc, endpoint_path, "", "")
+    )
 
 
 def _resolve_headers(api_key: str | None) -> dict[str, str]:
@@ -81,7 +88,9 @@ def _resolve_headers(api_key: str | None) -> dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
-    token = (api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or "").strip()
+    token = (
+        api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
+    ).strip()
     if not token:
         return headers
     if token.lower().startswith("bearer "):
@@ -356,16 +365,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     default_env = str(Path(__file__).resolve().parents[1] / ".env.skills")
     parser.add_argument(
-        "--base-url", default="", help=f"CAP server base URL (default: {DEFAULT_BASE_URL})."
+        "--base-url",
+        default="",
+        help=f"CAP server base URL (default: {DEFAULT_BASE_URL}).",
     )
     parser.add_argument("--api-key", default="", help="Bearer token or raw API key.")
     parser.add_argument(
-        "--env-file", default=default_env, help=f"Optional env file path (default: {default_env})"
+        "--env-file",
+        default=default_env,
+        help=f"Optional env file path (default: {default_env})",
     )
     parser.add_argument(
-        "--pick-fields", default="", help="Comma-separated dot paths to keep from response root."
+        "--pick-fields",
+        default="",
+        help="Comma-separated dot paths to keep from response root.",
     )
-    parser.add_argument("--compact", action="store_true", help="Print compact single-line JSON.")
+    parser.add_argument(
+        "--compact", action="store_true", help="Print compact single-line JSON."
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -379,7 +396,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     neighbors = sub.add_parser("neighbors", help="Call graph.neighbors.")
     neighbors.add_argument("node_id")
-    neighbors.add_argument("--scope", choices=("parents", "children"), default="parents")
+    neighbors.add_argument(
+        "--scope", choices=("parents", "children"), default="parents"
+    )
     neighbors.add_argument("--max-neighbors", type=int, default=5)
     neighbors.set_defaults(func=_cmd_neighbors)
 
@@ -405,7 +424,9 @@ def _build_parser() -> argparse.ArgumentParser:
     traverse_parents.add_argument("--top-k", type=int, default=10)
     traverse_parents.set_defaults(func=_cmd_traverse_parents)
 
-    traverse_children = sub.add_parser("traverse-children", help="Call traverse.children.")
+    traverse_children = sub.add_parser(
+        "traverse-children", help="Call traverse.children."
+    )
     traverse_children.add_argument("node_id")
     traverse_children.add_argument("--top-k", type=int, default=10)
     traverse_children.set_defaults(func=_cmd_traverse_children)
@@ -413,7 +434,9 @@ def _build_parser() -> argparse.ArgumentParser:
     validate = sub.add_parser(
         "validate-connectivity", help="Call extensions.abel.validate_connectivity."
     )
-    validate.add_argument("variables", nargs="+", help="At least two variable node IDs.")
+    validate.add_argument(
+        "variables", nargs="+", help="At least two variable node IDs."
+    )
     validate.set_defaults(func=_cmd_validate_connectivity)
 
     abel_blanket = sub.add_parser(
@@ -432,7 +455,9 @@ def _build_parser() -> argparse.ArgumentParser:
     cf_preview.add_argument("--intervene-new-value", required=True, type=float)
     cf_preview.set_defaults(func=_cmd_counterfactual_preview)
 
-    time_lag = sub.add_parser("intervene-time-lag", help="Call extensions.abel.intervene_time_lag.")
+    time_lag = sub.add_parser(
+        "intervene-time-lag", help="Call extensions.abel.intervene_time_lag."
+    )
     time_lag.add_argument("treatment_node")
     time_lag.add_argument("treatment_value", type=float)
     time_lag.add_argument("--outcome-node", required=True)
@@ -444,14 +469,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "verb", help="Call an arbitrary CAP verb with optional JSON params."
     )
     generic_verb.add_argument("verb_name")
-    generic_verb.add_argument("--params-json", default="", help="JSON object passed as params.")
+    generic_verb.add_argument(
+        "--params-json", default="", help="JSON object passed as params."
+    )
     generic_verb.set_defaults(func=_cmd_verb)
 
     generic_route = sub.add_parser(
         "route", help="Call an arbitrary Abel route alias with optional JSON params."
     )
     generic_route.add_argument("route_name")
-    generic_route.add_argument("--params-json", default="", help="JSON object passed as params.")
+    generic_route.add_argument(
+        "--params-json", default="", help="JSON object passed as params."
+    )
     generic_route.set_defaults(func=_cmd_route)
 
     return parser

@@ -78,10 +78,54 @@ Expected shape:
 ## Prompt 6: Command-Oriented User
 
 ```text
-Use $causal-abel with the default SIT server and give me the exact `cap_probe.py` commands I can reuse for capabilities, neighbors, paths, intervene-do, and counterfactual preview.
+Use $causal-abel with the default server and give me the exact `cap_probe.py` commands I can reuse for capabilities, neighbors, paths, intervene-do, and counterfactual preview.
 ```
 
 Expected shape:
-- Use `https://cap.abel.ai` as the default target
+- Use `https://cap.abel.ai` as the default CAP target
 - Return commands aligned with `skill/causal-abel/scripts/cap_probe.py`
 - Prefer copy-pastable command blocks over prose
+
+## Prompt 7: Inversion Before Verbs
+
+```text
+Use $causal-abel to help me understand whether AI pressure is more about immediate driver exposure or longer-path structural transmission for `ADBE_close`.
+```
+
+Expected shape:
+- Infer the user's intent before choosing verbs
+- State whether the answer target is local-driver explanation, reachability, or a combination
+- Pick the smallest useful capability set instead of running every available surface
+- Explain why the selected nodes and surfaces fit the user's real question
+
+## Prompt 8: Inversion For Proxy Decision Read
+
+```text
+Use $causal-abel to help me think about whether an MBA is still worth it in an AI-heavy labor market, and make the answer about what I should learn from the graph rather than about tickers.
+```
+
+Expected shape:
+- Identify the user intent as a decision-oriented proxy read before listing proxies
+- Define the desired answer shape in human terms, not tool terms
+- Map the question to proxy dimensions and nodes only after stating the decision frame
+- Keep the conclusion centered on meaning for the decision, not on ticker enumeration
+- Explicitly mark the result as proxy-routed and market-signal-based
+
+## Prompt 9: Output Contract Check
+
+```text
+Use $causal-abel to explain whether `NVDA_close` can influence `AMD_close`, and organize the answer so I can see the user intent, graph mapping, surface used, main finding, meaning, and caveat.
+```
+
+Expected shape:
+- Include an intent read
+- Explain the graph mapping from the question to the chosen nodes
+- Name the minimum sufficient surface used
+- Separate the main finding from its meaning
+- Include at least one caveat that prevents over-interpretation
+
+## See Also
+
+- `../SKILL.md` for the short agent-facing framework
+- `question-routing.md` for the detailed routing and narration rules these prompts are checking
+- `probe-usage.md` for the command patterns referenced here
