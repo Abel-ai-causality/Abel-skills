@@ -96,6 +96,15 @@ def _build_raw_url(repo: str, branch: str, path: str) -> str:
     )
 
 
+def _resolve_repo_path(skill_path: str, path: str) -> str:
+    normalized = path.strip()
+    if not normalized:
+        raise ValueError("Repository path cannot be empty.")
+    if normalized.startswith("/"):
+        return normalized.strip("/")
+    return f"{skill_path.strip('/')}/{normalized.lstrip('./')}"
+
+
 def _fetch_text(url: str, timeout: float) -> str:
     request = urllib.request.Request(
         url,
@@ -189,11 +198,19 @@ def _normalize_skill_folder(skill_path: str) -> str:
 
 
 def _fetch_skill_folder_hash(
-    repo: str, skill_path: str, timeout: float, token: str | None
+    repo: str,
+    skill_path: str,
+    timeout: float,
+    token: str | None,
+    branches: list[str] | None = None,
 ) -> str | None:
     folder_path = _normalize_skill_folder(skill_path)
-    branches = ["main", "master"]
-    for branch in branches:
+    branch_candidates = branches or ["main", "master"]
+    seen: set[str] = set()
+    for branch in branch_candidates:
+        if branch in seen:
+            continue
+        seen.add(branch)
         api_url = (
             f"https://api.github.com/repos/{repo}/git/trees/"
             f"{urllib.parse.quote(branch)}?recursive=1"
@@ -250,8 +267,32 @@ def _source_url_from_repo(repo: str) -> str:
     return f"https://github.com/{repo}"
 
 
-def _build_update_command(source_url: str, skill_name: str, scope: str | None) -> str:
-    parts = ["npx", "--yes", "skills", "add", source_url, "--skill", skill_name]
+def _branch_install_url(repo: str, branch: str, skill_path: str) -> str:
+    return (
+        f"https://github.com/{repo}/tree/"
+        f"{urllib.parse.quote(branch, safe='')}/"
+        f"{skill_path.strip('/')}"
+    )
+
+
+def _build_update_command(
+    source_url: str,
+    skill_name: str,
+    scope: str | None,
+    repo: str,
+    branch: str,
+    skill_path: str,
+) -> str:
+    if branch not in ("", "main", "master"):
+        parts = [
+            "npx",
+            "--yes",
+            "skills",
+            "add",
+            _branch_install_url(repo, branch, skill_path),
+        ]
+    else:
+        parts = ["npx", "--yes", "skills", "add", source_url, "--skill", skill_name]
     if scope == "global":
         parts.append("-g")
     parts.append("-y")
@@ -340,6 +381,8 @@ def main() -> int:
         changelog_path = metadata.get("update_changelog_path", "CHANGELOG.md")
         token = _get_github_token()
 
+        branch = branch.strip()
+
         result["skill_name"] = skill_name
         result["current_version"] = current_version
 
@@ -368,7 +411,14 @@ def main() -> int:
             source_url = _source_url_from_repo(repo)
         else:
             source_url = source_url.removesuffix(".git")
-        result["next_command"] = _build_update_command(source_url, skill_name, scope)
+        result["next_command"] = _build_update_command(
+            source_url,
+            skill_name,
+            scope,
+            repo,
+            branch,
+            skill_path,
+        )
 
         tracked_repo = lock_entry.get("source")
         tracked_skill_path = lock_entry.get("skillPath")
@@ -391,6 +441,7 @@ def main() -> int:
             tracked_skill_path,
             args.timeout,
             token,
+            [branch, "main", "master"],
         )
         result["checked"] = remote_hash is not None
         if remote_hash is None:
@@ -413,7 +464,7 @@ def main() -> int:
             remote_changelog_url = _build_raw_url(
                 repo,
                 branch,
-                f"{skill_path}/{changelog_path}",
+                _resolve_repo_path(skill_path, changelog_path),
             )
             remote_changelog_text = _fetch_text(remote_changelog_url, args.timeout)
             sections = _parse_changelog_sections(remote_changelog_text)

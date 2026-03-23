@@ -1,4 +1,5 @@
 __pycache__/
+dist/
 causal-abel/.env.skills
 causal-abel/.local-dev.md
 causal-abel/scripts/sync-local-codex-skill.ps1
