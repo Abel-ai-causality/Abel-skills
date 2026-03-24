@@ -51,6 +51,15 @@ COMMANDS = {
 }
 
 SUPPORTED_NODE_SUFFIXES = {"close", "volume"}
+COMMON_CRYPTO_ALIASES = {
+    "BTC",
+    "ETH",
+    "SOL",
+    "XRP",
+    "DOGE",
+    "ADA",
+    "AVAX",
+}
 
 
 def _load_env_file(path: str) -> None:
@@ -246,6 +255,8 @@ def _normalize_public_node_id(value: str, *, default_suffix: str = "close") -> s
         return f"{ticker}_{suffix}"
 
     if _looks_like_ticker(raw):
+        if normalized in COMMON_CRYPTO_ALIASES:
+            return f"{normalized}USD_{default_suffix}"
         return f"{normalized}_{default_suffix}"
 
     raise ValueError(

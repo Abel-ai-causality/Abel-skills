@@ -2,9 +2,9 @@
 
 Use this file for the detailed decision logic behind `causal-abel` after `SKILL.md` has already told you that the skill applies.
 
-## Two Modes
+## Three Modes
 
-### 1. Direct CAP Mode
+### 1. Direct Graph Mode
 
 Use this when the user is already asking about graph structure or CAP verbs.
 
@@ -32,6 +32,10 @@ Examples:
 
 Do not stop at "the graph only has equities and crypto." Route the question through proxy tickers that encode the relevant dimensions as market signals, then run CAP exploration on those proxies. Always say clearly that this is a proxy-based causal read, not a direct model of personal aptitude or life satisfaction.
 
+### 3. Capability Discovery Mode
+
+Use this only when the user is explicitly inspecting the server surface, mounted verbs, or request/response contracts.
+
 ## Working Loop
 
 1. Start from the live server and the causal question.
@@ -41,32 +45,54 @@ Do not stop at "the graph only has equities and crypto." Route the question thro
    - Use the bundled probe script first so the call path is deterministic.
 
 2. Classify the question.
-   - `capability_discovery`: what can the server do?
-   - `direct_graph`: drivers, neighbors, Markov blanket, reachability, intervention, preview.
+   - `capability_discovery`: inventory or targeted method lookup
+   - `direct_graph`: drivers, neighbors, reachability, intervention, preview
    - `proxy_routed`: map to proxy dimensions and proxy tickers.
 
-3. Pick the right graph surface.
-    - Local structure: `neighbors`, `markov-blanket`, `traverse-parents`, `traverse-children`
-    - Transmission and reachability: `paths`, `validate-connectivity`
-    - Observational regime: `observe`
-    - Intervention and rollout: `intervene-do` (with required path gate), `intervene-time-lag`
-   - Counterfactual preview: `counterfactual-preview`
+3. Start graph-first.
+   - Local structure default: `graph.neighbors`
+   - Transmission default: `graph.paths`
+   - `graph.markov_blanket` is a fallback when local structure is still low-signal
+   - After the proxy set is stable, run a short-term observational pass on anchors
+   - Effect surfaces come later
 
-4. Explore structure before making strong claims.
-   - Start local for drivers, parents, children, or surrounding context.
-   - Use paths for transmission, intermediaries, reachability, or whether one node can influence another.
-   - Read the graph for structure first: who connects to whom, through what intermediaries, and with what public semantics.
+4. Run a multi-round graph-first loop.
+   - After each call, ask what open causal question remains.
+   - Choose the single next graph call with the highest information gain.
+   - Keep looping while a real open question remains and the answer quality is still improving.
+   - Stop when the conclusion is already strong enough for the user-facing answer.
 
-5. Move to effect surfaces only after the structural question is clear.
-   - `observe.predict` answers what the current observational regime suggests.
-   - `intervene.do` answers what changes under the public `do()` surface.
-   - `extensions.abel.intervene_time_lag` answers how an intervention rolls out over time.
-   - `extensions.abel.counterfactual_preview` gives a preview-only what-if result.
+5. Run a web-grounded evidence pass after structure is clear.
+   - For `proxy_routed` questions, this is the default second stage, not an optional flourish.
+   - Use ordinary web or news search, not image search.
+   - Search only for a graph-grounded target: one edge, one candidate node, one sector, or one proxy dimension at a time.
+   - Use the search pass to explain the current real-world mechanism behind the graph finding.
 
-6. Keep the loop question-driven.
-    - After each call, ask what open causal question remains.
-    - Good follow-ups are: who are the immediate drivers, is there a path, does a proxy node look real or just a bridge, what changes under intervention, and does a richer Abel extension materially change the interpretation.
-    - Stop when the public CAP surface has answered the user's question or can honestly say no more.
+6. Move to pressure-test surfaces only after the structural question is clear.
+   - `extensions.abel.observe_predict_resolved_time` gives the current observational baseline plus the resolved prediction timestamp.
+   - `observe.predict` is the core fallback when the extension is unavailable.
+   - `intervene.do` is the compact "push this lever" pressure test.
+   - `extensions.abel.intervene_time_lag` shows how that pressure rolls out over time.
+   - `extensions.abel.counterfactual_preview` gives a preview-only alternate-path test.
+
+7. If search tools are available, use them to explain a known edge, path, or proxy tension.
+   - Do not search without a graph-grounded question.
+   - Do not let search replace graph reasoning.
+   - For current-state, market-signal, or decision questions, do not stop at graph-only narration if a focused search could materially clarify the mechanism.
+
+8. Run a brief red-team pass before finalizing.
+   - State the strongest untested assumption.
+   - State the strongest counter-evidence or alternative explanation you found.
+   - State the weakest link in the graph path, bridge node, or proxy mapping.
+   - If the conclusion depends on current mechanism and search is available, use one adversarial or falsification-oriented search.
+   - If this materially weakens the thesis, lower certainty or switch to a conditional verdict.
+
+9. Write the answer in old Abel app style.
+   - verdict first
+   - causal link second
+   - compact full report after the first-screen answer for high-stakes or non-trivial analyses
+   - concise card inside that report
+   - optional trace only when useful
 
 ## Node Normalization Gate
 
@@ -76,19 +102,24 @@ Decision order:
 
 1. If the input is already `<ticker>_close` or `<ticker>_volume`, use it unchanged.
 2. If the input looks like a real ticker such as `NVDA`, `SPOT`, or `ETHUSD`, default to `<ticker>_close`.
-3. Only switch the default to `<ticker>_volume` when the question is explicitly about volume, trading activity, participation, or liquidity rather than price regime.
-4. If the input is a company name, brand, or proxy phrase such as `Spotify`, `New York Times`, or `music streaming`, map it to a real ticker first.
-5. If there is no honest ticker mapping, stop instead of probing a guessed node.
+3. If the input is a bare crypto alias such as `BTC`, `ETH`, or `SOL`, expand it to `<alias>USD_close` first.
+4. Only switch the default to `<ticker>_volume` when the question is explicitly about volume, trading activity, participation, or liquidity rather than price regime.
+5. If the input is a company name, brand, or proxy phrase such as `Spotify`, `New York Times`, or `music streaming`, map it to a real ticker first.
+6. If there is no honest ticker mapping, stop instead of probing a guessed node.
 
 Interpretation rule:
 
 - Proxy words are not executable nodes.
 - Bare tickers are query shapes.
-- `<ticker>_close` and `<ticker>_volume` are executable Abel public node ids.
+- `_close` means close price. `_volume` means close volume.
+- For crypto, the practical executable form is usually `*USD_close` or `*USD_volume`.
+- `BTCUSD_close` is currently a bad bridge candidate.
+  - recent validation found no parents, no children, and sampled paths to common anchors were disconnected
+  - treat it as effectively independent unless fresh probes show otherwise
 
 ## Standard Direct Graph Workflows
 
-Use one workflow at a time. Do not mix driver discovery, reachability audit, and intervention testing into one long default chain.
+Use one workflow at a time. Do not mix driver discovery, reachability audit, and intervention testing into one bloated default chain.
 
 ### 1. `driver_explanation`
 
@@ -97,16 +128,24 @@ Use this for questions like "what is driving `X`" or "why did `X` move".
 Default sequence:
 
 1. Start with one direct-parent surface:
-   - `traverse.parents`, or
-   - `graph.neighbors` with `scope=parents`
-2. If immediate drivers are still unclear, add `graph.markov_blanket`.
-3. If the user then asks how a specific candidate reaches the node, run `graph.paths` only for that narrowed candidate.
+   - `graph.neighbors` with `scope=parents`, or
+   - `traverse.parents`
+2. Choose the strongest open question from the result:
+   - which parent actually matters most
+   - whether a surprising parent is real or just local noise
+   - whether one candidate has a meaningful path into the node
+3. Run the next narrowed structural call:
+   - another `graph.neighbors`
+   - a narrowed `graph.paths`
+   - `graph.markov_blanket` only if the local picture is still muddy
+4. Stop when the immediate drivers are already clear enough for the answer.
 
 Decision gates:
 
 - Do not run `neighbors`, `traverse.parents`, `graph.markov_blanket`, and `extensions.abel.markov_blanket` all by default.
 - Use `extensions.abel.markov_blanket` only when CAP core blanket output is insufficient for the real question.
 - Do not default to `observe.predict` or `intervene.do` once the driver question has already been answered structurally.
+- Do not keep looping once new rounds stop changing the answer.
 
 Stop when:
 
@@ -120,8 +159,9 @@ Use this for questions like "can `X` influence `Y`" or "how does `X` reach `Y`".
 Default sequence:
 
 1. Run `graph.paths(source, target)` on the specific ordered pair.
-2. If the user has a small candidate set and wants to know which are even worth path inspection, use `extensions.abel.validate_connectivity` as a screening step.
-3. If a path exists and the user now wants effect semantics, move to an intervention workflow instead of continuing to fan out more path calls.
+2. If the returned path opens a better follow-up question, inspect the most important intermediary with `graph.neighbors`.
+3. If the user has a small candidate set and wants to know which are even worth path inspection, use `extensions.abel.validate_connectivity` as a screening step.
+4. If a path exists and the user now wants effect semantics, move to an intervention workflow instead of continuing to fan out more path calls.
 
 Decision gates:
 
@@ -135,42 +175,53 @@ Stop when:
 - the main intermediaries are known, and
 - the remaining question is no longer structural
 
-### 3. `intervention_effect`
+### 3. `pressure_test`
 
-Use this for questions like "what happens if `X` changes".
+Use this for questions like "what happens if `X` changes", "what would flip the conclusion", or "which next lever should we test".
 
 Default sequence:
 
 1. Confirm minimal structure first with one of:
    - `graph.paths(treatment, outcome)`, or
    - `traverse.parents(outcome)` when the question is about a likely direct driver
-2. If the structural case is plausible, run `intervene.do`. In the bundled probe, `intervene-do` now performs the `graph.paths` check first and skips the intervention when no directed path is found.
-3. If the user cares about rollout over time, add `extensions.abel.intervene_time_lag`.
+2. Decide which single lever is most decision-relevant to stress:
+   - the strongest driver behind the current verdict
+   - the opposite-side lever that could flip the verdict
+   - the weakest bridge node in the current explanation
+3. If the structural case is plausible, run `intervene.do`.
+4. If the user cares about rollout over time, add `extensions.abel.intervene_time_lag`.
+5. If a live pressure test is low-signal or not worth the cost, switch to one graph-grounded fallback:
+   - a cleaner bridge candidate
+   - an alternate anchor on the losing side
+   - a counterfactual target that would better expose flip risk
 
 Decision gates:
 
-- Do not run intervention by default after a broad exploratory sweep.
+- Do not run a pressure test by default after a broad exploratory sweep.
 - Do not use `observe.predict` as a substitute for intervention effect.
-- If the path check finds no directed treatment-outcome path, stop and say the intervention was skipped for lack of structural support.
 - If `intervene.do` fails, do not compensate by launching many more exploratory structure calls. Surface the failure honestly and note that intervention feasibility and complexity controls belong in the CAP package or server behavior.
+- Prefer one strong pressure test over many weak ones.
+- Prefer a graph-lever stress test over a user workflow suggestion.
+- The goal is calibration: what would make the verdict more robust, weaker, or conditional.
+- Do not turn the pressure-test section into an execution plan, AB content plan, or generic "what you should try next" list.
 
 Stop when:
 
-- the intervention answer is returned,
+- the pressure test answer is returned,
 - the intervention is rejected by the server, or
-- the remaining question is really about temporal rollout or counterfactual framing
+- you have identified the cleanest fallback stress target and how it could change the verdict
 
 ## Universal Question Routing
 
 ### Direct Graph Questions
 
-- **"What can this server do?"** -> `capabilities`
-- **"What's driving X?"** -> `neighbors`, `markov-blanket`, `traverse-parents`
-- **"What does X influence?"** -> `neighbors --scope children`, `traverse-children`
-- **"How does X reach Y?"** -> `paths`, sometimes `validate-connectivity`
-- **"What happens if X changes?"** -> `intervene-do`, then `intervene-time-lag` if rollout matters
-- **"If X had been different?"** -> `counterfactual-preview`
-- **"Is this a CAP feature or an Abel extension?"** -> `capabilities`, then interpret the namespace and notes
+- **"What's driving X?"** -> start `graph.neighbors`, then loop on the best open structural question
+- **"What does X influence?"** -> `graph.neighbors --scope children`, then loop if needed
+- **"How does X reach Y?"** -> `graph.paths`, then inspect the most important intermediary if needed
+- **"What happens if X changes?"** -> structure first, then a single pressure test with `intervene.do`, then `intervene-time-lag` if rollout matters
+- **"If X had been different?"** -> structure first, then `counterfactual-preview`
+- **"What can this server do?"** -> `meta.capabilities`, then targeted `meta.methods`
+- **"Is this a CAP feature or an Abel extension?"** -> targeted discovery, not a whole-surface dump
 
 ### Proxy-Routed Questions
 
@@ -193,14 +244,42 @@ Routing rules:
 - Pick 3-5 proxies that span the decision's key dimensions.
 - Include at least one proxy from the opposite side of the decision when possible.
 - Prefer layered routing over only mega-caps; mid-cap or supply-chain-specific names often carry cleaner signal.
-- For broad comparisons or theme questions, treat those 3-5 proxies as independent anchors first, then compare where they converge before writing the story.
 - For live Abel CAP calls, map proxies to real Abel node ids before probing; the current public graph expects `<ticker>_close` or `<ticker>_volume`, not free-form proxy labels.
 - Treat proxy tickers in this table as routing anchors, not as proof that the exact node is present in the current graph. Normalize first, then validate with the live surface if existence is uncertain.
 - The user should not see tickers as the answer. Tickers are intermediate routing signals.
 - In user-facing prose, translate proxy nodes into economic roles first.
 - If no honest proxy set exists, say so instead of forcing a story.
+- In a multi-round loop, do not spread attention evenly. Keep following the proxy, path, or bridge node that most improves the answer.
+- Once the anchor set is stable, run a quick observational pass across the main anchors.
+  - check `meta.methods` first for the latest predictive extension surface
+  - prefer `extensions.abel.observe_predict_resolved_time` when it is advertised there
+  - fall back to `observe.predict`
+  - use the sign and relative magnitude to summarize short-term pressure or support
+  - treat returned drivers as hints for follow-up, not as clean user-facing anchors
+  - for fast-moving extension verbs, prefer the generic `verb` caller over hard-coded wrappers
 
-For repeatable layered anchor selection, see `layered-routing.md`.
+## Candidate Typing And Financial Small-Cap Handling
+
+Classify graph candidates before you search them.
+
+- `macro-linked non-financial`
+  - operating companies, sectors, or macro-sensitive businesses with ordinary public evidence trails
+- `financial transmission node`
+  - closed-end funds, preferred shares, mortgage REITs, BDCs, and thinly-covered finance names that often act as bridges
+- `idiosyncratic small-cap node`
+  - names whose public narrative is dominated by listing, financing, merger, or other company-specific noise
+
+Handling rules:
+
+- Treat financial transmission nodes as bridge candidates first, not final narrative anchors.
+- If the graph repeatedly returns financial transmission nodes with weak public evidence, switch source:
+  - use `graph.markov_blanket`, or
+  - deepen one hop on 1-2 financial parents and keep only cleaner second-hop candidates for search.
+- If a financial or small-cap candidate has both strong graph signal and dated external evidence, keep it at equal priority. Do not downweight it just because it looks non-obvious.
+- If repeated searches on financial microcaps stay low-signal, summarize them as transmission noise rather than forcing them into the final story.
+- If a bridge node repeats across multiple anchor pairs, check its neighborhood quality before promoting it.
+  - Recent examples: `SIM_close` and `MOOOUSD_close` repeated across media/content anchor pairs, but their neighborhoods were still dominated by microcap and crypto-heavy names.
+  - Practical rule: repeated appearance alone is not enough; repeated appearance plus a semantically interpretable neighborhood is the real promotion threshold.
 
 ## Search Rule
 
@@ -208,7 +287,13 @@ If search tools are available, use them to explain mechanisms, not to replace gr
 
 - Search only when you already know the edge, path, or proxy dimension you are trying to explain.
 - If you cannot state the edge or proxy dimension first, stop and go back to the graph.
-- Use `search-loop.md` when the query needs more than a single explanatory lookup.
+- Use web or news search for this phase, not image search.
+- For `proxy_routed` questions, search is the default second stage once the graph shortlist is clear.
+- Each search should target one subject only.
+- Default progression:
+  - one baseline search for the key dimension or anchor
+  - one focused search on the strongest candidate
+  - one fallback search on a cleaner sector or comparison anchor if the first candidate is low-signal
 
 Search template:
 
@@ -218,68 +303,33 @@ Causal question: [WHY this connection matters / WHAT current real-world mechanis
 Query: [terms derived from both nodes or the proxy dimension]
 ```
 
-### Graph -> Search Triggers
+## Red Team Rule
 
-Search is justified when one of these is true:
+Before you lock the answer, try to break it.
 
-1. the graph suggests an edge or path, but the mechanism is unclear
-2. a proxy dimension is honest but too abstract, and you need current real-world evidence for what it represents
-3. the same candidate appears across multiple anchors and you need to check whether it is a real convergence node or just a bridge
-4. a path looks structurally plausible, but the current state or catalyst timing is unclear
+- `untested assumption`: name the assumption that is carrying the most weight but is not directly established
+- `counter-evidence`: identify the strongest contrary signal from graph or web evidence
+- `weakest link`: identify the bridge node, edge, or proxy mapping most likely to fail
+- For non-trivial proxy-routed decisions, do one falsification-oriented search when search is available
+- If the red-team pass changes the conclusion, surface that openly in `Certain`, `Decision tip`, or `Caveats`
 
-### Search -> Graph Triggers
+## Pressure Test Rule
 
-Go back to graph structure after search when one of these is true:
+After the main graph and search read is clear, ask one more question: what would most likely flip or weaken the conclusion?
 
-1. search reveals a new causal entity that looks mappable to a real ticker or node candidate
-2. search clarifies that a suspected mechanism is really a transmission path question
-3. search provides counter-evidence to the current path story and the structure needs verification
-4. search shows a second-order effect that should be checked with `paths`, `neighbors`, `traverse-parents`, or `validate-connectivity`
+- If the answer points to a specific graph lever, run one pressure test.
+- If the answer points to a broader real-world condition that the graph cannot stress cleanly, map it back to one cleaner graph lever instead of falling into generic planning advice.
+- Good pressure-test targets:
+  - the strongest driver in favor of the current verdict
+  - the strongest driver on the losing side
+  - the bridge node most likely to be transmission noise
+- Good user-facing pressure-test lines:
+  - "If attention-distribution weakens, the writing-first thesis loses its edge here."
+  - "If creator-monetization on audio/video improves, this flips toward the audio side."
+  - "If this bridge node is dropped and the path disappears, confidence should fall sharply."
+- Keep this short. It is a calibration pass, not a second full report.
 
-### Search Feedback Scan
-
-After each search result, explicitly scan for:
-
-- new entity to map into the graph
-- current-state update on an existing edge or proxy dimension
-- strongest contradiction to the current story
-- second-order effect worth a structural follow-up
-
-If none of those appear, the search loop is probably converging and another search hop is unlikely to add value.
-
-## Multi-Anchor Convergence
-
-Use convergence mode when the user asks a broad comparison, theme question, or life decision where a single anchor would be too fragile.
-
-### When To Activate
-
-- the question spans several economic layers or competing mechanisms
-- one anchor produces a noisy or overly bridge-heavy local neighborhood
-- the user wants the strongest shared signal across a theme, not a single-node explanation
-
-### Workflow
-
-1. Pick 3-5 anchors across the key dimensions.
-2. Run independent structural reads on each anchor. Prefer one clean first read per anchor such as `traverse.parents`, `neighbors`, or `paths`.
-3. Record repeated nodes, repeated bridge types, and repeated proxy dimensions.
-4. Validate the strongest repeated candidate with a narrower CAP check such as `paths`, `validate-connectivity`, or a local neighborhood read.
-5. If search tools are available and a repeated candidate still needs mechanism evidence, run an edge-anchored search.
-6. Stop when the repeated signal stabilizes, not when every possible anchor has been exhausted.
-
-### Convergence Heuristics
-
-- repeated appearance across 2 anchors is worth checking
-- repeated appearance across 3+ anchors is a strong candidate hub
-- repeated bridge-only appearance is weaker than repeated real-economy appearance, but do not discard it automatically if the graph signal is consistent
-- semantically strange nodes can still matter; keep them when structure is repeated and the mechanism can be grounded honestly
-
-### Early Stop Rules
-
-- stop when anchor results keep repeating with no new open causal question
-- stop when two consecutive searches are low-signal and do not change the next graph question
-- stop when the main unresolved uncertainty is a future event rather than a current structural or mechanism question
-
-## Narration And Semantic Guardrails
+## Answer Style
 
 ### Structure Over Prediction
 
@@ -295,28 +345,43 @@ For proxy-routed human questions, the graph is not modeling the child, the write
 
 ### User-Facing Narration Rules
 
-- Prefer present-tense framing such as "in the current graph" or "on the current CAP surface" over date-stamped retrieval language, unless the user asks for a dated audit trail.
+- Lead with the verdict, not the method.
+- After the verdict, state the causal link in plain language.
+- Then give a compact full report:
+  - `Intent read`
+  - `Graph mapping`
+  - `Graph walk findings`
+  - `Web-grounded evidence`
+  - `Integrated interpretation`
+  - `Pressure test`
+  - `Challenges`
+- Inside that report, compress the takeaway into a short card:
+  - `Signal`
+  - `Causal link`
+  - `Sharp`
+  - `Certain`
+  - `Decision tip`
+- Keep raw tickers out of all visible sections before `Trace`.
+- In visible prose, translate nodes into roles, sectors, products, or mechanisms first.
+- Prefer present-tense framing such as "in the current graph" over date-stamped retrieval language, unless the user asks for a dated audit trail.
 - Use human or industry descriptions first when a node is only a proxy or a bridge.
 - Keep raw node IDs and tickers for trace, verification, command examples, or when the user explicitly asks for exact nodes.
 - If the relationship is indirect, say that plainly.
+- Keep capability/protocol commentary brief unless the user explicitly asked for it.
+- For `proxy_routed` answers, include a short `Trace` block by default when it helps verify the proxy dimensions or anchors.
+- For blocked runs, include a short `Trace` block that states the intended normalization and next structural move instead of pretending the graph was queried.
 
-### Semantic Guardrails
+### Minimal Guardrails
 
 - `observe.predict` is observational prediction, not causal effect.
 - `intervene.do` is the smaller public intervention surface.
 - `extensions.abel.intervene_time_lag` is the richer temporal rollout surface.
 - `extensions.abel.validate_connectivity` is a proxy validation gate, not formal identification.
 - `extensions.abel.counterfactual_preview` is preview-only approximate graph propagation, not full SCM counterfactual inference.
-- CAP core and Abel extensions should be explained separately when that distinction matters.
-- This wrapper is thin: it exposes contracts, capability metadata, and gateway-backed public semantics; it does not invent new causal computation.
 - Proxy-routed answers are market-signal reads, not direct models of personal talent, family fit, or values.
-- Separate graph fact, searched mechanism, and inference whenever the distinction matters.
 
 ## See Also
 
 - `../SKILL.md` for the short agent-facing framework
 - `../assets/report-template.md` for result organization centered on question, nodes, verb findings, and meaning
-- `search-loop.md` for edge-anchored search discipline
-- `layered-routing.md` for layered proxy anchor selection
-- `capability-layers.md` for CAP core versus Abel extension disclosure depth
 - `probe-usage.md` for command details and reusable `cap_probe.py` examples

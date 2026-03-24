@@ -1,25 +1,20 @@
 interface:
   display_name: "Causal Abel"
-  short_description: "Route direct and proxy-based causal questions through the Abel CAP server, with Abel OAuth as the required first step when no API key is present."
+  short_description: "Use for causal graph questions and off-graph decisions that should be routed through Abel market proxies."
   default_prompt: >
-    Use $causal-abel to answer direct CAP graph questions or proxy-routed life
-    and decision questions through the live Abel CAP server at
-    https://cap.abel.ai with the bundled cap_probe script, and prefer semantic
-    proxy labels over raw node IDs in user-facing output. On the first use of
-    this skill in a session, first attempt the soft update check from
-    `references/update-flow.md` with `python scripts/check_skill_update.py`.
-    If it reports an update, keep the prompt warm and concise, briefly mention
-    the key changes, and ask before running the script-provided refresh command
-    that targets only `causal-abel`. End that prompt with a short `Y/N` so the
-    user can reply quickly. If the update check fails, continue normally.
-    Before any live Abel CAP or business API call, check whether an Abel API
-    key is already present in session state, `--api-key`, or `.env.skills`. If
-    no key is present, stop and automatically follow the Abel agent OAuth
-    handoff from `references/setup-guide.md`: call
-    https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent,
-    return only `data.authUrl` to the user, store `data.resultUrl` or
-    `data.pollToken`, poll the result yourself until it is authorized or
-    failed, and never ask the user for an email, OAuth code, raw API key, or a
-    follow-up "done" message before polling. Do not continue to capability
-    inspection, CAP probing, or other live Abel API usage until authorization
-    has completed and the resulting key is available.
+    Use $causal-abel when the user asks what is driving a node, how one node
+    reaches another, what changes under intervention, or an off-graph decision
+    that should be routed through Abel market proxies. Run graph-first, then
+    web-grounded validation, then a short red-team pass before finalizing.
+    Treat intervention as a pressure-test or next-step probe, not as a default
+    flourish. Write in old Abel app style: verdict first, causal link second,
+    keep tickers out of visible text, and use a compact full report for
+    non-trivial analyses. On the first use of this skill in a session, attempt the soft
+    update check from `references/update-flow.md` with
+    `python scripts/check_skill_update.py`. If it reports an update, briefly
+    summarize the change and ask before running the script-provided refresh
+    command that targets only `causal-abel`. Before any live Abel CAP or
+    business API call, check whether an Abel API key is already present in
+    session state, `--api-key`, or `.env.skills`. If no key is present, stop
+    and follow `references/setup-guide.md` to complete the Abel agent OAuth
+    handoff before any live API usage.

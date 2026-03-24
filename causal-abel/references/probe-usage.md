@@ -13,6 +13,7 @@ Use this file for `cap_probe.py` details and reusable command patterns after the
 Prefer the bundled probe script over ad hoc payload construction.
 
 Primary script:
+
 - `scripts/cap_probe.py`
 
 Deterministic subcommands:
@@ -58,13 +59,37 @@ python scripts/cap_probe.py --base-url "$BASE_URL" intervene-time-lag NVDA_close
 
 Proxy routing still uses the same script. The difference is which anchors you choose and how you compare them.
 
+Pressure-test rule:
+
+- Treat `intervene-do`, `intervene-time-lag`, and `counterfactual-preview` as pressure-test surfaces.
+- Run them after the graph and search loop has already exposed the key mechanism.
+- Prefer one strong pressure test over many weak ones.
+- If a live pressure test would be low-signal, give the user 2-3 concrete next-step probes instead of forcing one.
+
+Short-term trend rule:
+
+- `observe.predict` is a lightweight observational trend / pressure read for one node.
+- For evolving server-specific predictive surfaces, check `meta.methods` first instead of assuming the local wrapper is current.
+- Prefer `extensions.abel.observe_predict_resolved_time` when `meta.methods` says it exists because it returns the resolved target timestamp alongside the same prediction value and drivers.
+- Call newly added or unstable extension verbs through the generic `verb` path.
+- In proxy-routed comparisons, run this on the main 2-5 anchor tickers once the anchor set is stable.
+- Use the sign and relative magnitude as a short-term pressure comparison.
+- Treat returned drivers as noisy hints for follow-up, not as trusted narrative anchors.
+
 Normalization rule:
 
 - `normalize-node` is the safest first step when a prompt gives a bare ticker and you want deterministic probe input.
-- Bare tickers default to `_close`.
+- Equity and ETF tickers default to `_close`.
+- `_close` means close price. `_volume` means close volume.
+- Crypto probes should use `*USD_close` or `*USD_volume`, for example `ETHUSD_close`, `SOLUSD_close`, or `BTCUSD_volume`.
+- The bundled normalizer rewrites common bare crypto aliases such as `BTC`, `ETH`, `SOL`, `XRP`, `DOGE`, `ADA`, and `AVAX` into `*USD_<suffix>`.
 - Use `--default-suffix volume` only when the question is genuinely about volume or participation.
 - Free-form phrases such as `Spotify` or `music streaming` are not normalized automatically; map them to a ticker first.
-- `intervene-do` now runs a required `graph.paths` gate before calling `intervene.do`; if no directed path is found, the probe returns a skipped intervention instead of calling the intervention verb.
+- Recent validation: `BTCUSD_close` currently behaves like an isolated node on the public graph.
+  - `graph.neighbors(scope=parents)` -> empty
+  - `graph.neighbors(scope=children)` -> empty
+  - sampled `graph.paths` checks to common anchors -> disconnected
+  - Practical rule: do not spend time trying to use `BTCUSD_close` as a bridge node unless the graph behavior changes.
 
 For capability discovery, avoid redundant full dumps:
 
@@ -79,54 +104,15 @@ python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate
 python scripts/cap_probe.py --base-url "$BASE_URL" route extensions/abel/counterfactual_preview --params-json '{"intervene_node":"NVDA_close","intervene_time":"2024-01-01T00:00:00Z","observe_node":"AMD_close","observe_time":"2024-01-02T00:00:00Z","intervene_new_value":0.05}'
 ```
 
-For narrower output, use `--pick-fields`, `--compact`, and `--max-description-chars`.
+For narrower output, use `--pick-fields` and `--compact`.
 
 Examples:
 
 ```bash
 python scripts/cap_probe.py methods observe.predict traverse.parents --pick-fields result.methods --compact
 python scripts/cap_probe.py methods observe.predict --pick-fields result.methods.0.arguments,result.methods.0.result_fields
-python scripts/cap_probe.py methods observe.predict --pick-fields result.methods --max-description-chars 160
-```
-
-Use truncation only to tame verbose method metadata or long textual payloads. Do not use it when you need exact full messages for debugging or contract inspection.
-
-`intervene-do` output shape now includes the structural gate result. Typical examples:
-
-```json
-{
-  "ok": false,
-  "status_code": 200,
-  "verb": "intervene.do",
-  "message": "No directed path found between treatment and outcome nodes; intervention skipped.",
-  "treatment_node": "NVDA_close",
-  "outcome_node": "AMD_close",
-  "treatment_value": 0.05,
-  "intervention_skipped": true,
-  "skip_reason": "no_directed_path_found",
-  "structural_check": {
-    "ok": true,
-    "status_code": 200,
-    "verb": "graph.paths"
-  }
-}
-```
-
-```json
-{
-  "ok": true,
-  "status_code": 200,
-  "verb": "intervene.do",
-  "intervention_skipped": false,
-  "structural_check": {
-    "ok": true,
-    "status_code": 200,
-    "verb": "graph.paths"
-  },
-  "result": {
-    "effect": 0.0123
-  }
-}
+python scripts/cap_probe.py methods extensions.abel.observe_predict_resolved_time --detail full
+python scripts/cap_probe.py verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"SPOT_close"}' --pick-fields result.resolved_target_time,result.prediction,result.drivers --compact
 ```
 
 ## Validation
@@ -138,10 +124,20 @@ python scripts/cap_probe.py capabilities
 python scripts/cap_probe.py methods observe.predict
 python scripts/cap_probe.py observe NVDA_close
 python scripts/cap_probe.py paths NVDA_close AMD_close --max-paths 3
-python scripts/cap_probe.py intervene-do NVDA_close 0.05 --outcome-node AMD_close --max-paths 3
 ```
 
 For implementation changes beyond probing, verify the affected routing, auth, and command examples directly in the tracked skill docs and scripts.
+
+## Bridge-Node Triage
+
+When a bridge node keeps reappearing across path checks, inspect its neighborhood before you build a story around it.
+
+- Repeated bridge nodes can still be transmission noise.
+- In recent proxy-routing probes, `SIM_close` and `MOOOUSD_close` appeared repeatedly across media/content anchor pairs.
+- Their parent/child neighborhoods were still dominated by microcap or crypto-heavy names, which is a strong sign that they are bridge noise, not user-facing narrative anchors.
+- Practical rule:
+  - repeated bridge + semantically rich neighborhood -> inspect further
+  - repeated bridge + microcap/crypto soup neighborhood -> summarize as transmission noise and move on
 
 ## Endpoint Notes
 
