@@ -15,6 +15,7 @@ REMOVE_FRONTMATTER_KEYS = {
     "update_repo",
     "update_branch",
     "update_skill_path",
+    "update_changelog_path",
 }
 
 OLD_HOW_TO_USE_STEP = """1. Check authorization state before any live API call.

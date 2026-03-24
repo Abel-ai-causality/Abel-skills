@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.0.1
+version: 1.0.2
 description: >
   Abel CAP causal exploration skill. Use for direct CAP graph questions and for
   off-graph life or decision questions that should be routed through market
