@@ -1,9 +1,10 @@
 ---
 name: causal-abel
-version: 1.0.1
+version: 1.0.2
 update_repo: Abel-ai-causality/Abel-skills
 update_branch: main
 update_skill_path: causal-abel
+update_changelog_path: /CHANGELOG.md
 description: >
   Abel CAP causal exploration skill. Use for direct CAP graph questions and for
   off-graph life or decision questions that should be routed through market
