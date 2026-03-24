@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 import urllib.parse
@@ -15,11 +14,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-VERSION_HEADING_PATTERN = re.compile(
-    r"^##\s+\[(?P<version>[^\]]+)\](?:\s+-\s+(?P<date>.+))?$"
-)
 DEFAULT_TIMEOUT_SECONDS = 20.0
-DEFAULT_MAX_SUMMARY_ITEMS = 6
 LOCK_FILE_NAME = ".skill-lock.json"
 
 
@@ -27,8 +22,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Check only the installed `causal-abel` skill for updates, "
-            "then fetch remote SKILL.md and CHANGELOG.md to summarize "
-            "what changed."
+            "then fetch remote SKILL.md to confirm the latest version."
         )
     )
     parser.add_argument(
@@ -41,12 +35,6 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
         help="Timeout in seconds for subprocess and HTTP calls.",
-    )
-    parser.add_argument(
-        "--max-summary-items",
-        type=int,
-        default=DEFAULT_MAX_SUMMARY_ITEMS,
-        help="Maximum number of changelog bullets to include in the summary.",
     )
     parser.add_argument(
         "--compact",
@@ -91,9 +79,7 @@ def _load_skill_metadata(skill_root: Path) -> dict[str, str]:
 
 def _build_raw_url(repo: str, branch: str, path: str) -> str:
     normalized_path = path.strip("/")
-    return (
-        f"https://raw.githubusercontent.com/{repo}/{branch}/{normalized_path}"
-    )
+    return f"https://raw.githubusercontent.com/{repo}/{branch}/{normalized_path}"
 
 
 def _resolve_repo_path(skill_path: str, path: str) -> str:
@@ -255,10 +241,18 @@ def _run_skills_list(global_scope: bool, timeout: float) -> list[dict[str, Any]]
 
 def _detect_install_scope(skill_name: str, timeout: float) -> str | None:
     global_skills = _run_skills_list(True, timeout)
-    if any(item.get("name") == skill_name for item in global_skills if isinstance(item, dict)):
+    if any(
+        item.get("name") == skill_name
+        for item in global_skills
+        if isinstance(item, dict)
+    ):
         return "global"
     project_skills = _run_skills_list(False, timeout)
-    if any(item.get("name") == skill_name for item in project_skills if isinstance(item, dict)):
+    if any(
+        item.get("name") == skill_name
+        for item in project_skills
+        if isinstance(item, dict)
+    ):
         return "project"
     return None
 
@@ -299,60 +293,6 @@ def _build_update_command(
     return " ".join(parts)
 
 
-def _parse_changelog_sections(text: str) -> list[dict[str, Any]]:
-    sections: list[dict[str, Any]] = []
-    current: dict[str, Any] | None = None
-
-    for line in text.splitlines():
-        match = VERSION_HEADING_PATTERN.match(line.strip())
-        if match:
-            if current is not None:
-                sections.append(current)
-            current = {
-                "version": match.group("version").strip(),
-                "date": (match.group("date") or "").strip(),
-                "lines": [],
-            }
-            continue
-        if current is not None:
-            current["lines"].append(line.rstrip())
-
-    if current is not None:
-        sections.append(current)
-    return sections
-
-
-def _summarize_sections(
-    sections: list[dict[str, Any]], local_version: str | None, max_items: int
-) -> list[str]:
-    if not sections or max_items <= 0:
-        return []
-
-    selected_sections: list[dict[str, Any]] = []
-    if local_version:
-        for section in sections:
-            if section["version"] == local_version:
-                break
-            selected_sections.append(section)
-    else:
-        selected_sections = sections[:1]
-
-    if not selected_sections:
-        selected_sections = sections[:1]
-
-    summary: list[str] = []
-    for section in selected_sections:
-        version = section["version"]
-        for line in section["lines"]:
-            bullet = line.strip()
-            if not bullet.startswith("- "):
-                continue
-            summary.append(f"{version}: {bullet[2:]}")
-            if len(summary) >= max_items:
-                return summary
-    return summary
-
-
 def main() -> int:
     args = _parse_args()
     skill_root = Path(args.skill_root).expanduser().resolve()
@@ -364,7 +304,6 @@ def main() -> int:
         "current_version": None,
         "remote_version": None,
         "update_available": False,
-        "summary": [],
         "scope": None,
         "warning": "This refresh command targets only `causal-abel`.",
         "next_command": None,
@@ -378,7 +317,6 @@ def main() -> int:
         repo = metadata.get("update_repo")
         branch = metadata.get("update_branch", "main")
         skill_path = metadata.get("update_skill_path")
-        changelog_path = metadata.get("update_changelog_path", "CHANGELOG.md")
         token = _get_github_token()
 
         branch = branch.strip()
@@ -445,7 +383,9 @@ def main() -> int:
         )
         result["checked"] = remote_hash is not None
         if remote_hash is None:
-            result["error"] = "GitHub folder metadata for `causal-abel` could not be read."
+            result["error"] = (
+                "GitHub folder metadata for `causal-abel` could not be read."
+            )
             _print_result(result, args.compact)
             return 0
 
@@ -459,30 +399,6 @@ def main() -> int:
         remote_skill_text = _fetch_text(remote_skill_url, args.timeout)
         remote_metadata = _parse_frontmatter(remote_skill_text)
         result["remote_version"] = remote_metadata.get("version") or None
-
-        try:
-            remote_changelog_url = _build_raw_url(
-                repo,
-                branch,
-                _resolve_repo_path(skill_path, changelog_path),
-            )
-            remote_changelog_text = _fetch_text(remote_changelog_url, args.timeout)
-            sections = _parse_changelog_sections(remote_changelog_text)
-            result["summary"] = _summarize_sections(
-                sections,
-                current_version,
-                args.max_summary_items,
-            )
-        except urllib.error.HTTPError as exc:
-            result["error"] = (
-                "An update exists, but the remote CHANGELOG.md could not be read: "
-                f"HTTP {exc.code}."
-            )
-        except urllib.error.URLError as exc:
-            result["error"] = (
-                "An update exists, but the remote CHANGELOG.md could not be read: "
-                f"{exc.reason}."
-            )
 
         result["ok"] = True
         _print_result(result, args.compact)

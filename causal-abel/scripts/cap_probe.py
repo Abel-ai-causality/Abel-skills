@@ -16,11 +16,19 @@ from typing import Any
 
 DEFAULT_BASE_URL = "https://cap.abel.ai"
 CAP_VERSION = "0.2.2"
+TEXT_TRUNCATE_EXACT_KEYS = {
+    "description",
+    "summary",
+    "content",
+    "message",
+    "details",
+}
 GLOBAL_OPTIONS = {
     "--base-url": True,
     "--api-key": True,
     "--env-file": True,
     "--pick-fields": True,
+    "--max-description-chars": True,
     "--compact": False,
 }
 COMMANDS = {
@@ -146,6 +154,37 @@ def _apply_pick_fields(result: dict[str, Any], pick_fields: str) -> dict[str, An
         if ok:
             _set_path(out, path, value)
     return out
+
+
+def _should_truncate_text_field(key: str) -> bool:
+    normalized = key.strip().lower()
+    if not normalized:
+        return False
+    if normalized in TEXT_TRUNCATE_EXACT_KEYS:
+        return True
+    return "description" in normalized
+
+
+def _truncate_text(value: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(value) <= max_chars:
+        return value
+    return f"{value[:max_chars]}..."
+
+
+def _truncate_description_fields(obj: Any, max_chars: int) -> Any:
+    if max_chars <= 0:
+        return obj
+    if isinstance(obj, dict):
+        transformed: dict[str, Any] = {}
+        for key, value in obj.items():
+            if isinstance(value, str) and _should_truncate_text_field(key):
+                transformed[key] = _truncate_text(value, max_chars)
+            else:
+                transformed[key] = _truncate_description_fields(value, max_chars)
+        return transformed
+    if isinstance(obj, list):
+        return [_truncate_description_fields(item, max_chars) for item in obj]
+    return obj
 
 
 def _route_to_verb(route: str) -> str:
@@ -644,6 +683,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Comma-separated dot paths to keep from response root.",
     )
     parser.add_argument(
+        "--max-description-chars",
+        type=int,
+        default=0,
+        help="Max chars kept for description-like text fields. 0 disables truncation.",
+    )
+    parser.add_argument(
         "--compact", action="store_true", help="Print compact single-line JSON."
     )
     parser.add_argument(
@@ -863,6 +908,7 @@ def main() -> int:
             "response_payload": {},
         }
 
+    result = _truncate_description_fields(result, args.max_description_chars)
     result = _apply_pick_fields(result, args.pick_fields)
 
     if args.compact:

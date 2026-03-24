@@ -4,7 +4,7 @@ Use this file for the first-use soft update check workflow after `SKILL.md` has 
 
 ## Goal
 
-Detect whether the installed `causal-abel` skill has a newer GitHub version, summarize the important release notes from `CHANGELOG.md`, and ask the user before running a refresh command that targets only `causal-abel`.
+Detect whether the installed `causal-abel` skill has a newer GitHub version and ask the user before running a refresh command that targets only `causal-abel`.
 
 This flow is intentionally soft:
 
@@ -32,7 +32,6 @@ The script returns JSON with these important fields:
 - `skill_name`: the current skill name
 - `current_version`: local `SKILL.md` version when available
 - `remote_version`: remote `SKILL.md` version when available
-- `summary`: concise changelog bullets for versions newer than the current one
 - `next_command`: the exact single-skill refresh command to run if the user says yes
 - `warning`: reminder that the refresh command targets only `causal-abel`
 - `error`: soft-failure message when the check could not complete
@@ -45,7 +44,6 @@ The script returns JSON with these important fields:
 4. If `update_available` is `true`:
    - Tell the user there is a newer version.
    - Mention `current_version` and `remote_version` when available.
-   - Summarize the key items from `summary`.
    - Tell the user the refresh command only targets `causal-abel`.
    - Keep the tone warm and lightly playful instead of mechanical.
    - End with a short `Y/N` so the user can answer in one character.
@@ -59,9 +57,6 @@ When an update exists:
 ```text
 Tiny tune-up available for `causal-abel`: you have `{current_version}` and GitHub has `{remote_version}`.
 
-What changed:
-- {summary}
-
 I can refresh just this skill with `{next_command}` and then keep going. Refresh `causal-abel` now? (Y/N)
 ```
 
@@ -74,5 +69,5 @@ I could not verify skill updates right now, so I will continue with the current 
 ## Notes
 
 - The script checks only the installed `causal-abel` skill by reading the public skills lock entry and comparing its recorded folder hash against GitHub.
-- The script uses remote `SKILL.md` and `CHANGELOG.md` only to explain what changed.
+- The script uses remote `SKILL.md` only to confirm the latest visible version metadata.
 - The script is allowed to fail quietly because update detection is a convenience layer, not a hard dependency for causal analysis.

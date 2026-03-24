@@ -20,6 +20,7 @@ Every report should answer four things in order:
 - Explain the relationship between the question and the chosen nodes before interpreting verb results.
 - Name the `surface_used` as the minimum sufficient capability set rather than as an exhaustive log of everything available.
 - For each verb used, separate `result` from `meaning`.
+- When search is used, separate `graph_fact`, `searched_mechanism`, and `inference`.
 - Prefer semantic names over raw node IDs when a node is acting as a proxy or bridge.
 - If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject.
 - Keep command, route, OAuth, and script details out of the main report unless the user asks for them.
@@ -33,6 +34,7 @@ When this template is used together with `references/inversion-flow.md`, the rep
 - `finding`
 - `meaning`
 - `caveat`
+- `provenance`
 
 ## Stable Report Structure
 
@@ -79,10 +81,17 @@ Group findings by verb. Each verb section should contain two parts only:
 - `result`: what the graph returned
 - `meaning`: what that result contributes to the original question
 
+When search or external evidence is part of the same section, add:
+
+- `graph_fact`: the structural fact from CAP
+- `searched_mechanism`: the mechanism evidence gathered outside the graph
+- `inference`: the conclusion that combines both without blurring them
+
 Before the verb sections, add:
 
 - `surface_used`: the minimum sufficient capability set selected for the user's intent
 - `finding`: a compact statement of the most decision-relevant graph result when a short answer is needed
+- `provenance`: a compact note on which parts are graph-backed, search-backed, or still inferential
 
 Recommended verb sections:
 
@@ -131,6 +140,7 @@ Guidance:
 - Do not merely repeat the verb outputs.
 - Explain how the structural and effect findings combine.
 - Prioritize the user's decision or explanation need over graph-internal jargon.
+- If a search loop was used, say which part of the interpretation comes from graph structure versus mechanism evidence.
 
 ### 5. Boundaries And Caveats
 
@@ -143,6 +153,8 @@ Always check for these caveats:
 - direct path versus indirect path
 - preview-only or approximate surface
 - missing graph support or weak structural evidence
+- searched mechanism that is plausible but not yet structurally re-grounded
+- repeated anchor pattern that may still reflect a bridge rather than a true hub
 
 Prompt for the generator:
 
@@ -193,6 +205,7 @@ Use this markdown skeleton when presenting the report:
 - Finding:
 - Meaning:
 - Caveat:
+- Provenance:
 
 ## Boundaries And Caveats
 - [Limit 1]
@@ -211,3 +224,4 @@ Before finalizing a report, verify that:
 - each verb section has both a result and a meaning
 - the integrated interpretation answers the user's question directly
 - caveats are strong enough to prevent overclaiming
+- provenance is clear whenever search evidence or proxy reasoning materially shapes the answer

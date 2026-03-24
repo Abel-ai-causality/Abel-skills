@@ -27,7 +27,7 @@ This project follows a repo-level release log so agents can summarize user-visib
 
 - Explicit skill version metadata in `SKILL.md`.
 - A repository `CHANGELOG.md` for release summaries.
-- A bundled `scripts/check_skill_update.py` helper that runs `npx skills check`, reads the remote `SKILL.md` and `CHANGELOG.md`, and returns a machine-readable update summary.
+- A bundled `scripts/check_skill_update.py` helper that runs `npx skills check`, reads the remote `SKILL.md`, and returns a machine-readable update summary.
 
 ### Changed
 

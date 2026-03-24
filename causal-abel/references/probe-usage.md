@@ -79,14 +79,17 @@ python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate
 python scripts/cap_probe.py --base-url "$BASE_URL" route extensions/abel/counterfactual_preview --params-json '{"intervene_node":"NVDA_close","intervene_time":"2024-01-01T00:00:00Z","observe_node":"AMD_close","observe_time":"2024-01-02T00:00:00Z","intervene_new_value":0.05}'
 ```
 
-For narrower output, use `--pick-fields` and `--compact`.
+For narrower output, use `--pick-fields`, `--compact`, and `--max-description-chars`.
 
 Examples:
 
 ```bash
 python scripts/cap_probe.py methods observe.predict traverse.parents --pick-fields result.methods --compact
 python scripts/cap_probe.py methods observe.predict --pick-fields result.methods.0.arguments,result.methods.0.result_fields
+python scripts/cap_probe.py methods observe.predict --pick-fields result.methods --max-description-chars 160
 ```
+
+Use truncation only to tame verbose method metadata or long textual payloads. Do not use it when you need exact full messages for debugging or contract inspection.
 
 `intervene-do` output shape now includes the structural gate result. Typical examples:
 

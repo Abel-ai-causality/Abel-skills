@@ -193,11 +193,14 @@ Routing rules:
 - Pick 3-5 proxies that span the decision's key dimensions.
 - Include at least one proxy from the opposite side of the decision when possible.
 - Prefer layered routing over only mega-caps; mid-cap or supply-chain-specific names often carry cleaner signal.
+- For broad comparisons or theme questions, treat those 3-5 proxies as independent anchors first, then compare where they converge before writing the story.
 - For live Abel CAP calls, map proxies to real Abel node ids before probing; the current public graph expects `<ticker>_close` or `<ticker>_volume`, not free-form proxy labels.
 - Treat proxy tickers in this table as routing anchors, not as proof that the exact node is present in the current graph. Normalize first, then validate with the live surface if existence is uncertain.
 - The user should not see tickers as the answer. Tickers are intermediate routing signals.
 - In user-facing prose, translate proxy nodes into economic roles first.
 - If no honest proxy set exists, say so instead of forcing a story.
+
+For repeatable layered anchor selection, see `layered-routing.md`.
 
 ## Search Rule
 
@@ -205,6 +208,7 @@ If search tools are available, use them to explain mechanisms, not to replace gr
 
 - Search only when you already know the edge, path, or proxy dimension you are trying to explain.
 - If you cannot state the edge or proxy dimension first, stop and go back to the graph.
+- Use `search-loop.md` when the query needs more than a single explanatory lookup.
 
 Search template:
 
@@ -213,6 +217,67 @@ Edge or proxy: [NodeA -> NodeB] or [proxy dimension]
 Causal question: [WHY this connection matters / WHAT current real-world mechanism it represents]
 Query: [terms derived from both nodes or the proxy dimension]
 ```
+
+### Graph -> Search Triggers
+
+Search is justified when one of these is true:
+
+1. the graph suggests an edge or path, but the mechanism is unclear
+2. a proxy dimension is honest but too abstract, and you need current real-world evidence for what it represents
+3. the same candidate appears across multiple anchors and you need to check whether it is a real convergence node or just a bridge
+4. a path looks structurally plausible, but the current state or catalyst timing is unclear
+
+### Search -> Graph Triggers
+
+Go back to graph structure after search when one of these is true:
+
+1. search reveals a new causal entity that looks mappable to a real ticker or node candidate
+2. search clarifies that a suspected mechanism is really a transmission path question
+3. search provides counter-evidence to the current path story and the structure needs verification
+4. search shows a second-order effect that should be checked with `paths`, `neighbors`, `traverse-parents`, or `validate-connectivity`
+
+### Search Feedback Scan
+
+After each search result, explicitly scan for:
+
+- new entity to map into the graph
+- current-state update on an existing edge or proxy dimension
+- strongest contradiction to the current story
+- second-order effect worth a structural follow-up
+
+If none of those appear, the search loop is probably converging and another search hop is unlikely to add value.
+
+## Multi-Anchor Convergence
+
+Use convergence mode when the user asks a broad comparison, theme question, or life decision where a single anchor would be too fragile.
+
+### When To Activate
+
+- the question spans several economic layers or competing mechanisms
+- one anchor produces a noisy or overly bridge-heavy local neighborhood
+- the user wants the strongest shared signal across a theme, not a single-node explanation
+
+### Workflow
+
+1. Pick 3-5 anchors across the key dimensions.
+2. Run independent structural reads on each anchor. Prefer one clean first read per anchor such as `traverse.parents`, `neighbors`, or `paths`.
+3. Record repeated nodes, repeated bridge types, and repeated proxy dimensions.
+4. Validate the strongest repeated candidate with a narrower CAP check such as `paths`, `validate-connectivity`, or a local neighborhood read.
+5. If search tools are available and a repeated candidate still needs mechanism evidence, run an edge-anchored search.
+6. Stop when the repeated signal stabilizes, not when every possible anchor has been exhausted.
+
+### Convergence Heuristics
+
+- repeated appearance across 2 anchors is worth checking
+- repeated appearance across 3+ anchors is a strong candidate hub
+- repeated bridge-only appearance is weaker than repeated real-economy appearance, but do not discard it automatically if the graph signal is consistent
+- semantically strange nodes can still matter; keep them when structure is repeated and the mechanism can be grounded honestly
+
+### Early Stop Rules
+
+- stop when anchor results keep repeating with no new open causal question
+- stop when two consecutive searches are low-signal and do not change the next graph question
+- stop when the main unresolved uncertainty is a future event rather than a current structural or mechanism question
 
 ## Narration And Semantic Guardrails
 
@@ -245,10 +310,13 @@ For proxy-routed human questions, the graph is not modeling the child, the write
 - CAP core and Abel extensions should be explained separately when that distinction matters.
 - This wrapper is thin: it exposes contracts, capability metadata, and gateway-backed public semantics; it does not invent new causal computation.
 - Proxy-routed answers are market-signal reads, not direct models of personal talent, family fit, or values.
+- Separate graph fact, searched mechanism, and inference whenever the distinction matters.
 
 ## See Also
 
 - `../SKILL.md` for the short agent-facing framework
 - `../assets/report-template.md` for result organization centered on question, nodes, verb findings, and meaning
+- `search-loop.md` for edge-anchored search discipline
+- `layered-routing.md` for layered proxy anchor selection
 - `capability-layers.md` for CAP core versus Abel extension disclosure depth
 - `probe-usage.md` for command details and reusable `cap_probe.py` examples
