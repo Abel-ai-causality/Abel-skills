@@ -102,6 +102,7 @@ Default mapping:
 | `counterfactual_read` | `counterfactual-preview` |
 | `capability_audit` | `capabilities` |
 | `decision_proxy_read` | start with structural verbs, then move to effect surfaces only if needed |
+| `convergence_read` | multi-anchor structural reads first, then targeted search or effect surfaces only if a specific gap remains |
 
 Selection rules:
 
@@ -113,6 +114,9 @@ Selection rules:
 - Avoid overlapping local-structure probes by default. For example, start with `traverse.parents` or `graph.neighbors(scope=parents)`, then add `graph.markov_blanket` only when a specific structural question remains.
 - Treat `graph.paths` as a narrowed structural test, not a bulk discovery substitute.
 - Do not escalate to `intervene.do` until the treatment-outcome structural question is already clear enough to justify an effect query.
+- In proxy-routed work, only escalate to search after naming the edge or proxy dimension being explained.
+- In broad proxy-routed work, prefer convergence over deeper single-anchor wandering.
+- Keep each search hop question-driven: if you cannot state the remaining uncertainty, stop.
 
 Prompt for the agent:
 
@@ -139,6 +143,12 @@ Within each verb section, always separate:
 
 This should align with `../assets/report-template.md`.
 
+When proxy-routed search is involved, preserve provenance inside each section:
+
+- `graph_fact`: what the CAP surface actually showed
+- `searched_mechanism`: what external evidence explains about that structure
+- `inference`: what you conclude by combining them
+
 ### 6. Offer The Next Best Causal Question
 
 After answering the current question, propose the most useful next step based on what is still unresolved.
@@ -149,6 +159,7 @@ Examples:
 - if a path exists but effect strength is unclear, move to `intervene.do`
 - if intervention answers direction but timing matters, move to `intervene-time-lag`
 - if proxy routing looks weak, ask whether a different proxy dimension is more honest
+- if several anchors keep pointing to the same hub, move to convergence validation instead of adding more random anchors
 - if the public surface is exhausted, say so instead of inventing a deeper answer
 
 Prompt for the agent:
@@ -168,6 +179,7 @@ What is the single highest-value follow-up question now that this result is know
 | `counterfactual_read` | what would differ under another setting | direct first | counterfactual preview | preview-only and approximate semantics |
 | `capability_audit` | what the server can expose | direct | capabilities and layers | CAP core versus Abel extension boundary |
 | `decision_proxy_read` | what market proxies suggest about a real-world choice | proxy-routed | structural first, then effect if needed | proxy signal is not direct modeling of the real subject |
+| `convergence_read` | what repeated anchors jointly imply about a broad question | proxy-routed | multi-anchor structure first, then targeted validation | repeated structure is stronger than a single noisy anchor |
 
 ## Output Contract
 
@@ -179,6 +191,7 @@ When this inversion flow is used, the final answer should contain these layers e
 - `finding`: what the graph showed
 - `meaning`: what that finding means for the user's original question
 - `caveat`: what should not be over-interpreted
+- `provenance`: which parts came from graph structure, which from search evidence, and which remain inference
 
 ## Failure Modes To Avoid
 
@@ -188,10 +201,14 @@ When this inversion flow is used, the final answer should contain these layers e
 - confusing observational prediction with intervention effect
 - treating proxy routing as direct modeling of a person, choice, or value system
 - stopping at "the graph does not contain that topic" when an honest proxy route exists
+- running search before an edge or proxy dimension has been grounded
+- narrating convergence without checking whether repeated anchors actually support the same mechanism
 
 ## See Also
 
 - `../SKILL.md` for the short agent-facing framework
 - `question-routing.md` for detailed direct versus proxy routing logic
+- `search-loop.md` for edge-anchored search and feedback discipline
+- `layered-routing.md` for layered proxy anchor selection
 - `capability-layers.md` for choosing how deep to explain the stack
 - `../assets/report-template.md` for structuring findings around question, nodes, verb results, and meaning

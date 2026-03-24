@@ -72,12 +72,14 @@ Do not use this skill for:
    - `capability_discovery`: what the server exposes
    - `direct_graph`: direct node, path, blanket, or intervention question
    - `proxy_routed`: real-world question that must be represented through market proxies
+   - `convergence_read`: broad proxy-routed theme or comparison question that needs multiple anchors to separate hubs from noise
 
 4. Read structure before telling a story.
-   - Start with local or path structure first.
-   - Move to observational, intervention, or preview surfaces only after the structural question is clear.
-   - Pick one intent-first workflow and stay on it: `driver_explanation`, `reachability_check`, `intervention_effect`, `counterfactual_read`, or `capability_audit`.
-   - Do not stack overlapping local-structure verbs by default. Start with one core structural read, then escalate only if a specific open question remains.
+    - Start with local or path structure first.
+    - Move to observational, intervention, or preview surfaces only after the structural question is clear.
+    - Pick one intent-first workflow and stay on it: `driver_explanation`, `reachability_check`, `intervention_effect`, `counterfactual_read`, or `capability_audit`.
+    - Do not stack overlapping local-structure verbs by default. Start with one core structural read, then escalate only if a specific open question remains.
+    - For `proxy_routed` and `convergence_read`, use a graph-search loop only when it reduces a named uncertainty. Search is there to explain a graph edge, path, or proxy dimension, not to replace graph grounding.
 
 5. Normalize node inputs before any live probe.
    - If the user already gives a legal Abel node id, keep it as is.
@@ -92,23 +94,37 @@ Do not use this skill for:
    - From the repo root, prefer the bundled probe command `python causal-abel/scripts/cap_probe.py methods observe.predict traverse.parents` over ad hoc `curl` payloads when you need a stable method read.
 
 7. Use decision gates, not verb dumps.
-   - For `driver_explanation`, start with `traverse.parents` or `graph.neighbors(scope=parents)`, then add `graph.markov_blanket` only if direct drivers are still unclear.
-   - For `reachability_check`, start with `graph.paths` on the specific proposed source and target. Use `extensions.abel.validate_connectivity` only when screening a small candidate set is more honest than many repeated path probes.
-   - For `intervention_effect`, require a minimal structural confirmation first. Default to `graph.paths(treatment, outcome)`, and call `intervene.do` only if that path check succeeds. Use `traverse.parents(outcome)` only for a narrowly direct-driver question.
-   - For `capability_audit`, do not pair a full `meta.capabilities` dump with a full `meta.methods` dump unless the user explicitly needs both views. Inventory first, then targeted method detail for the verbs that remain in question.
-   - Only upgrade from CAP core to `extensions.abel.*` when CAP core cannot answer the user's actual question.
-   - After each call, ask what single open causal question remains. If none remains, stop.
+    - For `driver_explanation`, start with `traverse.parents` or `graph.neighbors(scope=parents)`, then add `graph.markov_blanket` only if direct drivers are still unclear.
+    - For `reachability_check`, start with `graph.paths` on the specific proposed source and target. Use `extensions.abel.validate_connectivity` only when screening a small candidate set is more honest than many repeated path probes.
+    - For `intervention_effect`, require a minimal structural confirmation first. Default to `graph.paths(treatment, outcome)`, and call `intervene.do` only if that path check succeeds. Use `traverse.parents(outcome)` only for a narrowly direct-driver question.
+    - For `proxy_routed`, first pick 3-5 honest proxy anchors, then ask which single edge, path, or proxy dimension needs mechanism evidence next. If search tools are available, follow `references/search-loop.md` before every search hop.
+    - For `convergence_read`, run independent structural reads on 3-5 anchors, then look for repeated nodes or repeated proxy dimensions before narrating a theme. Use `references/layered-routing.md` when the topic spans supply-chain or economic layers.
+    - For `capability_audit`, do not pair a full `meta.capabilities` dump with a full `meta.methods` dump unless the user explicitly needs both views. Inventory first, then targeted method detail for the verbs that remain in question.
+    - Only upgrade from CAP core to `extensions.abel.*` when CAP core cannot answer the user's actual question.
+    - After each call, ask what single open causal question remains. If none remains, stop.
+    - In proxy-heavy work, stop early when the same anchors keep repeating, search results stay low-signal, or the remaining uncertainty is a future event rather than a currently answerable structural question.
 
 8. Answer in layers.
-   - Lead with a plain-language conclusion.
-   - Then say which CAP surface supports it.
-   - Then state the caveats that materially change interpretation.
-   - When organizing a fuller write-up, follow `assets/report-template.md`: start from the user's original question, map that question to graph nodes, then separate each verb's result from what that result means for the question.
+    - Lead with a plain-language conclusion.
+    - Then say which CAP surface supports it.
+    - Then state the caveats that materially change interpretation.
+    - When organizing a fuller write-up, follow `assets/report-template.md`: start from the user's original question, map that question to graph nodes, then separate each verb's result from what that result means for the question.
+    - In proxy-routed reports, separate graph facts, searched mechanisms, and inference. Do not let narrative blur those layers.
 
 9. Stay semantically honest.
-   - Distinguish CAP core from Abel extensions when that matters.
-   - Treat proxy-routed answers as market-signal reads, not direct models of people or life outcomes.
-   - Treat `observe.predict` as observational, `intervene.do` as intervention, and `counterfactual_preview` as preview-only.
+    - Distinguish CAP core from Abel extensions when that matters.
+    - Treat proxy-routed answers as market-signal reads, not direct models of people or life outcomes.
+    - Treat `observe.predict` as observational, `intervene.do` as intervention, and `counterfactual_preview` as preview-only.
+    - For region-specific questions, match the search language to the region when search is needed, then verify key claims with higher-quality sources before using them as mechanism evidence.
+
+## Proxy And Search Discipline
+
+- Search is optional support, not the center of the skill. CAP structure stays primary.
+- Before any search call, be able to name either the exact edge or the exact proxy dimension being explained.
+- If you cannot state that edge or dimension, go back to graph grounding first.
+- Use multi-anchor convergence for broad comparisons, sector-like themes, or life decisions with several competing dimensions.
+- Use layered routing when only mega-cap anchors would flatten the story; prefer anchors that cover distinct supply, demand, platform, financing, or policy roles.
+- For complex proxy-routed questions, pressure-test the answer before finalizing: surface the strongest counter-evidence, the weakest structural link, and the biggest unresolved assumption.
 
 ## Install And Authorization
 
@@ -126,6 +142,8 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Detailed routing logic, proxy dimensions, narration rules, and semantic guardrails: `references/question-routing.md`
 - User-intent inversion from desired answer to graph mapping and capability choice: `references/inversion-flow.md`
 - Report organization for results and meaning: `assets/report-template.md`
+- Edge-anchored search protocol and graph-search loop discipline: `references/search-loop.md`
+- Layered proxy routing and convergence anchor selection: `references/layered-routing.md`
 - OAuth install flow, polling behavior, and API key reuse: `references/setup-guide.md`
 - Probe script commands and reusable examples: `references/probe-usage.md`
 - Capability layering and progressive disclosure: `references/capability-layers.md`
