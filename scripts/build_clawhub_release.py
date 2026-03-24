@@ -15,12 +15,11 @@ REMOVE_FRONTMATTER_KEYS = {
     "update_repo",
     "update_branch",
     "update_skill_path",
-    "update_changelog_path",
 }
 
 OLD_HOW_TO_USE_STEP = """1. Check authorization state before any live API call.
    - On the first use of this skill in the session, attempt the soft update check from `references/update-flow.md` before live Abel API usage.
-   - If the check reports an available update, summarize the changelog briefly and ask whether to run the single-skill refresh command returned by the script.
+   - If the check reports an available update, mention the version difference briefly and ask whether to run the single-skill refresh command returned by the script.
    - Phrase that prompt in a friendly way and end with a short `Y/N`.
    - If the user declines, or the check cannot complete, continue normally.
    - If `ABEL_API_KEY` is missing from session state, `--api-key`, and `.env.skills`, start the OAuth handoff from `references/setup-guide.md` first.
@@ -57,7 +56,9 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Never ask the user to paste an email address or Google OAuth code.
 """
 
-UPDATE_REFERENCE_LINE = "- First-use soft update detection and changelog summary flow: `references/update-flow.md`\n"
+UPDATE_REFERENCE_LINE = (
+    "- First-use soft update detection flow: `references/update-flow.md`\n"
+)
 
 CLAWHUB_OPENAI_YAML = """interface:
   display_name: "Causal Abel"
@@ -169,7 +170,9 @@ def transform_skill_md(source_text: str, version_override: str) -> str:
     frontmatter_lines, body = split_frontmatter(source_text)
     frontmatter = build_frontmatter(frontmatter_lines, version_override)
     body = remove_section(body, "First-Use Update Check")
-    body = replace_once(body, OLD_HOW_TO_USE_STEP, NEW_HOW_TO_USE_STEP, "How To Use step 1")
+    body = replace_once(
+        body, OLD_HOW_TO_USE_STEP, NEW_HOW_TO_USE_STEP, "How To Use step 1"
+    )
     body = replace_once(
         body,
         OLD_INSTALL_SECTION,
@@ -211,7 +214,9 @@ def main() -> int:
     shutil.copytree(source_dir, output_dir, ignore=ignore_copy_patterns)
 
     skill_text = (output_dir / "SKILL.md").read_text(encoding="utf-8")
-    write_text(output_dir / "SKILL.md", transform_skill_md(skill_text, args.version.strip()))
+    write_text(
+        output_dir / "SKILL.md", transform_skill_md(skill_text, args.version.strip())
+    )
     write_text(output_dir / "agents" / "openai.yaml", CLAWHUB_OPENAI_YAML)
 
     remove_if_exists(output_dir / "CHANGELOG.md")
