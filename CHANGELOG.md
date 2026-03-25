@@ -4,6 +4,15 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## Unreleased
+
+### Changed
+
+- Reframed `causal-abel` so the default output shape is a compact report rather than a short verdict-only answer.
+- Updated the direct and proxy routes so executable anchors are observed first, preferring `extensions.abel.observe_predict_resolved_time` before deeper structural traversal.
+- Changed the planner and probe guidance so non-trivial comparative reads now default to one compact `intervene.do` pressure test after the mechanism is coherent.
+- Updated the report template so pressure-test coverage is expected by default in longer comparative analyses.
+
 ## [1.0.2] - 2026-03-24
 
 ### Added
