@@ -19,9 +19,11 @@ Every report should answer these things in order:
 ## Output Rules
 
 - For ordinary user-facing answers, lead with a short verdict-first answer before the fuller report body.
-- For high-stakes or non-trivial `proxy_routed` and multi-step analyses, the full report is the default deliverable.
+- The full report is the default deliverable for most comparative, proxy-routed, multi-anchor, or multi-step analyses.
 - Low-stakes casual comparisons may stay shorter, but they should still preserve graph-grounded reasoning and any critical web-grounded mechanism.
-- Only collapse to a short answer when the user explicitly asks for brevity.
+- Only collapse to a short answer when the user explicitly asks for brevity or the task is genuinely trivial.
+- Explicit markdown section headings are preferred when the full report is the default deliverable, but natural longform prose is also acceptable.
+- If you use natural prose instead of headings, still preserve the report contract fields in the same order and with clear separation.
 - After the first-screen answer, prefer a compact card with:
   - `Signal`
   - `Causal link`
@@ -39,6 +41,7 @@ Every report should answer these things in order:
 - If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject.
 - If a financial transmission node or small-cap bridge was considered but then downgraded, say so briefly in the report instead of silently dropping it.
 - Include a short challenge section for non-trivial analyses: untested assumption, counter-evidence, weakest link.
+- Include a short pressure-test section by default for non-trivial comparative reads; if no meaningful live intervention was run, say why and name the cleanest next-step probe.
 - When intervention adds value, frame it as a pressure test or next-step probe, not as a detached method demo.
 - Keep command, route, OAuth, and script details out of the main report unless the user asks for them.
 - Do not dump raw JSON when a short natural-language rendering will preserve the meaning.
@@ -134,6 +137,8 @@ Recommended verb sections:
 - `result`: what the observational surface currently predicts
 - `meaning`: what the current regime suggests, without overstating it as intervention effect
 
+When the live surface exposes `extensions.abel.observe_predict_resolved_time`, prefer that surface and render it as the main observational finding.
+
 #### `intervene.do` / `intervene-time-lag`
 
 - `result`: what changes when the treatment node is stressed, and how that stress rolls out if time-lag is used
@@ -188,7 +193,7 @@ Compact contract name:
 
 ### 6. Pressure Test
 
-Use this section only when it adds decision value.
+Use this section by default for non-trivial comparative or high-stakes reads. Omit it only when no meaningful live intervention surface or stress target exists.
 
 Required fields:
 
@@ -245,6 +250,8 @@ Compact contract name:
 - `caveat`: the highest-priority limit that changes interpretation
 
 ## Preferred Output Shape
+
+For default-report cases, preserve the section headings below when you want explicit structure. If you choose natural prose, keep the same information order and do not collapse away the pressure-test or next-step-probe content.
 
 Use this markdown skeleton when presenting the report:
 
@@ -314,10 +321,6 @@ Use this markdown skeleton when presenting the report:
 - [Limit 2]
 - [Limit 3]
 
-## Trace
-- Routing:
-- Searches used:
-- Key nodes:
 ```
 
 ## Quality Check
