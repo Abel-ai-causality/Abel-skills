@@ -40,7 +40,7 @@ Deterministic subcommands:
 Run these from the skill root:
 
 ```bash
-BASE_URL="https://cap.abel.ai"
+BASE_URL="https://gateway-sit.abel.ai/api"
 
 python scripts/cap_probe.py --base-url "$BASE_URL" capabilities
 python scripts/cap_probe.py normalize-node NVDA
@@ -141,10 +141,11 @@ When a bridge node keeps reappearing across path checks, inspect its neighborhoo
 
 ## Endpoint Notes
 
-- The current public CAP surface answers on `https://cap.abel.ai/cap`.
-- `https://cap-sit.abel.ai/cap` is the SIT variant when you need staging.
-- The probe accepts base URLs such as `https://cap.abel.ai` and resolves them to `/cap`.
-- `https://api.abel.ai/echo/` is used for OAuth and business API flows in `setup-guide.md`; it is not the default CAP probe base.
+- The current default CAP surface answers on `https://gateway-sit.abel.ai/api/cap`.
+- Production CAP surface answers on `https://cap.abel.ai/cap`.
+- SIT CAP surface answers on `https://gateway-sit.abel.ai/api/cap`.
+- The probe accepts base URLs such as `https://gateway-sit.abel.ai/api` and resolves them to `/cap`.
+- `https://api-sit.abel.ai/echo/` is used for OAuth and business API flows in `setup-guide.md`; it is not the default CAP probe base.
 - If `.env.skills` does not yet contain `ABEL_API_KEY`, pause here and complete the OAuth handoff before using these examples.
 
 ## See Also

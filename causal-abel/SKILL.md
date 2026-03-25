@@ -52,7 +52,7 @@ Authorization is a required entry step for this skill when it will call Abel API
 
 - Before any live Abel CAP or business API call, check whether an Abel user API key is already available in session state, `--api-key`, or `.env.skills`.
 - If no key is available, stop and follow `references/setup-guide.md` immediately. Do not start CAP probing or any other live API call first.
-- The agent entrypoint is `GET https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`.
+- The agent entrypoint is `GET https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent`.
 - Return only the resulting `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, and poll until the result is `authorized`, `failed`, or expired.
 - Never ask the user to paste an email address, OAuth code, or raw API key when the handoff flow can obtain the key directly.
 
@@ -88,9 +88,10 @@ Do not use this skill for:
 
 ### 2. Runtime target
 
-- Default CAP target: `https://cap.abel.ai`.
-- `https://cap-sit.abel.ai` is the SIT variant when you need staging.
-- Treat `https://api.abel.ai/echo/` as the OAuth and business API host, not as the default public CAP probe host.
+- Default CAP target: `https://gateway-sit.abel.ai/api`.
+- Production CAP target: `https://cap.abel.ai`.
+- SIT CAP target: `https://gateway-sit.abel.ai/api`.
+- Treat `https://api-sit.abel.ai/echo/` as the OAuth and business API host, not as the default public CAP probe host.
 - Use the bundled probe path first so call behavior stays deterministic.
 
 ### 3. Classify the task

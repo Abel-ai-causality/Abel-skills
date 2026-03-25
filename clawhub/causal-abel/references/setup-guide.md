@@ -1,6 +1,6 @@
 # Abel AI API Key OAuth Flow
 
-Base URL: `https://api.abel.ai/echo/`
+Base URL: `https://api-sit.abel.ai/echo/`
 
 This API key flow is designed for agents and assistants.
 It is the required entrypoint whenever a skill-driven Abel API call starts without an existing user API key in session state, `--api-key`, or `.env.skills`.
@@ -13,7 +13,7 @@ Always start by requesting an agent OAuth authorization URL, send that URL back 
 - Do not continue to CAP probing, capability inspection, or other live Abel API calls until this authorization flow has succeeded and a user API key is available.
 - The URL `GET /web/credentials/oauth/google/authorize/agent` is the backend endpoint the agent calls to obtain the authorization link. It is not the link the user should open in the browser.
 - Prefer opening `data.authUrl` for the user automatically when the client supports it. Otherwise render it as a directly clickable link instead of plain text that must be copied manually.
-- Never ask the user to open or click `https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent` directly. The user-facing authorization link is the Google OAuth URL returned in `data.authUrl`.
+- Never ask the user to open or click `https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent` directly. The user-facing authorization link is the Google OAuth URL returned in `data.authUrl`.
 - Do not ask the user to paste an email address.
 - Do not ask the user to paste the Google OAuth `code`.
 - Do not try to manually complete the callback flow on behalf of the user.
@@ -47,7 +47,7 @@ Example:
 
 ```dotenv
 ABEL_API_KEY=abel_xxx
-CAP_BASE_URL=https://cap.abel.ai
+CAP_BASE_URL=https://gateway-sit.abel.ai/api
 ```
 
 This is a runtime-created local file, not a bundled artifact. Do not ship `.env.skills` or `.env.skills.example` inside the published skill bundle.
@@ -56,7 +56,7 @@ This is a runtime-created local file, not a bundled artifact. Do not ship `.env.
 
 Method: `GET`
 Path: `/web/credentials/oauth/google/authorize/agent`
-Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`
+Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent`
 Authentication: none
 
 This endpoint is for the agent to call. The browser URL the user should open is the `data.authUrl` value returned by this endpoint, not this API URL itself.
@@ -72,8 +72,8 @@ This endpoint is for the agent to call. The browser URL the user should open is 
     "provider": "google",
     "flow": "agent_handoff",
     "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?...",
-    "redirectUri": "https://api.abel.ai/echo/web/credentials/oauth/google/callback",
-    "resultUrl": "https://api.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
+    "redirectUri": "https://api-sit.abel.ai/echo/web/credentials/oauth/google/callback",
+    "resultUrl": "https://api-sit.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
     "pollToken": "POLL_TOKEN",
     "authorizationState": "pending_user_action",
     "expiresAt": 1773906755,
@@ -99,7 +99,7 @@ Do not ask the user to reply in chat after they finish authorization unless you 
 
 Method: `GET`
 Path: `/web/credentials/oauth/google/result`
-Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
+Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
 Authentication: none
 
 ### Not Ready Yet Response
@@ -162,7 +162,7 @@ Authentication: none
 
 Method: `GET`
 Path: `/web/credentials/oauth/google/callback`
-Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/callback`
+Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/callback`
 Authentication: none
 
 This endpoint is intended to be opened in the user's browser after Google authorization.
@@ -185,7 +185,7 @@ Optional JSON mode:
 
 Example:
 
-`https://api.abel.ai/echo/web/credentials/oauth/google/callback?code=GOOGLE_CODE&format=json`
+`https://api-sit.abel.ai/echo/web/credentials/oauth/google/callback?code=GOOGLE_CODE&format=json`
 
 ### Legacy Manual JSON Success Response
 

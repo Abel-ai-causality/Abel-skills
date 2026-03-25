@@ -1,0 +1,13 @@
+{
+  "active_profile": "sit",
+  "profiles": {
+    "prod": {
+      "cap_base_url": "https://cap.abel.ai",
+      "oauth_base_url": "https://api.abel.ai/echo/"
+    },
+    "sit": {
+      "cap_base_url": "https://gateway-sit.abel.ai/api/",
+      "oauth_base_url": "https://api-sit.abel.ai/echo/"
+    }
+  }
+}

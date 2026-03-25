@@ -18,33 +18,6 @@ REMOVE_FRONTMATTER_KEYS = {
     "update_changelog_path",
 }
 
-OLD_HOW_TO_USE_STEP = """1. Check authorization state before any live API call.
-   - On the first use of this skill in the session, attempt the soft update check from `references/update-flow.md` before live Abel API usage.
-   - If the check reports an available update, mention the version difference briefly and ask whether to run the single-skill refresh command returned by the script.
-   - Phrase that prompt in a friendly way and end with a short `Y/N`.
-   - If the user declines, or the check cannot complete, continue normally.
-   - If `ABEL_API_KEY` is missing from session state, `--api-key`, and `.env.skills`, start the OAuth handoff from `references/setup-guide.md` first.
-   - Treat missing credentials as a hard stop for live Abel API usage, not as a minor warning.
-"""
-
-NEW_HOW_TO_USE_STEP = """1. Check authorization state before any live API call.
-   - If `ABEL_API_KEY` is missing from session state, `--api-key`, and `.env.skills`, start the OAuth handoff from `references/setup-guide.md` first.
-   - Treat missing credentials as a hard stop for live Abel API usage, not as a minor warning.
-"""
-
-OLD_INSTALL_SECTION = """## Install And Authorization
-
-If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
-
-- If this is the first session use and update check has not yet been attempted, run the soft update check first from `references/update-flow.md`.
-- Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
-- Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
-- Store `data.resultUrl` or `data.pollToken` and poll until the result is `authorized`, `failed`, or expired.
-- Persist the resulting `data.apiKey` in session state and `.env.skills` when local storage is available.
-- Do not continue to live CAP probing until that key is present.
-- Never ask the user to paste an email address or Google OAuth code.
-"""
-
 NEW_INSTALL_SECTION = """## Install And Authorization
 
 If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
@@ -58,7 +31,7 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 """
 
 UPDATE_REFERENCE_LINE = (
-    "- First-use soft update detection flow: `references/update-flow.md`\n"
+    "- First-use soft update detection and changelog summary flow: `references/update-flow.md`\n"
 )
 
 CLAWHUB_OPENAI_YAML = """interface:
@@ -161,30 +134,40 @@ def remove_section(body: str, heading: str) -> str:
     return body[:start].rstrip() + "\n\n" + body[next_heading + 1 :].lstrip()
 
 
-def replace_once(text: str, old: str, new: str, description: str) -> str:
-    if old not in text:
+def replace_section(body: str, heading: str, new_section: str) -> str:
+    marker = f"## {heading}\n\n"
+    start = body.find(marker)
+    if start == -1:
+        raise ValueError(f"Could not find section `{heading}` in SKILL.md.")
+    next_heading = body.find("\n## ", start + len(marker))
+    replacement = new_section.rstrip() + "\n\n"
+    if next_heading == -1:
+        return body[:start] + replacement
+    return body[:start] + replacement + body[next_heading + 1 :]
+
+
+def remove_line(body: str, line: str, description: str) -> str:
+    target = line.rstrip("\n")
+    replacement = target + "\n"
+    if replacement not in body:
         raise ValueError(f"Expected to find {description}, but it was missing.")
-    return text.replace(old, new, 1)
+    return body.replace(replacement, "", 1)
 
 
 def transform_skill_md(source_text: str, version_override: str) -> str:
     frontmatter_lines, body = split_frontmatter(source_text)
     frontmatter = build_frontmatter(frontmatter_lines, version_override)
     body = remove_section(body, "First-Use Update Check")
-    body = replace_once(
-        body, OLD_HOW_TO_USE_STEP, NEW_HOW_TO_USE_STEP, "How To Use step 1"
-    )
-    body = replace_once(
+    body = remove_line(
         body,
-        OLD_INSTALL_SECTION,
-        NEW_INSTALL_SECTION,
-        "Install And Authorization section",
+        "- On first session use, attempt the soft update check from `references/update-flow.md`.",
+        "How To Use preflight update-check bullet",
     )
-    body = replace_once(
-        body,
-        UPDATE_REFERENCE_LINE,
-        "",
-        "update-flow reference line",
+    body = replace_section(
+        body, "Install And Authorization", NEW_INSTALL_SECTION
+    )
+    body = remove_line(
+        body, UPDATE_REFERENCE_LINE, "update-flow reference line"
     )
     return frontmatter + body.rstrip() + "\n"
 

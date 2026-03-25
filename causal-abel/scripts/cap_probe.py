@@ -14,7 +14,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_URL = "https://cap.abel.ai"
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from endpoint_config import get_active_profile
+
+DEFAULT_BASE_URL = get_active_profile()["cap_base_url"]
 CAP_VERSION = "0.2.2"
 TEXT_TRUNCATE_EXACT_KEYS = {
     "description",
@@ -93,8 +99,10 @@ def _cap_endpoint(base_url: str) -> str:
     path = parsed.path.rstrip("/")
     if path.endswith("/api/v1/cap") or path.endswith("/cap"):
         endpoint_path = path or "/cap"
-    elif path in ("", "/", "/api", "/api/v1"):
+    elif path in ("", "/"):
         endpoint_path = "/cap"
+    elif path in ("/api", "/api/v1"):
+        endpoint_path = f"{path}/cap"
     elif path.endswith("/echo"):
         endpoint_path = f"{path}/api/v1/cap"
     else:
