@@ -7,6 +7,7 @@ Use this file for `cap_probe.py` details and reusable command patterns after the
 - Do not run the bundled probe against live Abel APIs until an Abel user API key is available in session state, `--api-key`, or `.env.skills`.
 - If the key is missing, start the OAuth handoff from `setup-guide.md` first and persist the resulting key before probing.
 - By default, `cap_probe.py` reads `<skill-root>/.env.skills`, so treat it as an authorized probe, not an anonymous public probe.
+- Do not print or paste `.env.skills` contents. Only verify whether the key exists, or let `cap_probe.py` read it implicitly.
 
 ## Bundled Script
 
@@ -48,6 +49,7 @@ python scripts/cap_probe.py normalize-node NVDA_volume
 python scripts/cap_probe.py --base-url "$BASE_URL" methods
 python scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict traverse.parents
 python scripts/cap_probe.py --base-url "$BASE_URL" methods observe.predict --detail full --include-examples
+python scripts/cap_probe.py --base-url "$BASE_URL" methods extensions.abel.query_node extensions.abel.node_description --detail full --include-examples
 python scripts/cap_probe.py --base-url "$BASE_URL" observe NVDA_close
 python scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA_close --scope children --max-neighbors 5
 python scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA_close AMD_close --max-paths 3
@@ -85,6 +87,9 @@ Normalization rule:
 - The bundled normalizer rewrites common bare crypto aliases such as `BTC`, `ETH`, `SOL`, `XRP`, `DOGE`, `ADA`, and `AVAX` into `*USD_<suffix>`.
 - Use `--default-suffix volume` only when the question is genuinely about volume or participation.
 - Free-form phrases such as `Spotify` or `music streaming` are not normalized automatically; map them to a ticker first.
+- For obvious company names and familiar proxy anchors, manual ticker mapping is still the default first pass.
+- For fuzzy names, concept words, Chinese phrases, or broad proxy labels, check live `meta.methods` and call `extensions.abel.query_node` through the generic `verb` path when it is available.
+- Use `extensions.abel.node_description` only on the shortlisted nodes that matter for label quality or bridge disambiguation.
 - Recent validation: `BTCUSD_close` currently behaves like an isolated node on the public graph.
   - `graph.neighbors(scope=parents)` -> empty
   - `graph.neighbors(scope=children)` -> empty
@@ -100,7 +105,12 @@ For capability discovery, avoid redundant full dumps:
 ## Generic Fallbacks
 
 ```bash
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.query_node --params-json '{"search":"music streaming","search_mode":"hybrid","top_k":5}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"SPOT_close"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate_connectivity --params-json '{"variables":["NVDA_close","AMD_close","SOXX_close"]}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover_consensus --params-json '{"seed_nodes":["NVDA_close","ANET_close"],"direction":"out","limit":10}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover_deconsensus --params-json '{"seed_nodes":["NVDA_close"],"direction":"out","contrast_level":"medium","limit":8}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover_fragility --params-json '{"node_ids":["SIM_close","MOOOUSD_close"],"severity_level":"medium","only_fragility":true,"limit":10}'
 python scripts/cap_probe.py --base-url "$BASE_URL" route extensions/abel/counterfactual_preview --params-json '{"intervene_node":"NVDA_close","intervene_time":"2024-01-01T00:00:00Z","observe_node":"AMD_close","observe_time":"2024-01-02T00:00:00Z","intervene_new_value":0.05}'
 ```
 

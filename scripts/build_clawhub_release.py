@@ -24,7 +24,7 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 
 - Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
-- Store `data.resultUrl` or `data.pollToken` and poll until the result is `authorized`, `failed`, or expired.
+- Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
 - Persist the resulting `data.apiKey` in session state and `.env.skills` when local storage is available.
 - Do not continue to live CAP probing until that key is present.
 - Never ask the user to paste an email address or Google OAuth code.
@@ -123,11 +123,11 @@ def build_frontmatter(lines: list[str], version_override: str) -> str:
     return "---\n" + "\n".join(out).rstrip() + "\n---\n\n"
 
 
-def remove_section(body: str, heading: str) -> str:
+def remove_section_if_present(body: str, heading: str) -> str:
     marker = f"## {heading}\n\n"
     start = body.find(marker)
     if start == -1:
-        raise ValueError(f"Could not find section `{heading}` in SKILL.md.")
+        return body
     next_heading = body.find("\n## ", start + len(marker))
     if next_heading == -1:
         return body[:start].rstrip() + "\n"
@@ -154,21 +154,25 @@ def remove_line(body: str, line: str, description: str) -> str:
     return body.replace(replacement, "", 1)
 
 
+def remove_line_if_present(body: str, line: str) -> str:
+    target = line.rstrip("\n") + "\n"
+    if target not in body:
+        return body
+    return body.replace(target, "", 1)
+
+
 def transform_skill_md(source_text: str, version_override: str) -> str:
     frontmatter_lines, body = split_frontmatter(source_text)
     frontmatter = build_frontmatter(frontmatter_lines, version_override)
-    body = remove_section(body, "First-Use Update Check")
-    body = remove_line(
+    body = remove_section_if_present(body, "First-Use Update Check")
+    body = remove_line_if_present(
         body,
         "- On first session use, attempt the soft update check from `references/update-flow.md`.",
-        "How To Use preflight update-check bullet",
     )
     body = replace_section(
         body, "Install And Authorization", NEW_INSTALL_SECTION
     )
-    body = remove_line(
-        body, UPDATE_REFERENCE_LINE, "update-flow reference line"
-    )
+    body = remove_line_if_present(body, UPDATE_REFERENCE_LINE)
     return frontmatter + body.rstrip() + "\n"
 
 

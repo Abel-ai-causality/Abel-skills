@@ -50,54 +50,67 @@ Use this only when the user is explicitly inspecting the server surface, mounted
    - `direct_graph`: drivers, neighbors, reachability, intervention, preview
    - `proxy_routed`: map to proxy dimensions and proxy tickers.
 
-3. Start graph-first.
+3. Ground the nodes before probing.
+   - If the input is already a public node id, keep it unchanged.
+   - For obvious company names or familiar proxy anchors, manual ticker mapping is the default first pass.
+   - For fuzzy names, concept words, Chinese phrases, or broad proxy labels, check live `meta.methods` and use `extensions.abel.query_node` when available.
+   - Treat manual mapping and `query_node` as two recall paths. Merge them, shortlist the 2-5 most honest candidates, then continue.
+   - Use `extensions.abel.node_description` only on the shortlisted nodes that matter for role labeling or bridge disambiguation.
+
+4. Start graph-first.
    - Local structure default: `graph.neighbors`
    - Transmission default: `graph.paths`
    - `graph.markov_blanket` is a fallback when local structure is still low-signal
    - After the proxy set is stable, run a short-term observational pass on anchors
    - Effect surfaces come later
 
-4. Run a multi-round graph-first loop.
+5. Run a multi-round graph-first loop.
    - After each call, ask what open causal question remains.
    - Choose the single next graph call with the highest information gain.
    - Keep looping while a real open question remains and the answer quality is still improving.
    - Stop when the conclusion is already strong enough for the user-facing answer.
 
-5. Run a web-grounded evidence pass after structure is clear.
+6. Run a web-grounded evidence pass after structure is clear.
    - For `proxy_routed` questions, this is the default second stage, not an optional flourish.
    - Use ordinary web or news search, not image search.
    - Search only for a graph-grounded target: one edge, one candidate node, one sector, or one proxy dimension at a time.
    - Use the search pass to explain the current real-world mechanism behind the graph finding.
 
-6. Move to pressure-test surfaces only after the structural question is clear.
+7. Move to pressure-test surfaces only after the structural question is clear.
    - `extensions.abel.observe_predict_resolved_time` gives the current observational baseline plus the resolved prediction timestamp.
    - `observe.predict` is the core fallback when the extension is unavailable.
    - `intervene.do` is the compact "push this lever" pressure test.
    - `extensions.abel.intervene_time_lag` shows how that pressure rolls out over time.
    - `extensions.abel.counterfactual_preview` gives a preview-only alternate-path test.
 
-7. If search tools are available, use them to explain a known edge, path, or proxy tension.
+8. Use optional discovery shortcuts only when they reduce loop cost.
+   - If live `meta.methods` advertises `extensions.abel.discover_consensus`, use it after the seed set is already stable to summarize a baseline consensus path.
+   - If live `meta.methods` advertises `extensions.abel.discover_deconsensus`, use it to surface contrast candidates after the baseline is already clear.
+   - If live `meta.methods` advertises `extensions.abel.discover_fragility`, use it only on a narrow shortlist of suspected load-bearing bridge nodes.
+   - None of these should replace the first structural pass.
+
+9. If search tools are available, use them to explain a known edge, path, or proxy tension.
    - Do not search without a graph-grounded question.
    - Do not let search replace graph reasoning.
    - For current-state, market-signal, or decision questions, do not stop at graph-only narration if a focused search could materially clarify the mechanism.
 
-8. Run a brief red-team pass before finalizing.
+10. Run a brief red-team pass before finalizing.
    - State the strongest untested assumption.
    - State the strongest counter-evidence or alternative explanation you found.
    - State the weakest link in the graph path, bridge node, or proxy mapping.
    - If the conclusion depends on current mechanism and search is available, use one adversarial or falsification-oriented search.
    - If this materially weakens the thesis, lower certainty or switch to a conditional verdict.
 
-9. Write the answer in old Abel app style.
+11. Write the answer in old Abel app style.
    - verdict first
    - causal link second
    - compact full report after the first-screen answer for high-stakes or non-trivial analyses
    - concise card inside that report
    - optional trace only when useful
 
-## Node Normalization Gate
+## Grounding Gate
 
-Before any live CAP call, normalize the input into the actual public Abel node-id form.
+Before any live CAP call, ground the input into the actual public Abel node-id form.
 
 Decision order:
 
@@ -105,8 +118,9 @@ Decision order:
 2. If the input looks like a real ticker such as `NVDA`, `SPOT`, or `ETHUSD`, default to `<ticker>_close`.
 3. If the input is a bare crypto alias such as `BTC`, `ETH`, or `SOL`, expand it to `<alias>USD_close` first.
 4. Only switch the default to `<ticker>_volume` when the question is explicitly about volume, trading activity, participation, or liquidity rather than price regime.
-5. If the input is a company name, brand, or proxy phrase such as `Spotify`, `New York Times`, or `music streaming`, map it to a real ticker first.
-6. If there is no honest ticker mapping, stop instead of probing a guessed node.
+5. If the input is a company name, brand, or proxy phrase such as `Spotify`, `New York Times`, or `music streaming`, use manual mapping first when it is obvious.
+6. If the phrase is fuzzy, multilingual, or concept-heavy, check live `meta.methods` and use `extensions.abel.query_node` when available.
+7. If there is no honest ticker or node mapping after the combined recall step, stop instead of probing a guessed node.
 
 Interpretation rule:
 
@@ -114,6 +128,7 @@ Interpretation rule:
 - Bare tickers are query shapes.
 - `_close` means close price. `_volume` means close volume.
 - For crypto, the practical executable form is usually `*USD_close` or `*USD_volume`.
+- `extensions.abel.node_description` is a label helper for shortlisted nodes, not a substitute for graph structure.
 - `BTCUSD_close` is currently a bad bridge candidate.
   - recent validation found no parents, no children, and sampled paths to common anchors were disconnected
   - treat it as effectively independent unless fresh probes show otherwise
@@ -139,7 +154,8 @@ Default sequence:
    - another `graph.neighbors`
    - a narrowed `graph.paths`
    - `graph.markov_blanket` only if the local picture is still muddy
-4. Stop when the immediate drivers are already clear enough for the answer.
+4. If the user gave a fuzzy company or concept label and one shortlisted node still feels semantically ambiguous, use `extensions.abel.node_description` on that narrow shortlist before narrating a driver story.
+5. Stop when the immediate drivers are already clear enough for the answer.
 
 Decision gates:
 
@@ -163,6 +179,7 @@ Default sequence:
 2. If the returned path opens a better follow-up question, inspect the most important intermediary with `graph.neighbors`.
 3. If the user has a small candidate set and wants to know which are even worth path inspection, use `extensions.abel.validate_connectivity` as a screening step.
 4. If a path exists and the user now wants effect semantics, move to an intervention workflow instead of continuing to fan out more path calls.
+5. If a bridge node looks load-bearing and live `meta.methods` advertises `extensions.abel.discover_fragility`, use it on the narrow shortlist to test whether the bridge is structurally fragile or replaceable.
 
 Decision gates:
 
@@ -246,11 +263,14 @@ Routing rules:
 - Include at least one proxy from the opposite side of the decision when possible.
 - Prefer layered routing over only mega-caps; mid-cap or supply-chain-specific names often carry cleaner signal.
 - For live Abel CAP calls, map proxies to real Abel node ids before probing; the current public graph expects `<ticker>_close` or `<ticker>_volume`, not free-form proxy labels.
+- Manual mapping is still the default first pass for obvious proxy anchors.
+- For fuzzy or broad proxy phrases, use `extensions.abel.query_node` as a second recall path instead of guessing a ticker too early.
 - Treat proxy tickers in this table as routing anchors, not as proof that the exact node is present in the current graph. Normalize first, then validate with the live surface if existence is uncertain.
 - The user should not see tickers as the answer. Tickers are intermediate routing signals.
 - In user-facing prose, translate proxy nodes into economic roles first.
 - If no honest proxy set exists, say so instead of forcing a story.
 - In a multi-round loop, do not spread attention evenly. Keep following the proxy, path, or bridge node that most improves the answer.
+- If the seed set is already stable and live `meta.methods` advertises `extensions.abel.discover_consensus` or `extensions.abel.discover_deconsensus`, use them as optional shortcuts for baseline vs contrast, not as the first move.
 - Once the anchor set is stable, run a quick observational pass across the main anchors.
   - check `meta.methods` first for the latest predictive extension surface
   - prefer `extensions.abel.observe_predict_resolved_time` when it is advertised there

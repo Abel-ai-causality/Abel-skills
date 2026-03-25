@@ -31,29 +31,15 @@ The answer should feel like old Abel app output, not like protocol documentation
 - graph-grounded web evidence when the question is proxy-routed or current-state dependent
 - optional trace only when it adds verification value
 
-## First-Use Update Check
-
-Treat skill update detection as a soft prerequisite on the first use of this skill in a session.
-
-- Before the first live Abel API call in a session, attempt the bundled update check from `references/update-flow.md`.
-- Prefer the bundled script: `python scripts/check_skill_update.py`.
-- If the script reports `update_available: true`, tell the user the current version, latest version, and a concise summary from the repository `CHANGELOG.md`.
-- Keep the update prompt warm, concise, and human. Avoid mechanical release-note dumps.
-- End the prompt with a short `Y/N` choice so the user can answer quickly.
-- Ask for approval before running the single-skill refresh command returned by the script.
-- Only check and refresh the installed `causal-abel` skill. Do not propose a full `npx skills update`.
-- If the script reports no update, or the check fails, times out, or returns malformed data, continue the normal skill flow without blocking the user.
-- Do not repeat the update check again in the same session once you have recorded that it was attempted.
-- Do not assume a freshly updated skill has been reloaded into the current turn. Continue safely, and treat the next skill invocation as the point where the updated files are guaranteed to apply.
-
 ## Authorization Gate
 
 Authorization is a required entry step for this skill when it will call Abel APIs on the user's behalf.
 
 - Before any live Abel CAP or business API call, check whether an Abel user API key is already available in session state, `--api-key`, or `.env.skills`.
 - If no key is available, stop and follow `references/setup-guide.md` immediately. Do not start CAP probing or any other live API call first.
+- Never print, quote, or paste the raw API key, OAuth result payload, or `.env.skills` contents into user-visible text, logs, or trace output. Check key presence without echoing secrets.
 - The agent entrypoint is `GET https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent`.
-- Return only the resulting `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, and poll until the result is `authorized`, `failed`, or expired.
+- Return only the resulting `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, ask the user to tell the agent when Google authorization is finished, and only then poll until the result is `authorized`, `failed`, or expired.
 - Never ask the user to paste an email address, OAuth code, or raw API key when the handoff flow can obtain the key directly.
 
 ## When To Use
@@ -82,7 +68,6 @@ Do not use this skill for:
 
 ### 1. Preflight
 
-- On first session use, attempt the soft update check from `references/update-flow.md`.
 - If `ABEL_API_KEY` is missing from session state, `--api-key`, and `.env.skills`, run the OAuth handoff from `references/setup-guide.md`.
 - Treat missing credentials as a hard stop for live Abel CAP usage.
 
@@ -108,7 +93,7 @@ Default interpretation:
 - if the user asks a real-world decision question with no direct node -> `proxy_routed`
 - if the user is explicitly inspecting the server surface -> `capability_discovery`
 
-### 4. Normalize the executable nodes
+### 4. Ground the executable nodes
 
 Before any live CAP call:
 
@@ -117,8 +102,11 @@ Before any live CAP call:
 3. If the input is a bare crypto alias such as `BTC`, `ETH`, or `SOL`, expand it to `*USD_close` first.
 4. `_close` means close price. `_volume` means close volume.
 5. Only switch the default to `<ticker>_volume` when the question is explicitly about volume, liquidity, or participation.
-6. If the input is a company name or proxy phrase such as `Spotify` or `music streaming`, map it to a real ticker first.
-7. If there is no honest ticker mapping, stop instead of probing a guessed node.
+6. Use manual mapping first for obvious company names, familiar proxy anchors, and stable ticker knowledge.
+7. If the input is a fuzzy company name, concept, Chinese phrase, or broad proxy idea such as `Spotify`, `music streaming`, or `半导体`, check live `meta.methods` and use `extensions.abel.query_node` when it is available.
+8. Treat manual mapping and `query_node` as two recall paths. Merge them, shortlist 2-5 honest candidates, then continue.
+9. Use `extensions.abel.node_description` only on the shortlisted nodes that matter for label quality, role assignment, or bridge disambiguation. Do not fetch descriptions for everything.
+10. If there is no honest ticker or node mapping after grounding, stop instead of probing a guessed node.
 
 Practical crypto rule:
 
@@ -165,6 +153,7 @@ Hard rules:
 - For proxy-routed anchor comparison, run a short-term observational pass once the proxy set is stable.
 - When you want the latest server-specific predictive surface, check `meta.methods` first instead of assuming the wrapper is current.
 - Prefer `extensions.abel.observe_predict_resolved_time` when `meta.methods` says it is available because it returns the resolved prediction timestamp.
+- When live `meta.methods` advertises newer extension helpers, prefer discovering them and calling them through the generic `verb` path over assuming the bundled script already has a dedicated wrapper.
 - Call unstable or newly added extension verbs through the generic `verb` path rather than assuming a dedicated local wrapper already exists.
 - Fall back to core `observe.predict` when the extension surface is unavailable.
 - Do not start with `intervene.do` for a driver question.
@@ -186,16 +175,18 @@ Default sequence:
    - `graph.neighbors`
    - `graph.paths`
    - `graph.markov_blanket` when local structure is still low-signal or when the returned candidates are dominated by transmission nodes
+   - if the seed set is already stable and live `meta.methods` advertises `extensions.abel.discover_consensus` or `extensions.abel.discover_deconsensus`, use them as optional summary or contrast shortcuts rather than as the first structural move
 7. once the proxy set is stable, run a short-term observational pass on the main 2-5 anchors:
    - prefer `extensions.abel.observe_predict_resolved_time`
    - fall back to `observe.predict`
    - use the sign and relative magnitude as a quick trend / pressure read
    - treat returned `drivers` as hints, not as trusted narrative anchors
-8. once the graph has surfaced 1-2 plausible mechanisms, run graph-grounded web search before finalizing
-9. if a shortlisted node looks like a financial transmission node or idiosyncratic microcap, treat it as a bridge first:
+8. if one bridge candidate looks load-bearing and live `meta.methods` advertises `extensions.abel.discover_fragility`, use it as an optional structural risk check for that narrow shortlist rather than as a default broad scan
+9. once the graph has surfaced 1-2 plausible mechanisms, run graph-grounded web search before finalizing
+10. if a shortlisted node looks like a financial transmission node or idiosyncratic microcap, treat it as a bridge first:
    - search it once if the graph signal is strong
    - if evidence is weak, validate one path or deepen one hop, then switch the search anchor to a sector, macro-linked non-financial name, or cleaner bridge
-10. use pressure-test surfaces only when they genuinely sharpen the answer
+11. use pressure-test surfaces only when they genuinely sharpen the answer
 
 Proxy rules:
 
@@ -283,10 +274,6 @@ Rules:
 
 ### 8. Answer contract
 
-Default output should feel like the old Abel app, but it still needs to be a real report when the analysis is non-trivial.
-
-Default mode:
-
 - For high-stakes or non-trivial `proxy_routed` and multi-step graph investigations, produce a compact full report.
 - Low-stakes casual comparisons can stay shorter, but they still need graph-grounded reasoning and, when relevant, at least one web-grounded mechanism.
 - Only collapse to a short answer when the user explicitly asks for "brief", "一句话", "short", or "just give me the pick".
@@ -309,7 +296,7 @@ Visible-text rules:
 
 #### 8B. Compact full report
 
-After the first screen, default to these sections:
+After the first screen, default to these sections in order:
 
 - `Intent read`
 - `Graph mapping`
@@ -320,16 +307,6 @@ After the first screen, default to these sections:
 - `Pressure test`
 - `Challenges`
 - `Caveats`
-
-The report should stay compact, but it should still show:
-
-- what the user is really asking
-- which proxy dimensions or anchors were used
-- what the graph established
-- what the web evidence clarified
-- what a pressure test changed or failed to change in graph terms
-- what the red-team pass failed to disprove
-- why the final judgment follows
 
 #### 8C. Insight Card
 
@@ -345,14 +322,6 @@ When applicable, add one short follow-through block after the card:
 
 - `Pressure test`: the one graph lever you stressed, the impacted node or proxy dimension, and whether the verdict held
 
-Interpretation:
-
-- `Signal`: one-line verdict
-- `Causal link`: the core chain in human language
-- `Sharp`: the most counterintuitive point
-- `Certain`: the strongest support from the loop
-- `Decision tip`: concrete user-facing judgment
-
 #### 8D. Optional trace
 
 Only when it helps:
@@ -361,9 +330,8 @@ Only when it helps:
 - `Searches used`
 - `Used surfaces`
 - `Key nodes`
-- `Challenges`
-- `Caveats`
-- `Pressure test`
+- `Challenges` or `Caveats`
+- `Pressure test` when one was run
 
 Keep trace separate from the main answer. It is for verification, not for headline reading.
 
@@ -387,10 +355,9 @@ Do not make this the center of the answer, but do keep these boundaries straight
 
 If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
 
-- If this is the first session use and update check has not yet been attempted, run the soft update check first from `references/update-flow.md`.
 - Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
-- Store `data.resultUrl` or `data.pollToken` and poll until the result is `authorized`, `failed`, or expired.
+- Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
 - Persist the resulting `data.apiKey` in session state and `.env.skills` when local storage is available.
 - Do not continue to live CAP probing until that key is present.
 - Never ask the user to paste an email address or Google OAuth code.
@@ -400,5 +367,4 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Detailed routing logic, multi-round graph loop guidance, proxy dimensions, and narration rules: `references/question-routing.md`
 - Report organization for fuller write-ups: `assets/report-template.md`
 - OAuth install flow, polling behavior, and API key reuse: `references/setup-guide.md`
-- First-use soft update detection and changelog summary flow: `references/update-flow.md`
 - Probe script commands and reusable examples: `references/probe-usage.md`
