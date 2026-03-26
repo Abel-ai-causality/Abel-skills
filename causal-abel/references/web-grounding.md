@@ -4,6 +4,8 @@ Read this file when the current unknown is better answered by external evidence 
 
 Search is a peer tool inside the loop, but not the dominant one. Graph structure stays primary.
 
+Web grounding never replaces a clear graph answer. It only clarifies freshness, mechanism, or realism around that answer.
+
 ## When To Use Web Next
 
 Use web as the next move when:
@@ -12,6 +14,12 @@ Use web as the next move when:
 - the question is about `latest`, `recently`, or `why now`
 - a bridge candidate needs validation
 - a company, sector, or asset needs current-state grounding
+
+Do not use web next when:
+
+- the user asked a literal driver or parent-membership question
+- the graph already answered the direct question and the remaining gap is only that the answer feels unintuitive
+- the only reason to search is to find a more familiar narrative than the one the graph surfaced
 
 ClawHub / OpenClaw rule:
 
@@ -69,6 +77,12 @@ After each useful result, keep only:
 - `state_now`
 - `counter-evidence`
 - `inference`
+
+If the web result conflicts with the graph-backed answer, keep both instead of letting one erase the other:
+
+- `graph_fact`: what the graph literally says
+- `web_state`: what dated external evidence suggests now
+- `tension`: whether the interpretation is aligned, challenged, or unresolved
 
 ## Stop Rules
 

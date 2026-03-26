@@ -8,6 +8,8 @@ The route file sets the initial prior. This file decides each next move.
 
 Graph and web are peer tools, but the planner should be graph-biased. Graph stays the reasoning center, and the usual cadence is one resolved-time observational graph read, then structural graph work, then web only when dated validation is needed.
 
+If the current question can already be answered literally from graph output, stop there first and answer it. Do not keep searching just to replace a graph fact with a more commonsense explanation.
+
 ## One-Line Planner
 
 Before each tool call, state internally or explicitly:
@@ -44,6 +46,8 @@ Search-first exception:
 - for `recently / latest / why now` questions, one baseline web search is allowed before the main graph loop
 - after that, return to graph unless the next unknown is still factual freshness
 
+Do not choose `web` merely because the graph result looks surprising or non-obvious.
+
 ## Preferred Cadence
 
 The usual cadence is:
@@ -72,6 +76,8 @@ Repeat until stop:
 5. decide `move`, `switch`, or `stop`
 
 For most questions, do not choose `web` until you have already done an observational pass plus at least one meaningful structural graph move on the active thread.
+
+For literal membership questions such as "is `Y` in `X`'s drivers", one clean structural graph move is often enough.
 
 ## Move / Switch / Stop
 
@@ -117,3 +123,4 @@ The final answer should feel coherent even if the loop alternated many times und
 - keep graph as the explanation center
 - keep web as dated mechanism validation
 - keep pressure tests as compact robustness checks, not detached demos
+- keep graph fact and interpretation visibly separate when the graph output is unintuitive

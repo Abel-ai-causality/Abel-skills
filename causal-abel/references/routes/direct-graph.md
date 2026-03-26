@@ -9,6 +9,7 @@ Read this file only when the question is already about a graph node, path, neigh
 - which nodes matter around `X`
 - is there a path from `X` to `Y`
 - what happens if `X` changes
+- whether `Y` is or is not in `X`'s drivers, parents, children, or path set
 
 ## What This Route Sets
 
@@ -38,6 +39,8 @@ Then use the orchestration loop:
 4. Choose the next best tool: another graph move or a web move.
 5. Stop when the user-facing mechanism is already strong enough.
 
+For literal driver-membership or parent-list questions, stop as soon as the graph fact is clear enough to answer faithfully. Do not force a web move just to make the answer sound more intuitive.
+
 ## Pressure Test
 
 - After the mechanism is coherent enough to stress:
@@ -47,7 +50,7 @@ For non-trivial direct-node or comparative reads, one `extensions.abel.intervene
 
 ## Web Grounding Rule
 
-Web grounding is required when the answer depends on:
+Web grounding is required only when the answer depends on:
 
 - current catalysts
 - earnings or guidance
@@ -55,7 +58,20 @@ Web grounding is required when the answer depends on:
 - product or adoption changes
 - a real-world mechanism that the graph alone cannot explain
 
+Web grounding is usually not needed for:
+
+- direct driver lists
+- parent or child membership checks
+- path existence checks
+- questions whose literal answer is already contained in graph output
+
 Search the named companies, sectors, or mechanisms from `node_description`, not raw tickers, and then return to the loop.
+
+If the graph answer and the intuitive real-world story do not line up, preserve both:
+
+- first say what the graph returned
+- then say whether the economic interpretation is clear, weak, or unresolved
+- only then add any web-backed explanation or caveat
 
 ## Output Rule
 
@@ -64,3 +80,4 @@ Search the named companies, sectors, or mechanisms from `node_description`, not 
 - Main answer uses company names, industries, products, or roles.
 - Include the pressure-test result or, if no live intervention was run, the cleanest next-step probe.
 - If a repeated bridge node looks like microcap or crypto-heavy transmission noise, summarize it as noise unless external evidence says it matters.
+- If the user asked for a literal graph fact, make that fact the first sentence, not the caveat.

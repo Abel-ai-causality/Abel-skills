@@ -8,6 +8,13 @@ This project follows a repo-level release log so agents can summarize user-visib
 
 ### Changed
 
+- Trimmed `causal-abel/agents/openai.yaml` back toward trigger and routing guidance so detailed execution rules stay in `SKILL.md` and route references.
+- Tightened the source `causal-abel` prompt so the core guidance is shorter and higher-leverage, with graph-first rules phrased as a small set of primary constraints.
+- Refined broad ticker-driver guidance so agents anchor to executable tickers, run Abel first, and interpret surprising parents as transmission channels before leaving the graph.
+- Tightened `causal-abel` prompt priority so direct graph answers now preserve graph facts first instead of replacing them with web-searched narratives.
+- Reframed Abel graph outputs as high-value PCMCI-style market-data evidence and added guidance for handling surprising drivers as serious transmission signals.
+- Narrowed direct-graph web grounding so driver lists, parent membership checks, and path facts are usually answered from graph output without forced search.
+- Updated the report and planner guidance so graph fact, interpretation, and optional web validation stay visibly separate when the graph output is unintuitive.
 - Reframed `causal-abel` so the default output shape is a compact report rather than a short verdict-only answer.
 - Updated the direct and proxy routes so executable anchors are observed first, preferring `extensions.abel.observe_predict_resolved_time` before deeper structural traversal.
 - Changed the planner and probe guidance so non-trivial comparative reads now default to one compact `intervene.do` pressure test after the mechanism is coherent.
