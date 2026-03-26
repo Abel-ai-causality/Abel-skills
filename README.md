@@ -26,6 +26,18 @@ The source skill lives in `causal-abel/`.
 
 ## For Maintainers
 
+### Endpoint Defaults
+
+Endpoint and OAuth defaults for `causal-abel` are maintained in `causal-abel/config/endpoints.json`.
+
+- Update `endpoints.json` when the repository default CAP or OAuth host changes.
+- `.env.skill` and legacy `.env.skills` are local runtime overrides for probing and auth; they do not automatically rewrite repository docs.
+- Re-sync the generated skill docs after changing endpoint defaults:
+
+```bash
+python3 causal-abel/scripts/sync_endpoint_refs.py
+```
+
 ### Build The ClawHub Artifact
 
 This repository keeps the source skill in `causal-abel/SKILL.md`.
