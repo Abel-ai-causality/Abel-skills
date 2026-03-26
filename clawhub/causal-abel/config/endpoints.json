@@ -6,7 +6,7 @@
       "oauth_base_url": "https://api.abel.ai/echo/"
     },
     "sit": {
-      "cap_base_url": "https://cap-sit.abel.ai/",
+      "cap_base_url": "https://cap-sit.abel.ai/api",
       "oauth_base_url": "https://api-sit.abel.ai/echo/"
     }
   }

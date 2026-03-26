@@ -33,7 +33,7 @@ Preferred local auth file:
 ```dotenv
 <skill-root>/.env.skill
 ABEL_API_KEY=abel_xxx
-CAP_BASE_URL=https://cap-sit.abel.ai
+CAP_BASE_URL=https://cap-sit.abel.ai/api
 ```
 
 Existing `.env.skills` is still accepted for compatibility, but new writes should go to `.env.skill`.
