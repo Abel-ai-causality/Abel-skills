@@ -37,6 +37,7 @@ Every strong report should make these things clear. They do not need to appear a
 - Separate graph findings from web-grounded evidence. Do not blur them into one unsupported narrative.
 - For each verb used, separate `result` from `meaning`.
 - When search is used, separate `graph_fact`, `searched_mechanism`, and `inference`.
+- When the graph output is surprising, preserve it as `graph_fact` instead of explaining it away.
 - Prefer semantic names over raw node IDs when a node is acting as a proxy or bridge.
 - If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject.
 - If a financial transmission node or small-cap bridge was considered but then downgraded, say so briefly in the report instead of silently dropping it.
@@ -115,6 +116,8 @@ Before or around the findings, include:
 - `finding`: a compact statement of the most decision-relevant graph result when a short answer is needed
 - `provenance`: a compact note on which parts are graph-backed, search-backed, or still inferential
 
+For direct graph questions, especially driver-list or membership checks, the first sentence should answer the literal graph question before offering interpretation.
+
 When a verb materially shapes the answer, these are the useful things to render:
 
 #### `neighbors` / `traverse-parents` / `traverse-children`
@@ -159,6 +162,7 @@ Guidance:
 - Keep each search target narrow and graph-grounded.
 - If a searched financial transmission node turned out to be low-signal, say that and explain the cleaner anchor you switched to.
 - Do not inflate weak web evidence into a firm mechanism claim.
+- Do not let web evidence erase a clear graph fact just because the graph fact is unintuitive.
 
 Compact contract name:
 
