@@ -126,6 +126,10 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - `extensions.abel.observe_predict_resolved_time` is the default observational surface when the live method exists.
 - For executable anchors and comparison tickers that materially bear on the question, run one observational read before committing to deeper structure.
 - `extensions.abel.intervene_time_lag` is the default pressure-test surface once the mechanism is coherent enough to stress.
+- Choose `horizon_steps` to match the user's decision window instead of hardcoding one lag:
+  rough guide is `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the medium-range default when the user gives no clear horizon.
+- If the first intervention is inconclusive, retry by stepping the horizon up in tiers instead of making arbitrary jumps.
+  Move from the current tier to the next wider window, such as `6 -> 24/42 -> 170`, and stop once the transmission is clear or the wider windows still stay low-signal.
 - Check `meta.methods` before assuming a local wrapper is current.
 - Prefer the generic `verb` path for new or unstable extension verbs.
 - If graph calls stay low-signal, switch the candidate, switch the tool, or stop instead of spraying more probes.

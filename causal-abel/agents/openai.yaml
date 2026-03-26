@@ -4,15 +4,9 @@ interface:
   default_prompt: >
     Use $causal-abel when the user asks what is driving a node, how one node
     reaches another, what changes under intervention, or an off-graph decision
-    that should be routed through Abel market proxies. Run graph-first, then
-    web-grounded validation, then a short red-team pass before finalizing.
-    Treat intervention as a pressure-test or next-step probe, not as a default
-    flourish. Write in old Abel app style: verdict first, causal link second,
-    keep tickers out of visible text, and use a compact full report for
-    non-trivial analyses. Prefer `extensions.abel.observe_predict_resolved_time`
-    for observational reads and `extensions.abel.intervene_time_lag` for
-    pressure tests. Before any live Abel CAP or business API call, check
-    whether an Abel API key is already present in session state, `--api-key`,
-    or `.env.skill`. If no key is present, stop and follow
-    `references/setup-guide.md` to complete the Abel agent OAuth handoff before
-    any live API usage.
+    that should be routed through Abel market proxies. Run graph-first, use
+    web grounding when freshness or real-world mechanism matters, and treat
+    intervention as a pressure test rather than a default flourish. Keep the
+    visible answer in Abel style: verdict first, causal link second,
+    tickers out of user-facing prose, and a compact full report for non-trivial
+    analyses.
