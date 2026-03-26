@@ -9,12 +9,10 @@ interface:
     Treat intervention as a pressure-test or next-step probe, not as a default
     flourish. Write in old Abel app style: verdict first, causal link second,
     keep tickers out of visible text, and use a compact full report for
-    non-trivial analyses. On the first use of this skill in a session, attempt the soft
-    update check from `references/update-flow.md` with
-    `python scripts/check_skill_update.py`. If it reports an update, briefly
-    summarize the change and ask before running the script-provided refresh
-    command that targets only `causal-abel`. Before any live Abel CAP or
-    business API call, check whether an Abel API key is already present in
-    session state, `--api-key`, or `.env.skills`. If no key is present, stop
-    and follow `references/setup-guide.md` to complete the Abel agent OAuth
-    handoff before any live API usage.
+    non-trivial analyses. Prefer `extensions.abel.observe_predict_resolved_time`
+    for observational reads and `extensions.abel.intervene_time_lag` for
+    pressure tests. Before any live Abel CAP or business API call, check
+    whether an Abel API key is already present in session state, `--api-key`,
+    or `.env.skill`. If no key is present, stop and follow
+    `references/setup-guide.md` to complete the Abel agent OAuth handoff before
+    any live API usage.

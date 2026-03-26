@@ -28,7 +28,7 @@ Do not use it for pure price quotes, generic news summaries, raw node dumps, or 
 
 ## Authorization Gate
 
-- Before any live Abel CAP or business API call, check session state, `--api-key`, `<skill-root>/.env.skill`, or legacy `<skill-root>/.env.skills`.
+- Before any live Abel CAP or business API call, check session state, `--api-key`, or `<skill-root>/.env.skill`.
 - If a key is already available, skip auth references and continue.
 - If no key is available, stop and follow `references/setup-guide.md`.
 - Return only `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, ask the user to confirm when browser auth is finished, and only then poll.
@@ -91,8 +91,8 @@ Each round:
 
 Default cadence is graph-heavy, but predictive before structural when executable anchors exist:
 
-- `observe -> graph -> graph -> maybe web -> intervene`
-- sometimes `observe -> graph -> web -> graph -> intervene`
+- `resolved-time observation -> graph -> graph -> maybe web -> lag pressure test`
+- sometimes `resolved-time observation -> graph -> web -> graph -> lag pressure test`
 
 Only go `web` early when the current unknown is clearly about freshness, timing, or live mechanism.
 
@@ -104,7 +104,7 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - Use manual mapping first for obvious company and crypto anchors.
 - Use `extensions.abel.query_node` as the second recall path for fuzzy, multilingual, or concept-heavy inputs.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
-- In visible prose, prefer company names, sectors, products, or economic roles over raw tickers or `*_close`.
+- In visible prose, prefer company names, sectors, products, or economic roles over raw tickers or raw node ids such as `*.price`.
 
 ### Web Grounding
 
@@ -113,17 +113,15 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - For `proxy_routed`, web usually comes after 1-2 good graph moves on the current mechanism or shortlist.
 - For `direct_graph`, web is required when the answer depends on current catalysts, policy, earnings, adoption, or real-world mechanism.
 - In ClawHub / OpenClaw environments, first check whether a web search tool is actually available. If not, tell the user they need to install one before you can provide web-grounded validation.
-- Search the company names, sectors, products, or mechanisms surfaced by `node_description`, not raw `*_close` strings.
+- Search the company names, sectors, products, or mechanisms surfaced by `node_description`, not raw `*.price` strings.
 - Search is there to explain graph-backed mechanisms, not replace graph work.
 - Use `references/web-grounding.md` for the search loop.
 
 ### Probe Discipline
 
 - `extensions.abel.observe_predict_resolved_time` is the default observational surface when the live method exists.
-- `observe.predict` is the fallback observational surface, not intervention.
 - For executable anchors and comparison tickers that materially bear on the question, run one observational read before committing to deeper structure.
-- `intervene.do` is the default compact pressure test once the mechanism is coherent enough to stress.
-- `extensions.abel.intervene_time_lag` is for rollout sensitivity after the mechanism is already clear and a simple pressure test is not enough.
+- `extensions.abel.intervene_time_lag` is the default pressure-test surface once the mechanism is coherent enough to stress.
 - Check `meta.methods` before assuming a local wrapper is current.
 - Prefer the generic `verb` path for new or unstable extension verbs.
 - If graph calls stay low-signal, switch the candidate, switch the tool, or stop instead of spraying more probes.
@@ -153,8 +151,8 @@ Good:
 
 Avoid in the main answer:
 
-- `SPOT_close`
-- `ETHUSD_close`
+- `SPOT.price`
+- `ETHUSD.price`
 - `NVDA`
 
 ### Answer Shapes
@@ -164,7 +162,7 @@ Avoid in the main answer:
 - Low-stakes comparisons may still be shorter, but they should preserve graph-backed reasoning and any critical web-grounded mechanism.
 - High-stakes, comparative, multi-anchor, or non-trivial reads should include a pressure-test section unless no meaningful live intervention surface is available.
 - Natural longform prose is acceptable as long as the guide's contract fields are still covered in substance.
-- If no live intervention was run, include the cleanest next-step probe so the user can see what `intervene.do` or `extensions.abel.intervene_time_lag` would test next.
+- If no live intervention was run, include the cleanest next-step probe so the user can see what `extensions.abel.intervene_time_lag` would test next.
 
 
 ## Install And Authorization

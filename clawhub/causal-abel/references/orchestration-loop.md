@@ -6,7 +6,7 @@ The route file sets the initial prior. This file decides each next move.
 
 ## Core Rule
 
-Graph and web are peer tools, but the planner should be graph-biased. Graph stays the reasoning center, and the usual cadence is one observational graph read, then structural graph work, then web only when dated validation is needed.
+Graph and web are peer tools, but the planner should be graph-biased. Graph stays the reasoning center, and the usual cadence is one resolved-time observational graph read, then structural graph work, then web only when dated validation is needed.
 
 ## One-Line Planner
 
@@ -48,7 +48,7 @@ Search-first exception:
 
 The usual cadence is:
 
-- `observe -> graph -> graph -> maybe web -> intervene`
+- `resolved-time observation -> graph -> graph -> maybe web -> lag pressure test`
 
 Interpret this as:
 
@@ -56,7 +56,7 @@ Interpret this as:
 2. second move exposes local structure
 3. third move refines the strongest mechanism or candidate
 4. one web move only when that mechanism now needs dated validation
-5. one compact intervention after the mechanism is coherent enough to stress
+5. one lag-aware pressure test after the mechanism is coherent enough to stress
 6. return to graph only if the search or pressure test changes the active thread
 
 Web should not become the dominant tool unless the user is explicitly asking a freshness-heavy `why now` question.

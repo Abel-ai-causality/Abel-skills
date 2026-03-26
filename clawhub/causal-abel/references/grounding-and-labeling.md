@@ -4,9 +4,9 @@ Read this file whenever you need to map user language into executable Abel nodes
 
 ## Grounding Order
 
-1. If the input is already `<ticker>_close` or `<ticker>_volume`, keep it unchanged.
-2. Bare equity and ETF tickers default to `_close`.
-3. Bare crypto aliases expand to `*USD_close`.
+1. If the input is already `<ticker>.price` or `<ticker>.volume`, keep it unchanged.
+2. Bare equity and ETF tickers default to `.price`.
+3. Bare crypto aliases expand to `*USD.price`.
 4. Use manual mapping first for obvious company names and familiar proxy anchors.
 5. Use `extensions.abel.query_node` for fuzzy names, broad concepts, Chinese phrases, or multilingual labels.
 6. Merge manual recall and `query_node`, then shortlist 2-5 candidates.
@@ -15,11 +15,11 @@ Read this file whenever you need to map user language into executable Abel nodes
 
 ## Quick Rules
 
-- `_close` means price
-- `_volume` means volume or participation
-- switch to `_volume` only when the question is truly about activity or liquidity
-- prefer `ETHUSD_close`, `SOLUSD_close`, `BTCUSD_close`
-- treat `BTCUSD_close` as a weak bridge unless fresh probes show otherwise
+- `.price` means price
+- `.volume` means volume or participation
+- switch to `.volume` only when the question is truly about activity or liquidity
+- prefer `ETHUSD.price`, `SOLUSD.price`, `BTCUSD.price`
+- treat `BTCUSD.price` as a weak bridge unless fresh probes show otherwise
 
 ## What `node_description` Is For
 
@@ -49,8 +49,8 @@ Good examples:
 
 Avoid in the main answer:
 
-- `SPOT_close`
-- `ETHUSD_close`
+- `SPOT.price`
+- `ETHUSD.price`
 - `NVDA`
 
 
@@ -60,7 +60,7 @@ When you move to web search:
 
 - search the company or industry names from `node_description`
 - search the mechanism in plain language
-- do not search raw `*_close` node ids
+- do not search raw `*.price` node ids
 
 Good:
 
@@ -70,5 +70,5 @@ Good:
 
 Bad:
 
-- `SPOT_close news`
-- `ETHUSD_close why`
+- `Spotify stock price news`
+- `Ethereum price why`

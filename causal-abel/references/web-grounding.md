@@ -56,8 +56,8 @@ Good:
 
 Bad:
 
-- `SPOT_close`
-- `ETHUSD_close`
+- `Spotify stock price`
+- `Ethereum price`
 - `graph.neighbors news`
 
 ## What To Extract

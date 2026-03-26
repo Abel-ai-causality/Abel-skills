@@ -132,22 +132,15 @@ When a verb materially shapes the answer, these are the useful things to render:
 - `result`: whether a connection exists, through which intermediaries, and whether it looks direct or indirect
 - `meaning`: what this says about transmission, mediation, or whether the proposed relationship is structurally plausible
 
-#### `observe.predict`
+#### `extensions.abel.observe_predict_resolved_time`
 
-- `result`: what the observational surface currently predicts
+- `result`: what the resolved-time observational surface currently predicts
 - `meaning`: what the current regime suggests, without overstating it as intervention effect
 
-When the live surface exposes `extensions.abel.observe_predict_resolved_time`, prefer that surface and render it as the main observational finding.
+#### `extensions.abel.intervene_time_lag`
 
-#### `intervene.do` / `intervene-time-lag`
-
-- `result`: what changes when the treatment node is stressed, and how that stress rolls out if time-lag is used
+- `result`: what changes when the treatment node is stressed and how that stress rolls out across the requested horizon
 - `meaning`: what this says about how robust or fragile the current verdict is
-
-#### `counterfactual-preview`
-
-- `result`: what the preview surface says would differ under the alternate setting
-- `meaning`: what this suggests as a what-if or next-step read, while preserving preview-only caveats
 
 ### 4. Web-Grounded Evidence
 

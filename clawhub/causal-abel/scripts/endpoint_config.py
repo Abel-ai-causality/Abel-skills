@@ -24,13 +24,7 @@ def resolve_cap_endpoint(base_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid base URL: {base_url!r}")
     path = parsed.path.rstrip("/")
-    if path.endswith("/api/v1/cap") or path.endswith("/cap"):
-        endpoint_path = path or "/cap"
-    elif path in ("", "/"):
-        endpoint_path = "/cap"
-    elif path in ("/api", "/api/v1"):
-        endpoint_path = f"{path}/cap"
-    elif path.endswith("/echo"):
+    if path.endswith("/echo"):
         endpoint_path = f"{path}/api/v1/cap"
     else:
         endpoint_path = f"{path}/cap"

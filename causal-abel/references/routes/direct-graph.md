@@ -20,7 +20,7 @@ After that, return to `../orchestration-loop.md` and choose each next move from 
 
 Pick the first move from the user's question shape:
 
-- direct node with executable market anchor and a current directional question -> `extensions.abel.observe_predict_resolved_time` when available, else `observe.predict`
+- direct node with executable market anchor and a current directional question -> `extensions.abel.observe_predict_resolved_time`
 - driver -> `graph.neighbors(scope=parents)` or `traverse.parents`
 - downstream -> `graph.neighbors(scope=children)` or `traverse.children`
 - transmission -> `graph.paths`
@@ -41,11 +41,9 @@ Then use the orchestration loop:
 ## Pressure Test
 
 - After the mechanism is coherent enough to stress:
+- default pressure test -> `extensions.abel.intervene_time_lag`
 
-- compact stress test -> `intervene.do`
-- rollout sensitivity -> `extensions.abel.intervene_time_lag`
-
-For non-trivial direct-node or comparative reads, one compact `intervene.do` pressure test is the default before finalizing. Do not start with a pressure test for a driver question or run it before you can name the mechanism being stressed.
+For non-trivial direct-node or comparative reads, one `extensions.abel.intervene_time_lag` pressure test is the default before finalizing. Do not start with a pressure test for a driver question or run it before you can name the mechanism being stressed.
 
 ## Web Grounding Rule
 

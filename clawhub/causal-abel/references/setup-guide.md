@@ -2,7 +2,7 @@
 
 Base URL: `https://api-sit.abel.ai/echo/`
 
-This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, `<skill-root>/.env.skill`, or legacy `<skill-root>/.env.skills`.
+This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, or `<skill-root>/.env.skill`.
 
 ## Rules
 
@@ -36,7 +36,7 @@ ABEL_API_KEY=abel_xxx
 CAP_BASE_URL=https://cap-sit.abel.ai/api
 ```
 
-Existing `.env.skills` is still accepted for compatibility, but new writes should go to `.env.skill`.
+Use `.env.skill` as the local auth file for this skill.
 
 ## Endpoint: Get Agent OAuth Authorization URL
 

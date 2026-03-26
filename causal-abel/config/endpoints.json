@@ -2,7 +2,7 @@
   "active_profile": "sit",
   "profiles": {
     "prod": {
-      "cap_base_url": "https://cap.abel.ai",
+      "cap_base_url": "https://cap.abel.ai/api",
       "oauth_base_url": "https://api.abel.ai/echo/"
     },
     "sit": {

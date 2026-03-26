@@ -62,7 +62,6 @@ Before the deeper structural walk, run one observational read on each executable
 Rules:
 
 - prefer `extensions.abel.observe_predict_resolved_time` when the live method exists
-- fall back to `observe.predict` when the resolved-time extension is unavailable
 - use the observational pass to rank which anchors deserve deeper structural follow-up
 - if one anchor cannot be observed cleanly, do not drop it immediately; compare it with the structural read
 - if a proposed anchor is not an executable market node, use the closest executable proxy and label that mapping clearly later
@@ -73,7 +72,7 @@ Default first move is still inside the graph lane, but start with observational 
 
 Use a multi-anchor graph read when the unknown is structural:
 
-1. run `extensions.abel.observe_predict_resolved_time` when available, else `observe.predict`, on the anchor shortlist
+1. run `extensions.abel.observe_predict_resolved_time` on the anchor shortlist
 2. inspect local structure with `graph.neighbors`
 3. inspect transmission with `graph.paths`
 4. use `graph.markov_blanket` only when local structure is still low-signal
@@ -87,7 +86,7 @@ Typical cadence:
 2. graph move on the strongest anchor, mechanism, or comparison edge
 3. second graph move on the best path or bridge candidate
 4. one web move to validate that mechanism in the real world now
-5. one compact pressure test when the verdict is already mostly clear
+5. one lag-aware pressure test when the verdict is already mostly clear
 6. back to graph only if the web move or pressure test changes the active thread
 
 ## Search-First Exception
@@ -142,7 +141,7 @@ Good pressure-test targets:
 - the strongest opposite-side lever
 - the weakest bridge
 
-For non-trivial comparative reads, a compact `intervene.do` pressure test is the default after the observational pass and structural story are coherent enough. Use `extensions.abel.intervene_time_lag` when the live question is about rollout timing rather than just direction.
+For non-trivial comparative reads, `extensions.abel.intervene_time_lag` is the default pressure test after the observational pass and structural story are coherent enough.
 
 Bad pressure-test behavior:
 

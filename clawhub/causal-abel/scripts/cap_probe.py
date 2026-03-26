@@ -18,7 +18,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from endpoint_config import get_active_profile
+from endpoint_config import get_active_profile, resolve_cap_endpoint
 
 DEFAULT_BASE_URL = get_active_profile()["cap_base_url"]
 CAP_VERSION = "0.2.2"
@@ -56,7 +56,7 @@ COMMANDS = {
     "route",
 }
 
-SUPPORTED_NODE_SUFFIXES = {"close", "volume"}
+SUPPORTED_NODE_SUFFIXES = {"price", "volume"}
 COMMON_CRYPTO_ALIASES = {
     "BTC",
     "ETH",
@@ -103,23 +103,7 @@ def _resolve_base_url(value: str | None) -> str:
 
 
 def _cap_endpoint(base_url: str) -> str:
-    parsed = urllib.parse.urlsplit(base_url)
-    if not parsed.scheme or not parsed.netloc:
-        raise ValueError(f"Invalid base URL: {base_url!r}")
-    path = parsed.path.rstrip("/")
-    if path.endswith("/api/v1/cap") or path.endswith("/cap"):
-        endpoint_path = path or "/cap"
-    elif path in ("", "/"):
-        endpoint_path = "/cap"
-    elif path in ("/api", "/api/v1"):
-        endpoint_path = f"{path}/cap"
-    elif path.endswith("/echo"):
-        endpoint_path = f"{path}/api/v1/cap"
-    else:
-        endpoint_path = f"{path}/cap"
-    return urllib.parse.urlunsplit(
-        (parsed.scheme, parsed.netloc, endpoint_path, "", "")
-    )
+    return resolve_cap_endpoint(base_url)
 
 
 def _resolve_headers(api_key: str | None) -> dict[str, str]:
@@ -244,7 +228,7 @@ def _looks_like_ticker(value: str) -> bool:
     return all(char in allowed for char in upper)
 
 
-def _normalize_public_node_id(value: str, *, default_suffix: str = "close") -> str:
+def _normalize_public_node_id(value: str, *, default_suffix: str = "price") -> str:
     raw = value.strip()
     if not raw:
         raise ValueError("Node input cannot be empty.")
@@ -255,35 +239,50 @@ def _normalize_public_node_id(value: str, *, default_suffix: str = "close") -> s
         )
 
     normalized = raw.upper()
-    ticker, separator, suffix = normalized.partition("_")
+    ticker, separator, suffix = normalized.rpartition(".")
     if separator:
         if not ticker or not suffix:
             raise ValueError(
-                "Node input must use '<ticker>_<field>' when an underscore is present."
+                "Node input must use '<ticker>.<field>' when a dot is present."
             )
         suffix = suffix.lower()
         if suffix not in SUPPORTED_NODE_SUFFIXES:
-            if suffix == "close_price":
-                raise ValueError(
-                    "Abel public node ids use '<ticker>_close', not '<ticker>_close_price'."
-                )
             raise ValueError(
-                "Abel public node ids currently support only '<ticker>_close' or '<ticker>_volume'."
+                "Abel public node ids currently support only '<ticker>.price' or '<ticker>.volume'."
             )
-        return f"{ticker}_{suffix}"
+        return f"{ticker}.{suffix}"
+
+    ticker, separator, suffix = normalized.rpartition("_")
+    if separator:
+        if not ticker or not suffix:
+            raise ValueError(
+                "Node input must use Abel public node ids like '<ticker>.price' or '<ticker>.volume'."
+            )
+        suffix = suffix.lower()
+        if suffix == "close":
+            return f"{ticker}.price"
+        if suffix == "volume":
+            return f"{ticker}.volume"
+        if suffix == "close_price":
+            raise ValueError(
+                "Use Abel public node ids like '<ticker>.price' or '<ticker>.volume'."
+            )
+        raise ValueError(
+            "Abel public node ids currently support only '<ticker>.price' or '<ticker>.volume'."
+        )
 
     if _looks_like_ticker(raw):
         if normalized in COMMON_CRYPTO_ALIASES:
-            return f"{normalized}USD_{default_suffix}"
-        return f"{normalized}_{default_suffix}"
+            return f"{normalized}USD.{default_suffix}"
+        return f"{normalized}.{default_suffix}"
 
     raise ValueError(
-        "Input does not look like a ticker or public node id. Map the proxy phrase to a ticker first, then probe '<ticker>_close' or '<ticker>_volume'."
+        "Input does not look like a ticker or public node id. Map the proxy phrase to a ticker first, then probe '<ticker>.price' or '<ticker>.volume'."
     )
 
 
 def _normalize_node_list(
-    values: list[str], *, default_suffix: str = "close"
+    values: list[str], *, default_suffix: str = "price"
 ) -> list[str]:
     return [
         _normalize_public_node_id(value, default_suffix=default_suffix)
@@ -722,8 +721,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--default-suffix",
-        choices=("close", "volume"),
-        default="close",
+        choices=("price", "volume"),
+        default="price",
         help="Default suffix to append when a bare ticker is provided.",
     )
 
