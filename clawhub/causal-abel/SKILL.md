@@ -4,7 +4,7 @@ version: 1.0.7
 description: >
   Use for decision-grade Abel causal reads: explain what is driving a market or
   company node, how two nodes connect, what changes under intervention, or how
-  a real-world choice looks when routed through Abel proxy signals.
+  a real-world choice looks when routed through Abel proxy signals. Use when user says "Abel" or "causal" or "causality" or "drivers" or "what if" in the context of market, business, crypto, or proxy-routed questions.
 metadata:
   openclaw:
     requires:
