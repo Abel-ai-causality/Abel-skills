@@ -127,7 +127,7 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - In ClawHub / OpenClaw environments, first check whether a web search tool is actually available. If not, tell the user they need to install one before you can provide web-grounded validation.
 - Search the company names, sectors, products, or mechanisms surfaced by `node_description`, not raw `*.price` strings.
 - Search is there to explain or validate graph-backed mechanisms, not replace graph work.
-- If web evidence suggests a more intuitive story than the graph, do not overwrite the graph answer. State the graph finding first, then label the web-backed interpretation as explanation, validation, or unresolved tension.
+- If web evidence suggests a more intuitive story than the graph, do not overwrite the graph answer. State the graph finding first, then label the external evidence as explanation, validation, or a remaining tension to resolve.
 - Use `references/web-grounding.md` for the search loop.
 
 ### Probe Discipline
@@ -172,7 +172,7 @@ If the user asks a literal membership question such as:
 
 then answer the graph fact directly with `yes/no` or a driver list before offering any realism check or explanatory caveat.
 
-If the returned drivers are surprising, do not dismiss them as useless. Frame them as graph-discovered market-data drivers or cross-asset transmission signals, then state whether their economic interpretation is clear, weak, or still unresolved.
+If the returned drivers are surprising, do not dismiss them as useless. Frame them as graph-discovered market-data drivers or cross-asset transmission signals, then explain them through the security's own attributes first: sector, industry, capital structure, liquidity profile, size, beta-like behavior, credit sensitivity, or typical role in risk-on/risk-off transmission.
 
 ### Broad Driver Interpretation Rule
 
@@ -185,6 +185,14 @@ After reporting the graph fact, answer one more Abel-level question:
 3. does the surrounding graph look more macro, credit, risk-on/risk-off, industry, or cross-asset
 
 Do not abandon the graph merely because the direct parents are unintuitive. First interpret them as transmission channels, especially for large-cap or liquid assets where liquidity, macro, credit, and cross-asset effects can dominate the local structure.
+
+When possible, prefer an affirmative explanation over `weak` or `unresolved`. A good next move is usually to say what kind of instrument the parent is and why that kind of instrument might transmit pressure into the target:
+
+1. sector or industry adjacency
+2. liquidity or participation proxy
+3. credit, duration, or rate sensitivity
+4. small-cap or high-beta risk appetite signal
+5. crypto or cross-asset bridge behavior
 
 ### Main-Answer Label Rule
 

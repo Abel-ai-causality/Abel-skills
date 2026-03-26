@@ -8,6 +8,7 @@ This project follows a repo-level release log so agents can summarize user-visib
 
 ### Changed
 
+- Refined direct-graph interpretation guidance so surprising drivers are explained via the security's own attributes before falling back to `weak` or `unresolved` wording.
 - Trimmed `causal-abel/agents/openai.yaml` back toward trigger and routing guidance so detailed execution rules stay in `SKILL.md` and route references.
 - Tightened the source `causal-abel` prompt so the core guidance is shorter and higher-leverage, with graph-first rules phrased as a small set of primary constraints.
 - Refined broad ticker-driver guidance so agents anchor to executable tickers, run Abel first, and interpret surprising parents as transmission channels before leaving the graph.

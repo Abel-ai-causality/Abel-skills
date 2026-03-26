@@ -70,7 +70,7 @@ Search the named companies, sectors, or mechanisms from `node_description`, not 
 If the graph answer and the intuitive real-world story do not line up, preserve both:
 
 - first say what the graph returned
-- then say whether the economic interpretation is clear, weak, or unresolved
+- then explain the parent or bridge through the security's own attributes when possible, such as sector, industry, liquidity profile, beta/risk appetite, credit sensitivity, or cross-asset role
 - only then add any web-backed explanation or caveat
 
 ## Output Rule
