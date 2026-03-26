@@ -136,6 +136,7 @@ When a verb materially shapes the answer, these are the useful things to render:
 
 - `result`: what the resolved-time observational surface currently predicts
 - `meaning`: what the current regime suggests, without overstating it as intervention effect
+- In the visible answer, prefer qualitative language like mild, moderate, or strong upside or downside expectation instead of leading with the raw prediction number unless the user explicitly wants the numeric value.
 
 #### `extensions.abel.intervene_time_lag`
 
