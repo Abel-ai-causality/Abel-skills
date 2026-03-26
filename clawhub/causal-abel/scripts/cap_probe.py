@@ -66,21 +66,31 @@ COMMON_CRYPTO_ALIASES = {
     "ADA",
     "AVAX",
 }
+ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
 
 
 def _load_env_file(path: str) -> None:
     env_path = Path(path).expanduser()
-    if not env_path.exists():
-        return
-    for raw in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    candidates = [env_path]
+    if env_path.name in ENV_FILE_BASENAMES:
+        for basename in ENV_FILE_BASENAMES:
+            candidate = env_path.with_name(basename)
+            if candidate not in candidates:
+                candidates.append(candidate)
+
+    for candidate in candidates:
+        if not candidate.exists():
             continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+        for raw in candidate.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+        return
 
 
 def _resolve_base_url(value: str | None) -> str:
@@ -684,7 +694,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Probe Abel CAP server verbs as atomic operations."
     )
-    default_env = str(Path(__file__).resolve().parents[1] / ".env.skills")
+    default_env = str(Path(__file__).resolve().parents[1] / ".env.skill")
     parser.add_argument(
         "--base-url",
         default="",

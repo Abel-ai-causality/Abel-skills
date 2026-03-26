@@ -24,7 +24,7 @@ Prefer `scripts/cap_probe.py` over ad hoc payload construction. The main entrypo
 Run these from the skill root:
 
 ```bash
-BASE_URL="https://gateway-sit.abel.ai/api"
+BASE_URL="https://cap-sit.abel.ai"
 
 python scripts/cap_probe.py --base-url "$BASE_URL" capabilities
 python scripts/cap_probe.py normalize-node NVDA
@@ -77,9 +77,11 @@ Bridge-node rule:
 
 ## Endpoint Notes
 
-- The current default CAP surface answers on `https://gateway-sit.abel.ai/api/cap`.
-- Production answers on `https://cap.abel.ai/cap`.
-- `https://api-sit.abel.ai/echo/` is for OAuth and business API flows, not the default CAP probe base.
+- The current default CAP surface answers on `https://cap-sit.abel.ai/cap`.
+- Production CAP surface answers on `https://cap.abel.ai/cap`.
+- SIT CAP surface answers on `https://cap-sit.abel.ai/cap`.
+- The probe accepts base URLs such as `https://cap-sit.abel.ai` and resolves them to `/cap`.
+- `https://api-sit.abel.ai/echo/` is used for OAuth and business API flows in `setup-guide.md`; it is not the default CAP probe base.
 
 ## See Also
 

@@ -2,65 +2,49 @@
 
 Base URL: `https://api-sit.abel.ai/echo/`
 
-This API key flow is designed for agents and assistants.
-It is the required entrypoint whenever a skill-driven Abel API call starts without an existing user API key in session state, `--api-key`, or `.env.skills`.
-Do not ask the user to manually type an email address.
-Always start by requesting an agent OAuth authorization URL, send that URL back to the user, ask them to finish Google authorization first, and only poll for the final result after they tell you they are done.
+This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, `<skill-root>/.env.skill`, or legacy `<skill-root>/.env.skills`.
 
-## Agent Rules
+## Rules
 
-- Always call the agent authorize endpoint first and return the `data.authUrl` value to the user.
-- Do not continue to CAP probing, capability inspection, or other live Abel API calls until this authorization flow has succeeded and a user API key is available.
-- The URL `GET /web/credentials/oauth/google/authorize/agent` is the backend endpoint the agent calls to obtain the authorization link. It is not the link the user should open in the browser.
-- Prefer opening `data.authUrl` for the user automatically when the client supports it. Otherwise render it as a directly clickable link instead of plain text that must be copied manually.
-- Never ask the user to open or click `https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent` directly. The user-facing authorization link is the Google OAuth URL returned in `data.authUrl`.
-- Do not ask the user to paste an email address.
-- Do not ask the user to paste the Google OAuth `code`.
-- Do not try to manually complete the callback flow on behalf of the user.
-- Store the returned `data.resultUrl` or `data.pollToken` so you can fetch the final authorization result after the user completes Google authorization.
-- After you send the authorization link, ask the user to reply in chat once Google authorization is complete. Do not start polling before that confirmation unless the client can reliably signal browser completion for you.
-- Once the user confirms they are done, use `data.pollIntervalSeconds` when present; otherwise poll every 2 seconds until the result becomes `authorized`, `failed`, or the handoff expires.
-- Treat the backend response envelope as `{ code, message, time, data }`.
+- Call `GET /web/credentials/oauth/google/authorize/agent` first.
+- Return only the returned `data.authUrl` to the user.
+- Do not continue to CAP probing until a user API key is available.
+- Do not ask for email, OAuth code, or raw API key.
+- Store `data.resultUrl` or `data.pollToken`, wait for the user's confirmation, then poll until the result is `authorized`, `failed`, or expired.
+- Treat responses as `{ code, message, time, data }`.
 
 ## Recommended Agent Flow
 
-If this is the first Abel use in the session, treat the missing key as a hard prerequisite and complete this flow before any live CAP usage.
-
 1. Call `GET /web/credentials/oauth/google/authorize/agent`.
-2. Read the `data.authUrl` field from the response. This returned `data.authUrl` is the user-facing authorization link.
-3. Store `data.resultUrl` or `data.pollToken`.
-4. Open `data.authUrl` for the user when your environment supports opening browser links directly. Otherwise reply with `data.authUrl` as a clickable link and ask them to click it to authorize with Google. Do not send the `/authorize/agent` endpoint URL itself to the user.
-5. Tell the user to return to the agent and send a short confirmation such as `done` after they finish Google authorization in the browser.
-6. Wait for that user confirmation before polling `GET /web/credentials/oauth/google/result?pollToken=...` or `data.resultUrl`.
-7. Continue polling while the result response is `pending` and the handoff is not expired.
-8. If the result response is `authorized`, read `data.apiKey`, `data.ratePerMinute`, and `data.expireTime` from the result response, then return them to the user.
-9. If the result response is `failed`, return the failure message to the user.
+2. Read `data.authUrl`, store `data.resultUrl` or `data.pollToken`, and send the auth URL to the user.
+3. Ask the user to come back and reply `done` after browser auth.
+4. Wait for that confirmation before polling `GET /web/credentials/oauth/google/result?pollToken=...` or `data.resultUrl`.
+5. Keep polling while the result is `pending`.
+6. If the result is `authorized`, read `data.apiKey`, `data.ratePerMinute`, and `data.expireTime`, then continue with live usage.
+7. Persist the key to `<skill-root>/.env.skill` when local storage is available.
+8. If the result is `failed`, surface the failure message.
 
-Only after a successful authorization result should the skill continue with CAP probing, capability discovery, or other live Abel usage.
-
-The browser callback page only shows the authorization status and that the user can return to Abel AI. The API key is retrieved from the result endpoint, not displayed in the HTML callback page.
+The callback page is only a confirmation page. The API key comes from the result endpoint, not the browser HTML.
 
 ## Local Env File
 
-If local storage is available, persist the authorized key in `<skill-root>/.env.skills` so later probe calls can reuse it.
-
-Example:
+Preferred local auth file:
 
 ```dotenv
+<skill-root>/.env.skill
 ABEL_API_KEY=abel_xxx
-CAP_BASE_URL=https://gateway-sit.abel.ai/api
+CAP_BASE_URL=https://cap-sit.abel.ai
 ```
 
-This is a runtime-created local file, not a bundled artifact. Do not ship `.env.skills` or `.env.skills.example` inside the published skill bundle.
+Existing `.env.skills` is still accepted for compatibility, but new writes should go to `.env.skill`.
 
 ## Endpoint: Get Agent OAuth Authorization URL
 
-Method: `GET`
-Path: `/web/credentials/oauth/google/authorize/agent`
+Method: `GET`  
+Path: `/web/credentials/oauth/google/authorize/agent`  
 Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent`
-Authentication: none
 
-This endpoint is for the agent to call. The browser URL the user should open is the `data.authUrl` value returned by this endpoint, not this API URL itself.
+The browser URL is the returned `data.authUrl`, not this API URL itself.
 
 ### Success Response
 
@@ -73,37 +57,29 @@ This endpoint is for the agent to call. The browser URL the user should open is 
     "provider": "google",
     "flow": "agent_handoff",
     "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?...",
-    "redirectUri": "https://api-sit.abel.ai/echo/web/credentials/oauth/google/callback",
     "resultUrl": "https://api-sit.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
     "pollToken": "POLL_TOKEN",
     "authorizationState": "pending_user_action",
-    "expiresAt": 1773906755,
-    "expiresInSeconds": 900
+    "expiresAt": 1773906755
   }
 }
 ```
 
 ### Agent Behavior
 
-When this endpoint succeeds, respond to the user like this:
+Respond like this:
 
-`Please use this Google authorization link to get your Abel AI API key: {authUrl}. If your client supports it, open the link directly instead of asking the user to copy it. After you finish Google authorization in the browser, come back here and tell me, and I'll fetch your key.`
+`Please use this Google authorization link to get your Abel AI API key: {authUrl}. After you finish Google authorization in the browser, come back here and tell me, and I'll fetch your key.`
 
-Do not send the `authorize/agent` API URL itself to the user as the authorization link.
-Then keep the returned `resultUrl` or `pollToken` and wait for the user's confirmation before polling.
-
-Do not ask the user to paste an email address or the OAuth code.
-Do not ask the user to copy and paste the authorization URL when the client can open it or render it as a clickable link.
-Do ask the user to reply in chat once they finish authorization so polling starts at the right time. Keep that request short and explicit.
+Do not send the `authorize/agent` API URL itself to the user.
 
 ## Endpoint: Get Agent Authorization Result
 
-Method: `GET`
-Path: `/web/credentials/oauth/google/result`
+Method: `GET`  
+Path: `/web/credentials/oauth/google/result`  
 Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
-Authentication: none
 
-### Not Ready Yet Response
+### Pending Response
 
 ```json
 {
@@ -111,12 +87,9 @@ Authentication: none
   "message": "Success",
   "time": 1773905855,
   "data": {
-    "provider": "google",
     "status": "pending",
     "ready": false,
-    "message": "Awaiting user authorization.",
-    "authorizationState": "pending_user_action",
-    "expiresAt": 1773906755
+    "authorizationState": "pending_user_action"
   }
 }
 ```
@@ -129,10 +102,8 @@ Authentication: none
   "message": "Success",
   "time": 1773905855,
   "data": {
-    "provider": "google",
     "status": "authorized",
     "ready": true,
-    "message": "Authorization successful. API key is ready.",
     "authorizationState": "verified",
     "apiKey": "abel_xxx",
     "ratePerMinute": 60,
@@ -149,7 +120,6 @@ Authentication: none
   "message": "Success",
   "time": 1773905855,
   "data": {
-    "provider": "google",
     "status": "failed",
     "ready": false,
     "message": "your account is not activated",
@@ -161,60 +131,13 @@ Authentication: none
 
 ## Callback Behavior
 
-Method: `GET`
-Path: `/web/credentials/oauth/google/callback`
-Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/callback`
-Authentication: none
-
-This endpoint is intended to be opened in the user's browser after Google authorization.
-Agents should not ask the user to copy the OAuth `code` back into chat.
-For agent handoff flow, the callback page is only a confirmation page. The agent should use the saved `resultUrl` or `pollToken` to fetch the final result.
-
-Backend behavior:
-
-- verify the Google OAuth code
-- read the verified Google identity from Google claims
-- create or update the Abel AI user
-- require the account to be activated
-- create or reuse the API key with existing `CreateOrUpdateApiCompanyConfig` logic
-- if this is the agent handoff flow, save the final authorization result for the result endpoint
-- return a human-readable status page in HTML mode
-
-Optional JSON mode:
-
-- add `?format=json` or send `Accept: application/json`
-
-Example:
-
-`https://api-sit.abel.ai/echo/web/credentials/oauth/google/callback?code=GOOGLE_CODE&format=json`
-
-### Legacy Manual JSON Success Response
-
-```json
-{
-  "code": 200,
-  "message": "Success",
-  "time": 1773905855,
-  "data": {
-    "apiKey": "abel_xxx",
-    "ratePerMinute": 60,
-    "expireTime": 1776499200,
-    "authorizationState": "verified"
-  }
-}
-```
-
-Notes:
-
-- `expireTime` in JSON is a Unix timestamp in seconds.
-- The HTML callback page only renders authorization status text. It does not display the API key or account quota details.
-- The agent-facing success payload only needs to expose `apiKey`, `ratePerMinute`, and `expireTime`.
+`GET /web/credentials/oauth/google/callback` is for the user's browser. Agents should not ask the user to paste the OAuth `code` back into chat.
 
 ## Failure Handling
 
-- If the agent authorize endpoint fails or does not return `data.authUrl`, tell the user that the authorization link could not be created and ask them to try again later.
-- If the result endpoint still returns `pending` after the user says they are done, continue polling until the authorization completes or expires. Only tell the user it is still pending if you need to provide a progress update or stop the turn before completion.
-- If the result endpoint returns `404`, tell the user the authorization handoff expired and restart from the agent authorize endpoint.
-- If callback JSON returns `400` with `message` like `missing authorization code`, tell the user to restart the authorization flow from the authorize link.
-- If callback JSON returns `403` with `message` like `your account is not activated`, tell the user that Google authorization succeeded but the Abel AI account is not activated yet.
-- If callback JSON returns `500` during Google verification, account setup, or API key creation, tell the user to try again later.
+- If the authorize endpoint fails or does not return `data.authUrl`, tell the user the link could not be created and ask them to try again later.
+- If the result endpoint stays `pending` after the user says they are done, continue polling until it resolves or expires.
+- If the result endpoint returns `404`, restart from the authorize endpoint.
+- If the callback flow returns `400`, restart the flow.
+- If it returns `403`, tell the user Google auth succeeded but the Abel account is not activated yet.
+- If it returns `500`, ask the user to try again later.

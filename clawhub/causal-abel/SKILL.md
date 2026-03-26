@@ -54,7 +54,7 @@ Do not read every reference file by default.
 ## Step 1: Preflight
 
 - Treat missing credentials as a hard stop for live Abel usage.
-- Default CAP target: `https://gateway-sit.abel.ai/api`.
+- Default CAP target: `https://cap-sit.abel.ai`.
 - Treat `https://api-sit.abel.ai/echo/` as the OAuth and business API host, not the CAP probe host.
 - Use the bundled probe path first so call behavior stays deterministic.
 
@@ -174,7 +174,7 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
 - Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
-- Persist the resulting `data.apiKey` in session state and `.env.skills` when local storage is available.
+- Persist the resulting `data.apiKey` in session state and `.env.skill` when local storage is available.
 - Do not continue to live CAP probing until that key is present.
 - Never ask the user to paste an email address or Google OAuth code.
 

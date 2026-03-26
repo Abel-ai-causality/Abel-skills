@@ -25,7 +25,7 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
 - Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
 - Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
-- Persist the resulting `data.apiKey` in session state and `.env.skills` when local storage is available.
+- Persist the resulting `data.apiKey` in session state and `.env.skill` when local storage is available.
 - Do not continue to live CAP probing until that key is present.
 - Never ask the user to paste an email address or Google OAuth code.
 """
@@ -51,7 +51,7 @@ def ignore_copy_patterns(_directory: str, names: list[str]) -> set[str]:
         if (
             name == "__pycache__"
             or name.endswith(".pyc")
-            or name in {".env.skills", ".env.skills.example"}
+            or name in {".env.skill", ".env.skill.example", ".env.skills", ".env.skills.example"}
         ):
             ignored.add(name)
     return ignored
@@ -208,6 +208,8 @@ def main() -> int:
     write_text(output_dir / "agents" / "openai.yaml", CLAWHUB_OPENAI_YAML)
 
     remove_if_exists(output_dir / "CHANGELOG.md")
+    remove_if_exists(output_dir / ".env.skill")
+    remove_if_exists(output_dir / ".env.skill.example")
     remove_if_exists(output_dir / ".env.skills")
     remove_if_exists(output_dir / ".env.skills.example")
     remove_if_exists(output_dir / "scripts" / "check_skill_update.py")

@@ -24,21 +24,13 @@ def sync_skill_md() -> None:
     text = path.read_text(encoding="utf-8")
     text = _replace(
         text,
-        r"^- The agent entrypoint is `[^`]+`\.$",
-        f"- The agent entrypoint is `GET {VALUES['ACTIVE_AUTHORIZE_AGENT_URL']}`.",
+        r"^- Default CAP target: `[^`]+`\.$",
+        f"- Default CAP target: `{VALUES['ACTIVE_CAP_BASE_URL']}`.",
     )
     text = _replace(
         text,
-        r"### 2\. Runtime target\n\n(?:- .+\n){5}",
-        (
-            "### 2. Runtime target\n\n"
-            f"- Default CAP target: `{VALUES['ACTIVE_CAP_BASE_URL']}`.\n"
-            f"- Production CAP target: `{VALUES['PROD_CAP_BASE_URL']}`.\n"
-            f"- SIT CAP target: `{VALUES['SIT_CAP_BASE_URL']}`.\n"
-            f"- Treat `{VALUES['ACTIVE_OAUTH_BASE_URL']}` as the OAuth and business API host, "
-            "not as the default public CAP probe host.\n"
-            "- Use the bundled probe path first so call behavior stays deterministic.\n"
-        ),
+        r"^- Treat `[^`]+` as the OAuth and business API host, not the CAP probe host\.$",
+        f"- Treat `{VALUES['ACTIVE_OAUTH_BASE_URL']}` as the OAuth and business API host, not the CAP probe host.",
     )
     path.write_text(text, encoding="utf-8")
 
@@ -89,7 +81,7 @@ def sync_probe_usage() -> None:
     )
     text = _replace(
         text,
-        r"## Endpoint Notes\n\n(?:- .+\n){5}",
+        r"## Endpoint Notes\n\n(?:.*\n)*?(?=\n## |\Z)",
         (
             "## Endpoint Notes\n\n"
             f"- The current default CAP surface answers on `{VALUES['ACTIVE_CAP_ENDPOINT_URL']}`.\n"
@@ -104,41 +96,16 @@ def sync_probe_usage() -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def sync_question_routing() -> None:
-    path = SKILL_ROOT / "references" / "question-routing.md"
-    text = path.read_text(encoding="utf-8")
-    text = _replace(
-        text,
-        (
-            r"1\. Start from the live server and the causal question\.\n"
-            r"(?:\s+- .+\n){4,5}"
-        ),
-        (
-            "1. Start from the live server and the causal question.\n"
-            f"   - Default CAP target: `{VALUES['ACTIVE_CAP_BASE_URL']}` unless the user gives a different `base_url`.\n"
-            f"   - Production CAP target: `{VALUES['PROD_CAP_BASE_URL']}`.\n"
-            f"   - SIT CAP target: `{VALUES['SIT_CAP_BASE_URL']}`.\n"
-            f"   - Treat `{VALUES['ACTIVE_OAUTH_BASE_URL']}` as the OAuth and business API host, "
-            "not as the default CAP graph probe host.\n"
-            "   - Use the bundled probe script first so the call path is deterministic.\n"
-        ),
-    )
-    path.write_text(text, encoding="utf-8")
-
-
 def sync_env_file() -> None:
-    path = SKILL_ROOT / ".env.skills"
+    primary = SKILL_ROOT / ".env.skill"
+    fallback = SKILL_ROOT / ".env.skills"
+    path = primary if primary.exists() or not fallback.exists() else fallback
     if not path.exists():
         return
     text = path.read_text(encoding="utf-8")
     replacement = f"CAP_BASE_URL='{VALUES['ACTIVE_CAP_BASE_URL']}'"
     if re.search(r"^CAP_BASE_URL=.*$", text, flags=re.MULTILINE):
-        text = re.sub(
-            r"^CAP_BASE_URL=.*$",
-            replacement,
-            text,
-            flags=re.MULTILINE,
-        )
+        text = re.sub(r"^CAP_BASE_URL=.*$", replacement, text, flags=re.MULTILINE)
     else:
         if text and not text.endswith("\n"):
             text += "\n"
@@ -150,7 +117,6 @@ def main() -> None:
     sync_skill_md()
     sync_setup_guide()
     sync_probe_usage()
-    sync_question_routing()
     sync_env_file()
 
 
