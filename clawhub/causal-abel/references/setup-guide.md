@@ -72,6 +72,20 @@ Respond like this:
 
 Do not send the `authorize/agent` API URL itself to the user.
 
+### Clickable Link Format
+
+If the chat surface supports Markdown links, prefer this format:
+
+`[Open Abel Google authorization]({authUrl})`
+
+If Markdown links are not supported, send the raw URL on its own line:
+
+```text
+{authUrl}
+```
+
+Do not wrap the actual URL in backticks inside the user-facing message. In many chat surfaces, `` `https://...` `` renders as code and is not clickable.
+
 ## Endpoint: Get Agent Authorization Result
 
 Method: `GET`  
