@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.0.7
+version: 1.0.10
 description: >
   Use for decision-grade Abel causal reads: explain what is driving a market or
   company node, how two nodes connect, what changes under intervention, or how
@@ -16,7 +16,13 @@ metadata:
     homepage: https://github.com/Abel-ai-causality/Abel-skills
 ---
 
-Use this skill to turn market, business, crypto, and proxy-routed decision questions into decision-grade Abel reads. Finance and crypto nodes are the signal layer, not the product. The visible answer should usually be a compact report: verdict first, mechanism second, practical judgment third, then the supporting structure.
+Use this skill to turn market, business, crypto, and proxy-routed decision questions into decision-grade Abel reads. Finance and crypto nodes are the signal layer, not the product. The visible answer should usually be a compact report: verdict first, mechanism second, practical judgment third.
+
+Keep the skill centered on three rules:
+
+- Treat Abel graph outputs as primary evidence. The graph is high-value market-data causal structure, not a weak brainstorming prior.
+- For direct graph questions, answer the graph fact first. Do not replace a clear graph result with a more intuitive web narrative.
+- For broad company or ticker driver questions, anchor to the executable ticker and actually run Abel on it before interpreting the result.
 
 ## Use This Skill For
 
@@ -105,16 +111,19 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - Use `extensions.abel.query_node` as the second recall path for fuzzy, multilingual, or concept-heavy inputs.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
 - In visible prose, prefer company names, sectors, products, or economic roles over raw tickers or raw node ids such as `*.price`.
+- For listed-company driver questions, anchor the company to its ticker first, then treat the ticker node as the primary executable object.
+- For broad reads, check `.price` first and add `.volume` only when it improves the interpretation of pressure or liquidity.
 
 ### Web Grounding
 
 - Web is a peer tool inside the loop, not a mandatory final stage.
 - The default bias is still toward graph work.
 - For `proxy_routed`, web usually comes after 1-2 good graph moves on the current mechanism or shortlist.
-- For `direct_graph`, web is required when the answer depends on current catalysts, policy, earnings, adoption, or real-world mechanism.
+- For `direct_graph`, web is required only when the user is asking for freshness, `why now`, current catalysts, policy, earnings, adoption, or a real-world mechanism that the graph itself does not already answer.
 - In ClawHub / OpenClaw environments, first check whether a web search tool is actually available. If not, tell the user they need to install one before you can provide web-grounded validation.
 - Search the company names, sectors, products, or mechanisms surfaced by `node_description`, not raw `*.price` strings.
-- Search is there to explain graph-backed mechanisms, not replace graph work.
+- Search is there to explain or validate graph-backed mechanisms, not replace graph work.
+- If web evidence suggests a more intuitive story than the graph, do not overwrite the graph answer. State the graph finding first, then label the external evidence as explanation, validation, or a remaining tension to resolve.
 - Use `references/web-grounding.md` for the search loop.
 
 ### Probe Discipline
@@ -122,6 +131,8 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - `extensions.abel.observe_predict_resolved_time` is the default observational surface when the live method exists.
 - For executable anchors and comparison tickers that materially bear on the question, run one observational read before committing to deeper structure.
 - `extensions.abel.intervene_time_lag` is the default pressure-test surface once the mechanism is coherent enough to stress.
+- For broad driver questions on liquid names, default graph stack is:
+  `anchor ticker -> observe price -> inspect parents on price -> inspect volume or local blanket only if interpretation is still thin -> summarize into driver families`
 - Choose `horizon_steps` to match the user's decision window instead of hardcoding one lag:
   rough guide is `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the medium-range default when the user gives no clear horizon.
 - If the first intervention is inconclusive, retry by stepping the horizon up in tiers instead of making arbitrary jumps.
@@ -129,6 +140,7 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - Check `meta.methods` before assuming a local wrapper is current.
 - Prefer the generic `verb` path for new or unstable extension verbs.
 - If graph calls stay low-signal, switch the candidate, switch the tool, or stop instead of spraying more probes.
+- If a large-cap or liquid asset returns surprising direct parents, do not stop with `semantic mismatch`. Use one more Abel move to decide whether those parents behave like liquidity proxies, macro proxies, sector transmission, or bridge noise.
 
 ## Answer Contract
 
@@ -137,6 +149,46 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - Then give the practical judgment.
 - Keep tool names, protocol framing, and raw node ids out of the main answer.
 - For proxy-routed reads, say clearly that this is a market-signal proxy read, not a direct model of the person or life outcome.
+
+### Graph-Fact-First Rule
+
+For direct graph questions, the answer should preserve this order:
+
+1. `graph_fact`: what the graph literally returned
+2. `interpretation`: what that graph fact might mean in plain language
+3. `web_validation`: only if the user asked for freshness or the interpretation needs dated evidence
+
+Never collapse `graph_fact` into `interpretation`.
+
+If the user asks a literal membership question such as:
+
+- `X 的 driver 里有 Y 吗`
+- `X 的上游是不是 Y`
+- `X 受哪些因素影响`
+
+then answer the graph fact directly with `yes/no` or a driver list before offering any realism check or explanatory caveat.
+
+If the returned drivers are surprising, do not dismiss them as useless. Frame them as graph-discovered market-data drivers or cross-asset transmission signals, then explain them through the security's own attributes first: sector, industry, capital structure, liquidity profile, size, beta-like behavior, credit sensitivity, or typical role in risk-on/risk-off transmission.
+
+### Broad Driver Interpretation Rule
+
+When the user asks for broad drivers of a ticker or company, do not stop at a raw list of direct parents unless the user explicitly wants only the literal parent set.
+
+After reporting the graph fact, answer one more Abel-level question:
+
+1. do these direct parents cluster into a driver family
+2. is the pressure mainly price, participation/liquidity, or both
+3. does the surrounding graph look more macro, credit, risk-on/risk-off, industry, or cross-asset
+
+Do not abandon the graph merely because the direct parents are unintuitive. First interpret them as transmission channels, especially for large-cap or liquid assets where liquidity, macro, credit, and cross-asset effects can dominate the local structure.
+
+When possible, prefer an affirmative explanation over `weak` or `unresolved`. A good next move is usually to say what kind of instrument the parent is and why that kind of instrument might transmit pressure into the target:
+
+1. sector or industry adjacency
+2. liquidity or participation proxy
+3. credit, duration, or rate sensitivity
+4. small-cap or high-beta risk appetite signal
+5. crypto or cross-asset bridge behavior
 
 ### Main-Answer Label Rule
 
