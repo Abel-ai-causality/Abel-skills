@@ -470,21 +470,20 @@ def _cmd_neighbors(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_paths(args: argparse.Namespace) -> dict[str, Any]:
-    return _call_verb(
-        args,
-        "graph.paths",
-        {
-            "source_node_id": _normalize_public_node_id(
-                args.source_node_id,
-                default_suffix=args.default_suffix,
-            ),
-            "target_node_id": _normalize_public_node_id(
-                args.target_node_id,
-                default_suffix=args.default_suffix,
-            ),
-            "max_paths": args.max_paths,
-        },
-    )
+    params = {
+        "source_node_id": _normalize_public_node_id(
+            args.source_node_id,
+            default_suffix=args.default_suffix,
+        ),
+        "target_node_id": _normalize_public_node_id(
+            args.target_node_id,
+            default_suffix=args.default_suffix,
+        ),
+        "max_paths": args.max_paths,
+    }
+    if args.include_edge_signs:
+        params["include_edge_signs"] = True
+    return _call_verb(args, "graph.paths", params)
 
 
 def _cmd_markov_blanket(args: argparse.Namespace) -> dict[str, Any]:
@@ -658,6 +657,43 @@ def _cmd_counterfactual_preview(args: argparse.Namespace) -> dict[str, Any]:
     )
 
 
+def _resolve_time_lag_outcome_node(args: argparse.Namespace) -> str:
+    positional_value = getattr(args, "outcome_node_positional", None)
+    flag_value = getattr(args, "outcome_node", None)
+
+    normalized_positional = None
+    if positional_value:
+        normalized_positional = _normalize_public_node_id(
+            positional_value,
+            default_suffix=args.default_suffix,
+        )
+
+    normalized_flag = None
+    if flag_value:
+        normalized_flag = _normalize_public_node_id(
+            flag_value,
+            default_suffix=args.default_suffix,
+        )
+
+    if (
+        normalized_positional
+        and normalized_flag
+        and normalized_positional != normalized_flag
+    ):
+        raise ValueError(
+            "Conflicting outcome node values provided via positional argument "
+            "and --outcome-node."
+        )
+
+    resolved = normalized_flag or normalized_positional
+    if not resolved:
+        raise ValueError(
+            "intervene-time-lag requires an outcome node either as the third "
+            "positional argument or via --outcome-node."
+        )
+    return resolved
+
+
 def _cmd_intervene_time_lag(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(
         args,
@@ -668,10 +704,7 @@ def _cmd_intervene_time_lag(args: argparse.Namespace) -> dict[str, Any]:
                 default_suffix=args.default_suffix,
             ),
             "treatment_value": args.treatment_value,
-            "outcome_node": _normalize_public_node_id(
-                args.outcome_node,
-                default_suffix=args.default_suffix,
-            ),
+            "outcome_node": _resolve_time_lag_outcome_node(args),
             "horizon_steps": args.horizon_steps,
             "model": args.model,
         },
@@ -780,6 +813,11 @@ def _build_parser() -> argparse.ArgumentParser:
     paths.add_argument("source_node_id")
     paths.add_argument("target_node_id")
     paths.add_argument("--max-paths", type=int, default=3)
+    paths.add_argument(
+        "--include-edge-signs",
+        action="store_true",
+        help="Request signed edges in returned path details when supported.",
+    )
     paths.set_defaults(func=_cmd_paths)
 
     blanket = sub.add_parser("markov-blanket", help="Call graph.markov_blanket.")
@@ -839,11 +877,19 @@ def _build_parser() -> argparse.ArgumentParser:
     cf_preview.set_defaults(func=_cmd_counterfactual_preview)
 
     time_lag = sub.add_parser(
-        "intervene-time-lag", help="Call extensions.abel.intervene_time_lag."
+        "intervene-time-lag",
+        help=(
+            "Call extensions.abel.intervene_time_lag. Accepts the outcome "
+            "node as either the third positional argument or --outcome-node."
+        ),
     )
     time_lag.add_argument("treatment_node")
     time_lag.add_argument("treatment_value", type=float)
-    time_lag.add_argument("--outcome-node", required=True)
+    time_lag.add_argument("outcome_node_positional", nargs="?", metavar="outcome_node")
+    time_lag.add_argument(
+        "--outcome-node",
+        help="Outcome node. Optional if supplied as the third positional argument.",
+    )
     time_lag.add_argument("--horizon-steps", type=int, default=24)
     time_lag.add_argument("--model", default="linear")
     time_lag.set_defaults(func=_cmd_intervene_time_lag)
