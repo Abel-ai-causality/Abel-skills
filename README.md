@@ -26,16 +26,27 @@ The source skill lives in `causal-abel/`.
 
 ## For Maintainers
 
+Maintainer workflow for endpoint rendering, local SIT testing, and artifact builds:
+
+- `maintainers/causal-abel/README.md`
+
 ### Endpoint Defaults
 
-Endpoint and OAuth defaults for `causal-abel` are maintained in `causal-abel/config/endpoints.json`.
+Endpoint and OAuth defaults for `causal-abel` are maintained in `maintainers/causal-abel/endpoints.json`.
 
-- Update `endpoints.json` when the repository default CAP or OAuth host changes.
-- `.env.skill` and legacy `.env.skills` are local runtime overrides for probing and auth; they do not automatically rewrite repository docs.
-- Re-sync the generated skill docs after changing endpoint defaults:
+- Keep `maintainers/causal-abel/endpoints.json` public-safe. Anything rendered from it can be copied into agent-facing skill files and release artifacts.
+- Use `maintainers/causal-abel/endpoints.local.json` only for local render overrides. Do not rely on it for any value that must appear in committed docs or published skill builds.
+- `.env.skill` and legacy `.env.skills` are local auth files for API keys. Endpoint defaults no longer come from env files.
+- Re-render the public skill in place after changing endpoint defaults:
 
 ```bash
-python3 causal-abel/scripts/sync_endpoint_refs.py
+python3 maintainers/causal-abel/render_skill.py --profile prod --output-dir causal-abel
+```
+
+- Render a local SIT-flavored skill for testing without touching the public install path:
+
+```bash
+python3 maintainers/causal-abel/render_skill.py --include-local --profile sit --output-dir dist/local/causal-abel
 ```
 
 ### Build The ClawHub Artifact
@@ -45,6 +56,7 @@ This repository keeps the source skill in `causal-abel/SKILL.md`.
 - Local throwaway build output: `dist/clawhub/causal-abel`
 - Repository-committed ClawHub import path: `clawhub/causal-abel`
 - `main` automatically refreshes `clawhub/causal-abel` through `.github/workflows/sync-clawhub-artifact.yml`
+- The build copies the public `causal-abel/` skill into an agent-facing artifact. Published or committed artifacts must therefore be built only after `causal-abel/` has been rendered with public-safe endpoints.
 
 ```bash
 python3 scripts/build_clawhub_release.py

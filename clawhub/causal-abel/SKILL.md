@@ -54,8 +54,8 @@ Do not read every reference file by default.
 ## Step 1: Preflight
 
 - Treat missing credentials as a hard stop for live Abel usage.
-- Default CAP target: `https://cap-sit.abel.ai/api`.
-- Treat `https://api-sit.abel.ai/echo/` as the OAuth and business API host, not the CAP probe host.
+- Default CAP target: `https://cap.abel.ai/api`.
+- Treat `https://api.abel.ai/echo/` as the OAuth and business API host, not the CAP probe host.
 - Use the bundled probe path first so call behavior stays deterministic.
 
 ## Step 2: Classify The Question

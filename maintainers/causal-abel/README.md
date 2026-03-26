@@ -1,0 +1,93 @@
+# Causal Abel Maintainer Guide
+
+This directory owns maintainer-only rendering inputs for the public `causal-abel` skill.
+
+Treat `../../causal-abel` as the checked-in public product, not as the place to keep local-only endpoint state.
+
+## Files
+
+- `endpoints.json`: public-safe endpoint source for the checked-in skill and published artifacts
+- `endpoints.local.json`: gitignored local override file for SIT or other private environments
+- `endpoints.local.example.json`: example local override shape
+- `endpoint_config.py`: endpoint loading and profile resolution for maintainer renders
+- `render_skill.py`: renders a public or local skill artifact from the current endpoint profile to `dist/`
+
+## Rules
+
+- Keep `endpoints.json` public-safe. Anything rendered from it can end up in `causal-abel/`, `clawhub/causal-abel/`, or a published artifact.
+- Keep private or test endpoints only in `endpoints.local.json`.
+- Do not rely on `.env.skill` or `.env.skills` for endpoint injection. Those files are only for API keys.
+- Treat `causal-abel/` as a rendered public install root.
+- Local auth files already present in `dist/local/causal-abel/` are preserved across re-renders. They are not copied from `causal-abel/`, so prod and SIT keys can stay separate.
+
+## Development Flow
+
+1. Update maintainer-side endpoint config.
+
+Public defaults:
+
+```bash
+$EDITOR maintainers/causal-abel/endpoints.json
+```
+
+Local private overrides:
+
+```bash
+cp maintainers/causal-abel/endpoints.local.example.json maintainers/causal-abel/endpoints.local.json
+$EDITOR maintainers/causal-abel/endpoints.local.json
+```
+
+2. Re-render the checked-in public skill.
+
+```bash
+python3 maintainers/causal-abel/render_skill.py --profile prod --output-dir causal-abel
+```
+
+3. Render a local SIT-flavored skill for testing.
+
+```bash
+python3 maintainers/causal-abel/render_skill.py --include-local --profile sit --output-dir dist/local/causal-abel
+```
+
+If `dist/local/causal-abel/.env.skill` or `dist/local/causal-abel/.env.skills` already exists, the render keeps those files in place after rebuilding the rest of the tree.
+
+4. Verify the public skill did not pick up private endpoints.
+
+```bash
+rg -n "cap-sit|api-sit" causal-abel clawhub/causal-abel
+```
+
+5. If you need a fresh ClawHub artifact locally, build it from the public skill.
+
+```bash
+python3 scripts/build_clawhub_release.py
+```
+
+Build the committed import path instead of `dist/clawhub`:
+
+```bash
+python3 scripts/build_clawhub_release.py --output-root clawhub
+```
+
+## Build Outputs
+
+- `causal-abel/`: checked-in public install root used by the normal skill installer
+- `dist/local/causal-abel/`: local-only rendered skill for private endpoint testing
+- `dist/clawhub/causal-abel/`: throwaway local ClawHub build output
+- `clawhub/causal-abel/`: checked-in ClawHub import path
+
+## Release Notes
+
+- `main` automatically refreshes `clawhub/causal-abel/` through `.github/workflows/sync-clawhub-artifact.yml`.
+- The publish flow reads from the public skill, so render `causal-abel/` first if endpoint-facing text changed.
+- Dry-run the publish command before a release:
+
+```bash
+python3 scripts/publish_clawhub_release.py --dry-run
+```
+
+- Publish:
+
+```bash
+python3 scripts/publish_clawhub_release.py
+```

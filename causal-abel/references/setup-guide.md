@@ -1,6 +1,6 @@
 # Abel AI API Key OAuth Flow
 
-Base URL: `https://api-sit.abel.ai/echo/`
+Base URL: `https://api.abel.ai/echo/`
 
 This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, or `<skill-root>/.env.skill`.
 
@@ -33,7 +33,6 @@ Preferred local auth file:
 ```dotenv
 <skill-root>/.env.skill
 ABEL_API_KEY=abel_xxx
-CAP_BASE_URL=https://cap-sit.abel.ai/api
 ```
 
 Use `.env.skill` as the local auth file for this skill.
@@ -42,7 +41,7 @@ Use `.env.skill` as the local auth file for this skill.
 
 Method: `GET`  
 Path: `/web/credentials/oauth/google/authorize/agent`  
-Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/authorize/agent`
+Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`
 
 The browser URL is the returned `data.authUrl`, not this API URL itself.
 
@@ -57,7 +56,7 @@ The browser URL is the returned `data.authUrl`, not this API URL itself.
     "provider": "google",
     "flow": "agent_handoff",
     "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?...",
-    "resultUrl": "https://api-sit.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
+    "resultUrl": "https://api.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
     "pollToken": "POLL_TOKEN",
     "authorizationState": "pending_user_action",
     "expiresAt": 1773906755
@@ -73,11 +72,25 @@ Respond like this:
 
 Do not send the `authorize/agent` API URL itself to the user.
 
+### Clickable Link Format
+
+If the chat surface supports Markdown links, prefer this format:
+
+`[Open Abel Google authorization]({authUrl})`
+
+If Markdown links are not supported, send the raw URL on its own line:
+
+```text
+{authUrl}
+```
+
+Do not wrap the actual URL in backticks inside the user-facing message. In many chat surfaces, `` `https://...` `` renders as code and is not clickable.
+
 ## Endpoint: Get Agent Authorization Result
 
 Method: `GET`  
 Path: `/web/credentials/oauth/google/result`  
-Full URL: `https://api-sit.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
+Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
 
 ### Pending Response
 

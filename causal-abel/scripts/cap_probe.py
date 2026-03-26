@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import uuid
 import urllib.error
 import urllib.parse
@@ -14,13 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from endpoint_config import get_active_profile, resolve_cap_endpoint
-
-DEFAULT_BASE_URL = get_active_profile()["cap_base_url"]
+DEFAULT_BASE_URL = "https://cap.abel.ai/api"
 CAP_VERSION = "0.2.2"
 TEXT_TRUNCATE_EXACT_KEYS = {
     "description",
@@ -94,12 +87,21 @@ def _load_env_file(path: str) -> None:
 
 
 def _resolve_base_url(value: str | None) -> str:
-    return (
-        value
-        or os.getenv("CAP_BASE_URL")
-        or os.getenv("ABEL_CAP_BASE_URL")
-        or DEFAULT_BASE_URL
-    ).strip()
+    return (value or DEFAULT_BASE_URL).strip()
+
+
+def resolve_cap_endpoint(base_url: str) -> str:
+    parsed = urllib.parse.urlsplit(base_url)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Invalid base URL: {base_url!r}")
+    path = parsed.path.rstrip("/")
+    if path.endswith("/echo"):
+        endpoint_path = f"{path}/api/v1/cap"
+    else:
+        endpoint_path = f"{path}/cap"
+    return urllib.parse.urlunsplit(
+        (parsed.scheme, parsed.netloc, endpoint_path, "", "")
+    )
 
 
 def _cap_endpoint(base_url: str) -> str:

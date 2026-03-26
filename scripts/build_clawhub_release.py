@@ -51,7 +51,13 @@ def ignore_copy_patterns(_directory: str, names: list[str]) -> set[str]:
         if (
             name == "__pycache__"
             or name.endswith(".pyc")
-            or name in {".env.skill", ".env.skill.example", ".env.skills", ".env.skills.example"}
+            or name
+            in {
+                ".env.skill",
+                ".env.skill.example",
+                ".env.skills",
+                ".env.skills.example",
+            }
         ):
             ignored.add(name)
     return ignored

@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-"""Shared endpoint configuration for causal-abel scripts and docs."""
+#!/usr/bin/env python3
+"""Shared endpoint configuration for maintainer-side skill rendering."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ import json
 import urllib.parse
 from pathlib import Path
 
-CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "endpoints.json"
+CONFIG_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = CONFIG_DIR / "endpoints.json"
+LOCAL_CONFIG_PATH = CONFIG_DIR / "endpoints.local.json"
 AUTHORIZE_PATH = "web/credentials/oauth/google/authorize/agent"
 RESULT_PATH_TEMPLATE = (
     "web/credentials/oauth/google/result?pollToken=POLL_TOKEN"
@@ -15,8 +17,34 @@ RESULT_PATH_TEMPLATE = (
 CALLBACK_PATH = "web/credentials/oauth/google/callback"
 
 
-def load_endpoint_config() -> dict:
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+def _read_config(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _merge_config(base: dict, override: dict) -> dict:
+    merged = dict(base)
+
+    if "active_profile" in override:
+        merged["active_profile"] = override["active_profile"]
+
+    base_profiles = base.get("profiles", {})
+    override_profiles = override.get("profiles", {})
+    profiles = {
+        name: dict(profile)
+        for name, profile in base_profiles.items()
+    }
+    for name, profile in override_profiles.items():
+        existing = profiles.get(name, {})
+        profiles[name] = {**existing, **profile}
+    merged["profiles"] = profiles
+    return merged
+
+
+def load_endpoint_config(*, include_local: bool = False) -> dict:
+    config = _read_config(CONFIG_PATH)
+    if include_local and LOCAL_CONFIG_PATH.exists():
+        config = _merge_config(config, _read_config(LOCAL_CONFIG_PATH))
+    return config
 
 
 def resolve_cap_endpoint(base_url: str) -> str:
@@ -64,24 +92,26 @@ def build_profile(name: str, profile: dict) -> dict[str, str]:
     }
 
 
-def get_profiles(config: dict | None = None) -> dict[str, dict[str, str]]:
-    config = config or load_endpoint_config()
+def get_profiles(
+    config: dict | None = None, *, include_local: bool = False
+) -> dict[str, dict[str, str]]:
+    config = config or load_endpoint_config(include_local=include_local)
     return {
         name: build_profile(name, profile)
         for name, profile in config["profiles"].items()
     }
 
 
-def get_active_profile(config: dict | None = None) -> dict[str, str]:
-    config = config or load_endpoint_config()
+def get_template_values(
+    config: dict | None = None,
+    *,
+    include_local: bool = False,
+    profile_name: str | None = None,
+) -> dict[str, str]:
+    config = config or load_endpoint_config(include_local=include_local)
     profiles = get_profiles(config)
-    return profiles[config["active_profile"]]
-
-
-def get_template_values(config: dict | None = None) -> dict[str, str]:
-    config = config or load_endpoint_config()
-    profiles = get_profiles(config)
-    active = profiles[config["active_profile"]]
+    selected_name = profile_name or config["active_profile"]
+    active = profiles[selected_name]
     values = {
         "ACTIVE_PROFILE": active["name"],
         "ACTIVE_PROFILE_LABEL": active["label"],
