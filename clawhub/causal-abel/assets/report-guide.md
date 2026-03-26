@@ -1,12 +1,12 @@
-# Causal Abel Report Template
+# Causal Abel Report Guide
 
-Use this template to turn raw skill output into a stable report that explains how the user's original question relates to graph nodes, what each verb found, and what those findings mean.
+Use this guide to make sure a report covers the right substance: how the user's original question maps to graph nodes, what the graph and web work found, and what those findings mean. This is not a rigid output template.
 
 Do not center the report on commands, payloads, script flags, or call mechanics unless the user explicitly asks for reproducible invocation details.
 
 ## Report Goal
 
-Every report should answer these things in order:
+Every strong report should make these things clear. They do not need to appear as fixed sections or in exactly this wording:
 
 1. What is the user's real causal question?
 2. Which graph nodes are being used to represent that question?
@@ -22,8 +22,8 @@ Every report should answer these things in order:
 - The full report is the default deliverable for most comparative, proxy-routed, multi-anchor, or multi-step analyses.
 - Low-stakes casual comparisons may stay shorter, but they should still preserve graph-grounded reasoning and any critical web-grounded mechanism.
 - Only collapse to a short answer when the user explicitly asks for brevity or the task is genuinely trivial.
-- Explicit markdown section headings are preferred when the full report is the default deliverable, but natural longform prose is also acceptable.
-- If you use natural prose instead of headings, still preserve the report contract fields in the same order and with clear separation.
+- Explicit markdown section headings are often helpful, but they are optional.
+- Natural longform prose is acceptable as long as the needed content is covered clearly.
 - After the first-screen answer, prefer a compact card with:
   - `Signal`
   - `Causal link`
@@ -46,7 +46,7 @@ Every report should answer these things in order:
 - Keep command, route, OAuth, and script details out of the main report unless the user asks for them.
 - Do not dump raw JSON when a short natural-language rendering will preserve the meaning.
 
-Even in compact form, the report should preserve these contract fields:
+Even in compact form, the report should still cover these contract fields in substance:
 
 - `intent_read`
 - `graph_mapping`
@@ -58,7 +58,7 @@ Even in compact form, the report should preserve these contract fields:
 - `caveat`
 - `provenance`
 
-## Stable Report Structure
+## Coverage Areas
 
 ### 1. Original Question
 
@@ -98,7 +98,7 @@ Generator guidance:
 
 ### 3. Verb Findings
 
-Group findings by verb. Each verb section should contain two parts only:
+You do not need a literal per-verb section every time, but the write-up should make clear:
 
 - `result`: what the graph returned
 - `meaning`: what that result contributes to the original question
@@ -109,13 +109,13 @@ When search or external evidence is part of the same section, add:
 - `searched_mechanism`: the mechanism evidence gathered outside the graph
 - `inference`: the conclusion that combines both without blurring them
 
-Before the verb sections, add:
+Before or around the findings, include:
 
 - `surface_used`: the minimum sufficient capability set selected for the user's intent
 - `finding`: a compact statement of the most decision-relevant graph result when a short answer is needed
 - `provenance`: a compact note on which parts are graph-backed, search-backed, or still inferential
 
-Recommended verb sections:
+When a verb materially shapes the answer, these are the useful things to render:
 
 #### `neighbors` / `traverse-parents` / `traverse-children`
 
@@ -193,7 +193,7 @@ Compact contract name:
 
 ### 6. Pressure Test
 
-Use this section by default for non-trivial comparative or high-stakes reads. Omit it only when no meaningful live intervention surface or stress target exists.
+Use this content by default for non-trivial comparative or high-stakes reads. It does not need to be a literal standalone section if the report flows better another way. Omit it only when no meaningful live intervention surface or stress target exists.
 
 Required fields:
 
@@ -249,11 +249,11 @@ Compact contract name:
 
 - `caveat`: the highest-priority limit that changes interpretation
 
-## Preferred Output Shape
+## Optional Output Shape
 
-For default-report cases, preserve the section headings below when you want explicit structure. If you choose natural prose, keep the same information order and do not collapse away the pressure-test or next-step-probe content.
+For default-report cases, you may use the section headings below when explicit structure helps. You do not need to preserve this exact layout. If you choose natural prose, still keep the pressure-test or next-step-probe content when it is decision-relevant.
 
-Use this markdown skeleton when presenting the report:
+One possible markdown skeleton:
 
 ```md
 # Causal Abel Report

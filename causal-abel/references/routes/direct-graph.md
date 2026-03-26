@@ -62,7 +62,7 @@ Search the named companies, sectors, or mechanisms from `node_description`, not 
 ## Output Rule
 
 - For any non-trivial direct-graph read, render the visible answer as a structured report, not as plain prose.
-- The section structure from `../../assets/report-template.md` is the default output frame, but natural longform prose is acceptable if it still covers the same contract fields.
+- Use `../../assets/report-guide.md` to make sure the report covers the right content. Natural longform prose is acceptable if it still covers the same contract fields.
 - Main answer uses company names, industries, products, or roles.
 - Include the pressure-test result or, if no live intervention was run, the cleanest next-step probe.
 - If a repeated bridge node looks like microcap or crypto-heavy transmission noise, summarize it as noise unless external evidence says it matters.

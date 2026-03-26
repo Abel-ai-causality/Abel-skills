@@ -50,7 +50,7 @@ Read the minimum needed, in this order:
 4. Read `references/orchestration-loop.md`.
 5. If you need node mapping or human-facing labels, read `references/grounding-and-labeling.md`.
 6. If the next best move may be external evidence, read `references/web-grounding.md`.
-7. For any comparative, proxy-routed, multi-anchor, or otherwise non-trivial read, open `assets/report-template.md` before drafting the answer.
+7. For any comparative, proxy-routed, multi-anchor, or otherwise non-trivial read, open `assets/report-guide.md` before drafting the answer.
 8. Only read `references/probe-usage.md` when you need exact `cap_probe.py` command shapes.
 
 Do not read every reference file by default.
@@ -163,11 +163,11 @@ Avoid in the main answer:
 
 ### Answer Shapes
 
-- Default to a compact report, following `assets/report-template.md`.
+- Default to a compact report, using `assets/report-guide.md` as a coverage guide rather than a fixed template.
 - Collapse to a shorter answer only when the user explicitly asks for brevity or the question is genuinely trivial.
 - Low-stakes comparisons may still be shorter, but they should preserve graph-backed reasoning and any critical web-grounded mechanism.
 - High-stakes, comparative, multi-anchor, or non-trivial reads should include a pressure-test section unless no meaningful live intervention surface is available.
-- Natural longform prose is acceptable as long as the report-template contract fields are still covered in substance.
+- Natural longform prose is acceptable as long as the guide's contract fields are still covered in substance.
 - If no live intervention was run, include the cleanest next-step probe so the user can see what `intervene.do` or `extensions.abel.intervene_time_lag` would test next.
 
 
@@ -186,4 +186,4 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Web-grounded mechanism loop: `references/web-grounding.md`
 - OAuth install flow and API key reuse: `references/setup-guide.md`
 - Probe script commands and reusable examples: `references/probe-usage.md`
-- Report organization for fuller write-ups: `assets/report-template.md`
+- Report coverage guide for fuller write-ups: `assets/report-guide.md`
