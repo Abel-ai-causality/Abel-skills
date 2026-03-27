@@ -63,7 +63,7 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 - Use `extensions.abel.intervene_time_lag` as the default pressure-test surface.
 - Choose `horizon_steps` to match the decision window instead of always using the same lag:
   `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the default when the prompt does not pin down a horizon.
-- If the first lag test is low-signal, retry with the next wider horizon tier before concluding the pressure test is uninformative.
+- If the first lag test is too diffuse to interpret, retry with the next wider horizon tier before concluding the pressure test is uninformative.
 - Treat pressure tests as late robustness checks after the mechanism is already coherent.
 - Call newly added extension verbs through the generic `verb` path.
 

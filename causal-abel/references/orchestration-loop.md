@@ -98,10 +98,10 @@ For literal membership questions such as "is `Y` in `X`'s drivers", one clean st
 - the same pattern keeps repeating
 - remaining uncertainty is honest but not decision-changing
 
-## Low-Signal Fallbacks
+## Diffuse-Read Fallbacks
 
-- 2 consecutive low-signal candidate checks -> switch candidate
-- 3 consecutive low-signal tool calls -> stop and state residual uncertainty
+- 2 consecutive candidate checks that do not sharpen the mechanism -> switch candidate
+- 3 consecutive tool calls that do not sharpen the mechanism -> stop and state residual uncertainty
 - `query_node` drifts -> fall back to manual anchors
 - observational reads across anchors are flat or unavailable -> let structure break the tie
 - repeated bridge nodes that stay microcap or crypto-heavy -> summarize as transmission noise and move on
@@ -124,3 +124,4 @@ The final answer should feel coherent even if the loop alternated many times und
 - keep web as dated mechanism validation
 - keep pressure tests as compact robustness checks, not detached demos
 - keep graph fact and interpretation visibly separate when the graph output is unintuitive
+- keep internal planner language internal; visible prose should describe layer shifts, bridge-heavy reads, or transmission noise instead of exposing planner terms
