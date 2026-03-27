@@ -4,10 +4,11 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
-## Unreleased
+## [1.0.10] - 2026-03-27
 
 ### Changed
 
+- Removed `low-signal` wording from the source `causal-abel` planner and report guidance, replacing it with softer bridge-heavy / diffuse / non-explanatory phrasing so internal routing heuristics do not leak into user-facing language.
 - Refined direct-graph interpretation guidance so surprising drivers are explained via the security's own attributes before falling back to `weak` or `unresolved` wording.
 - Trimmed `causal-abel/agents/openai.yaml` back toward trigger and routing guidance so detailed execution rules stay in `SKILL.md` and route references.
 - Tightened the source `causal-abel` prompt so the core guidance is shorter and higher-leverage, with graph-first rules phrased as a small set of primary constraints.

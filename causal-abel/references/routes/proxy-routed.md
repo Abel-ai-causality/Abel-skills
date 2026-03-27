@@ -75,7 +75,7 @@ Use a multi-anchor graph read when the unknown is structural:
 1. run `extensions.abel.observe_predict_resolved_time` on the anchor shortlist
 2. inspect local structure with `graph.neighbors`
 3. inspect transmission with `graph.paths`
-4. use `graph.markov_blanket` only when local structure is still low-signal
+4. use `graph.markov_blanket` only when local structure is still too diffuse to stop on
 5. use `discover_consensus`, `discover_deconsensus`, or `discover_fragility` only when live `meta.methods` advertises them and they reduce loop cost
 
 The goal is not to prove the human outcome directly. The goal is to find the cleanest market-signal map of the underlying forces.
@@ -148,7 +148,7 @@ Bad pressure-test behavior:
 - spraying many weak interventions
 - using pressure tests before the graph and web loops are already coherent
 
-## Low-Signal Proxy Rules
+## Diffuse Proxy Rules
 
 - if one anchor family keeps producing bridge noise, switch to a cleaner role-level anchor
 - if `query_node` is noisy, go back to manual anchors
