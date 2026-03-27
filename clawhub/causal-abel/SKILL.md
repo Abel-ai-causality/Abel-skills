@@ -136,10 +136,10 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - Choose `horizon_steps` to match the user's decision window instead of hardcoding one lag:
   rough guide is `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the medium-range default when the user gives no clear horizon.
 - If the first intervention is inconclusive, retry by stepping the horizon up in tiers instead of making arbitrary jumps.
-  Move from the current tier to the next wider window, such as `6 -> 24/42 -> 170`, and stop once the transmission is clear or the wider windows still stay low-signal.
+  Move from the current tier to the next wider window, such as `6 -> 24/42 -> 170`, and stop once the transmission is clear or the wider windows still stay too diffuse to change the interpretation.
 - Check `meta.methods` before assuming a local wrapper is current.
 - Prefer the generic `verb` path for new or unstable extension verbs.
-- If graph calls stay low-signal, switch the candidate, switch the tool, or stop instead of spraying more probes.
+- If graph calls do not sharpen the mechanism, switch the candidate, switch the tool, or stop instead of spraying more probes.
 - If a large-cap or liquid asset returns surprising direct parents, do not stop with `semantic mismatch`. Use one more Abel move to decide whether those parents behave like liquidity proxies, macro proxies, sector transmission, or bridge noise.
 
 ## Answer Contract
@@ -149,6 +149,7 @@ Only go `web` early when the current unknown is clearly about freshness, timing,
 - Then give the practical judgment.
 - Keep tool names, protocol framing, and raw node ids out of the main answer.
 - For proxy-routed reads, say clearly that this is a market-signal proxy read, not a direct model of the person or life outcome.
+- Do not use internal planner labels in visible prose. If the direct layer is messy, describe it as bridge-heavy, diffuse, or better treated as a transmission layer rather than a final explanation layer.
 
 ### Graph-Fact-First Rule
 

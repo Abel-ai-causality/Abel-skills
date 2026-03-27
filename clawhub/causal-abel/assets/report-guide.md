@@ -160,7 +160,7 @@ Guidance:
 
 - Use ordinary web or news search for this phase, not image search.
 - Keep each search target narrow and graph-grounded.
-- If a searched financial transmission node turned out to be low-signal, say that and explain the cleaner anchor you switched to.
+- If a searched financial transmission node turned out to be non-explanatory or too bridge-heavy, say that and explain the cleaner anchor you switched to.
 - Do not inflate weak web evidence into a firm mechanism claim.
 - Do not let web evidence erase a clear graph fact just because the graph fact is unintuitive.
 
