@@ -12,7 +12,7 @@ Run `graph.neighbors` (both parents and children) on the failed node.
 - If observe succeeds on any neighbor: use it. Validate the economic relationship makes sense before trusting the signal.
 
 ### Step 2: Semantic discovery
-If Step 1 returns zero neighbors (structurally isolated node), use `query_node` to search for the economic activity the target represents.
+If Step 1 fails to produce any observable capillary — either zero neighbors exist, or all neighbors also return 503/no-data — use `query_node` to search for the economic activity the target represents.
 - Ask: "What companies' revenue is directly driven by this asset/market/activity?"
 - Search terms should describe the economic function, not the asset name. For a crypto asset: search for exchanges, miners, infrastructure. For an index: search for its largest constituents. For a foreign market: search for US-listed companies operating in that market.
 - Try `observe` on the top 2-3 results.
