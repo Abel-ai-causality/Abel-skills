@@ -85,7 +85,7 @@ Every report has two layers. The user reads the verdict layer. The evidence laye
 - Include a short `intent_read` before graph mechanics when the user's request could be interpreted in more than one way.
 - Explain the relationship between the question and the chosen nodes before interpreting verb results.
 - Name the `surface_used` as the minimum sufficient capability set rather than as an exhaustive log of everything available.
-- **L2-First Rule:** Graph findings (L2) always take precedence over web narratives (L0) in the verdict. If web evidence suggests a more intuitive story than the graph, do not overwrite the graph answer — state the graph finding first, then label the web evidence as explanation, validation, or remaining tension. For life decisions where graph is environmental context: the L2 directional signal anchors the verdict; L0 web data provides domain detail.
+- **L2-First Rule:** When L2 graph findings exist, they take precedence over L0 web narratives in the verdict. Do not let web evidence overwrite a graph answer — state the graph finding first, then label web evidence as explanation, validation, or remaining tension. **Exception:** For graph-sparse dimensions where capillary discovery exhausted all steps without finding an observable proxy, web evidence IS the primary source for that dimension. In that case, anchor the verdict on whichever dimensions DO have L2 support, and clearly mark the web-primary dimensions as lower confidence.
 - Separate graph findings from web-grounded evidence. Do not blur them into one unsupported narrative.
 - For each verb used, separate `result` from `meaning`.
 - When search is used, separate `graph_fact`, `searched_mechanism`, and `inference`.

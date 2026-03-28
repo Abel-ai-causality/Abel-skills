@@ -66,8 +66,6 @@ Layer examples:
 - real estate: mortgage rates (10Y Treasury), building permits, price-to-income proxies, migration/employment proxies
 - insurance/longevity: interest rates (yield curve shape), inflation expectations, healthcare cost indices
 
-For direct ticker driver questions, use this default graph stack: anchor ticker → observe price → inspect parents on price → inspect volume or local blanket only if interpretation is thin → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels"). Then hand off to the orchestration loop for deeper mechanism work.
-
 ## Step 3: Observational Pass On Anchors
 
 Before the deeper structural walk, run one observational read on each executable anchor that materially bears on the question.
