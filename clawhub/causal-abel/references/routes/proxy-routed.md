@@ -160,16 +160,6 @@ Bad pressure-test behavior:
 - spraying many weak interventions
 - using pressure tests before the graph and web loops are already coherent
 
-## Graph-Sparse Questions
-
-When the question's core lives outside the graph (music trends, cooking vs eating out, passion career choices):
-
-- Do NOT abandon the graph — it still models the economic environment
-- Use graph for environmental context only (1-2 anchors max), then shift to web as primary
-- Frame Abel's contribution as "economic wind direction" not "the answer"
-- Explicitly name what the graph can and cannot see for this question
-- The answer should clearly separate: graph-backed economic context vs web-grounded core answer vs user's personal judgment
-
 ## Low-Signal Proxy Rules
 
 - if one anchor family keeps producing bridge noise, switch to a cleaner role-level anchor
