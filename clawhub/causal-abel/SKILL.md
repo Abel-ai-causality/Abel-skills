@@ -208,4 +208,3 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 - Probe script commands and reusable examples: `references/probe-usage.md`
 - Capillary grafting mapping and discovery protocol: `references/capillary-mapping.md`
 - Report coverage guide for fuller write-ups: `assets/report-guide.md`
-- Golden questions eval set: `assets/golden-questions.md`

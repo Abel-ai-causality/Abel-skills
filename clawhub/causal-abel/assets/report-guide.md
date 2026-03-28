@@ -44,8 +44,6 @@ Each archetype demands a different answer structure and rendering rule:
 | Broad macro | Decompose 3-5 dimensions first, synthesize last | ticker-free in synthesis |
 | Graph-sparse | Graph = context, web = primary (only after capillary search fails) | ticker-free |
 
-For concrete examples of each archetype applied to real questions, see `assets/golden-questions.md`.
-
 ## Two-Layer Rendering Rule
 
 Every report has two layers. The user reads the verdict layer. The evidence layer is backup.
