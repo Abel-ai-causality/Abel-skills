@@ -50,21 +50,21 @@ For concrete examples of each archetype applied to real questions, see `assets/g
 
 Every report has two layers. The user reads the verdict layer. The evidence layer is backup.
 
+**Default rule:** The verdict layer uses human-readable economic roles, not raw tickers or prediction decimals. The evidence appendix is the only place for raw node IDs, predictions, and graph paths.
+
+**One exception:** When the user's question is explicitly about a ticker or investment asset (e.g., "what drives NVDA," "should I buy BTC"), ticker names are allowed in the verdict because the user expects them. Raw prediction decimals still go in the appendix only.
+
 **Verdict layer (the main report):**
-- ZERO raw tickers, ZERO node IDs, ZERO prediction decimals
-- Use translated signal names: "AI infrastructure investment momentum" not "NVDA +0.0013"
-- Use human roles: "cloud computing giants" not "MSFT, GOOGL, AMZN"
-- For life decisions: the user should forget they're reading graph-backed analysis. It should read like expert advice that happens to be causally grounded.
+- Default: use translated signal names ("AI infrastructure momentum," "cloud computing giants") instead of tickers
+- Exception: ticker names permitted when the question is about that specific ticker/asset
+- Never: raw prediction decimals (+0.0013) or node IDs (NVDA.price) in the verdict — always translate to directional language
+- For life decisions: no exception applies. Read like expert advice, not financial analysis.
 
 **Evidence appendix (at the very end, after the main report):**
-- Brief, collapsible section: "Abel 技术附录" or "Abel Evidence Layer"
-- Here and ONLY here: show ticker names, raw predictions, graph paths, verb results
+- Brief, collapsible section: "Abel Evidence Layer"
+- Here and ONLY here: raw predictions, graph paths, verb results, node IDs
 - For capillary-grafted signals, show: `Target (unavailable) → Capillary [discovered via: structural/semantic/reasoning] → observation`
 - Keep it compact — a small table, not a wall of JSON
-
-**Which questions get which treatment:**
-- Investment/ticker questions: tickers allowed in the verdict layer (users expect them)
-- Life decisions (career, education, housing, lifestyle, macro): verdict layer is ticker-free. Period.
 
 ## Output Rules
 
