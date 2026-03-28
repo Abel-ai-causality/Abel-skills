@@ -8,7 +8,7 @@ Read this file whenever you need to map user language into executable Abel nodes
 2. Bare equity and ETF tickers default to `.price`.
 3. Bare crypto aliases expand to `*USD.price`.
 4. Use manual mapping first for obvious company names and familiar proxy anchors.
-5. Use `extensions.abel.query_node` for fuzzy names, broad concepts, Chinese phrases, or multilingual labels. **If query_node returns irrelevant results for broad life-decision concepts** (e.g., "tech skills that survive AI" returns random tokens), skip to manual mapping of sector-level proxies and shift to web-primary sooner. Don't waste graph calls on noisy queries.
+5. Use `extensions.abel.query_node` for fuzzy names, broad concepts, Chinese phrases, or multilingual labels. If results are noisy, fall back to manual mapping of sector-level proxies — but do not shift to web-primary here. Capillary discovery (`references/capillary-mapping.md`) is the sole arbiter of when to declare graph-sparse.
 6. Merge manual recall and `query_node`, then shortlist 2-5 candidates.
 7. Run `extensions.abel.node_description` on that shortlist.
 8. For life-decision concepts, map to environmental proxies — the graph models economic conditions, not personal outcomes. See `references/capillary-mapping.md` for the discovery protocol.

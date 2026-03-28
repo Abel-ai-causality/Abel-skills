@@ -102,7 +102,7 @@ For most questions, do not choose `web` until you have already done an observati
 - observational reads across anchors are flat or unavailable -> let structure break the tie
 - repeated bridge nodes that stay microcap or crypto-heavy -> summarize as transmission noise and move on
 - **large-cap / liquid asset rule**: if a major equity returns surprising or unintuitive parents, do NOT dismiss as noise. First interpret them as transmission channels — liquidity proxies, macro proxies, sector transmission, or cross-asset effects often dominate the local structure for liquid names. Use one more graph move to classify the transmission type before switching
-- **node returns 503/no-data on observe**: Use capillary grafting (see `references/capillary-mapping.md` for protocol and mapping table). Do not retry the failed node or fall back to web until capillary search is exhausted.
+- **node returns 503/no-data on observe**: Use capillary grafting (see `references/capillary-mapping.md` for the discovery protocol). Do not retry the failed node or fall back to web until capillary search is exhausted.
 - if graph is clear but current mechanism is weak -> switch to web
 - if web is repetitive but the structure is still unresolved -> switch back to graph
 - if you have done only an observational pass and one shallow graph move so far, prefer another graph move before searching
