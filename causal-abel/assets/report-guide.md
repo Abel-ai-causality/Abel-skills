@@ -16,9 +16,61 @@ Every strong report should make these things clear. They do not need to appear a
 6. What pressure test or next-step probe would most change the answer?
 7. What do those combined findings mean for the original question?
 
+## Dollar-Value Decision Archetypes
+
+Beyond `direct_graph` and `proxy_routed`, recognize these question archetypes that require specific handling:
+
+- **Survival/replacement** → Route through automation exposure indices, labor demand proxies, skill-premium trends. Never binary — decompose into sub-skills. For open-ended "what survives?", scan 3-5 skill categories and rank by resilience.
+- **ROI/worth-it** → Cost-benefit with proxy-measurable upside and opportunity cost. Name non-financial returns (fulfillment, identity) as graph-invisible but decision-relevant.
+- **Timing** → Route through pricing cycle proxies, inventory/supply signals, product release cadence. Must include a specific trigger signal.
+- **Allocation** → Multi-node portfolio analysis. Concrete ratio with per-slice reasoning. For multi-horizon (education 5yr vs retirement 30yr), split by time horizon. For products Abel can't model directly (insurance), use underlying macro drivers.
+- **Regret minimization** → Forward-looking scan across asset classes and sectors by causal momentum strength. Ranked shortlist with confidence levels.
+- **Cross-market comparison** → Compare within-market momentum, explicitly name cross-market uncontrollables (currency, regulation, capital controls).
+- **Broad macro** → Decompose into 3-5 measurable proxy dimensions first. **Horizon rule:** >3 years → structural trend analysis (web) with graph as validator, not predictor.
+- **Graph-sparse** → Before declaring, search for capillary proxies (see `references/capillary-mapping.md`). Every human activity has an economic shadow in equity markets. Only declare graph-sparse after capillary search fails. When truly sparse, graph = economic context, web = primary answer.
+
+### Archetype Answer Shapes
+
+Each archetype demands a different answer structure and rendering rule:
+
+| Archetype | Answer structure | Rendering |
+|-----------|-----------------|-----------|
+| Survival/replacement | Decompose sub-skills, rate automation risk, rank resilience | ticker-free |
+| ROI/worth-it | Quantify measurable + name non-measurable + breakeven condition | ticker-free |
+| Timing | Specific trigger signal, never "it depends" | ticker-free for life, tickers OK for investment |
+| Regret minimization | Ranked shortlist by causal momentum + confidence | tickers OK |
+| Allocation | Concrete ratio + per-slice reasoning + rebalance trigger | tickers OK |
+| Cross-market | Within-market signals + named uncontrollables | tickers OK for investment, ticker-free for lifestyle |
+| Broad macro | Decompose 3-5 dimensions first, synthesize last | ticker-free in synthesis |
+| Graph-sparse | Graph = context, web = primary (only after capillary search fails) | ticker-free |
+
+For concrete examples of each archetype applied to real questions, see `assets/golden-questions.md`.
+
+## Two-Layer Rendering Rule
+
+Every report has two layers. The user reads the verdict layer. The evidence layer is backup.
+
+**Verdict layer (the main report):**
+- ZERO raw tickers, ZERO node IDs, ZERO prediction decimals
+- Use translated signal names: "AI infrastructure investment momentum" not "NVDA +0.0013"
+- Use human roles: "cloud computing giants" not "MSFT, GOOGL, AMZN"
+- For life decisions: the user should forget they're reading graph-backed analysis. It should read like expert advice that happens to be causally grounded.
+
+**Evidence appendix (at the very end, after the main report):**
+- Brief, collapsible section: "Abel 技术附录" or "Abel Evidence Layer"
+- Here and ONLY here: show ticker names, raw predictions, graph paths, verb results
+- For capillary-grafted signals, show: `Target (unavailable) → Capillary [discovered via: structural/semantic/reasoning] → observation`
+- Keep it compact — a small table, not a wall of JSON
+
+**Which questions get which treatment:**
+- Investment/ticker questions: tickers allowed in the verdict layer (users expect them)
+- Life decisions (career, education, housing, lifestyle, macro): verdict layer is ticker-free. Period.
+
 ## Output Rules
 
-- For ordinary user-facing answers, lead with a short verdict-first answer before the fuller report body.
+- For ordinary user-facing answers, lead with a short verdict-first answer before the fuller report body. The verdict must be actionable: not just "X affects Y" but "X affects Y, which means you should [do/watch/avoid Z]."
+  - **Good:** Leads with a position, names the causal mechanism, gives an action or trigger.
+  - **Bad:** "There are several factors to consider..." (Describes, doesn't conclude or advise.)
 - The full report is the default deliverable for most comparative, proxy-routed, multi-anchor, or multi-step analyses.
 - Low-stakes casual comparisons may stay shorter, but they should still preserve graph-grounded reasoning and any critical web-grounded mechanism.
 - Only collapse to a short answer when the user explicitly asks for brevity or the task is genuinely trivial.
@@ -31,15 +83,16 @@ Every strong report should make these things clear. They do not need to appear a
   - `Certain`
   - `Decision tip`
 - Start from the original question, not from raw graph output.
+- Match the user's language. If the question is in Chinese, the verdict and interpretation should be in Chinese. Technical terms (node IDs, verb names) stay in English but explanations should be in the user's language.
 - Include a short `intent_read` before graph mechanics when the user's request could be interpreted in more than one way.
 - Explain the relationship between the question and the chosen nodes before interpreting verb results.
 - Name the `surface_used` as the minimum sufficient capability set rather than as an exhaustive log of everything available.
+- **L2-First Rule:** Graph findings (L2) always take precedence over web narratives (L0) in the verdict. If web evidence suggests a more intuitive story than the graph, do not overwrite the graph answer — state the graph finding first, then label the web evidence as explanation, validation, or remaining tension. For life decisions where graph is environmental context: the L2 directional signal anchors the verdict; L0 web data provides domain detail.
 - Separate graph findings from web-grounded evidence. Do not blur them into one unsupported narrative.
 - For each verb used, separate `result` from `meaning`.
 - When search is used, separate `graph_fact`, `searched_mechanism`, and `inference`.
-- When the graph output is surprising, preserve it as `graph_fact` instead of explaining it away.
 - Prefer semantic names over raw node IDs when a node is acting as a proxy or bridge.
-- If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject.
+- If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject. For life decisions, be especially explicit: "Abel reads the economic environment around your decision, not your personal circumstances. The graph tells you whether the wind is at your back or in your face — you still need to judge your own sails."
 - If a financial transmission node or small-cap bridge was considered but then downgraded, say so briefly in the report instead of silently dropping it.
 - Include a short challenge section for non-trivial analyses: untested assumption, counter-evidence, weakest link.
 - Include a short pressure-test section by default for non-trivial comparative reads; if no meaningful live intervention was run, say why and name the cleanest next-step probe.
@@ -96,6 +149,7 @@ Generator guidance:
 - If the graph contains direct nodes for the topic, say that this is a direct graph read.
 - If the graph does not contain direct nodes for the topic, explain which proxy dimensions are being used and why.
 - When proxy routing is used, describe nodes by economic role first and ticker second.
+- For life decisions (career, housing, education, entrepreneurship), explain the proxy bridge explicitly: the graph has financial/macro signals, not "should I quit my job" nodes. Name the specific proxy dimensions and why they carry signal for the user's real question. Example: "Your career-switch question maps to: tech labor demand (proxied via HIRING_INDEX), startup funding health (proxied via VC_DEAL_FLOW), and opportunity cost of staying (proxied via BIG_TECH_COMP_INDEX). These don't model your personal situation directly — they model the economic environment your decision lives in."
 
 ### 3. Verb Findings
 
@@ -115,8 +169,6 @@ Before or around the findings, include:
 - `surface_used`: the minimum sufficient capability set selected for the user's intent
 - `finding`: a compact statement of the most decision-relevant graph result when a short answer is needed
 - `provenance`: a compact note on which parts are graph-backed, search-backed, or still inferential
-
-For direct graph questions, especially driver-list or membership checks, the first sentence should answer the literal graph question before offering interpretation.
 
 When a verb materially shapes the answer, these are the useful things to render:
 
@@ -139,7 +191,6 @@ When a verb materially shapes the answer, these are the useful things to render:
 
 - `result`: what the resolved-time observational surface currently predicts
 - `meaning`: what the current regime suggests, without overstating it as intervention effect
-- In the visible answer, prefer qualitative language like mild, moderate, or strong upside or downside expectation instead of leading with the raw prediction number unless the user explicitly wants the numeric value.
 
 #### `extensions.abel.intervene_time_lag`
 
@@ -160,9 +211,8 @@ Guidance:
 
 - Use ordinary web or news search for this phase, not image search.
 - Keep each search target narrow and graph-grounded.
-- If a searched financial transmission node turned out to be non-explanatory or too bridge-heavy, say that and explain the cleaner anchor you switched to.
+- If a searched financial transmission node turned out to be low-signal, say that and explain the cleaner anchor you switched to.
 - Do not inflate weak web evidence into a firm mechanism claim.
-- Do not let web evidence erase a clear graph fact just because the graph fact is unintuitive.
 
 Compact contract name:
 
@@ -216,12 +266,24 @@ Prompt for the generator:
 Given the node mapping, graph findings, web-grounded evidence, and challenge pass, what is the best plain-language answer to the user's original question?
 ```
 
+Required: **Causal chain statement** — Every non-trivial report must include one explicit mechanism chain in the form: `A → (mechanism) → B → (mechanism) → C`. This is the backbone of the interpretation. The chain should:
+
+- Name the cause, the intermediate transmission, and the outcome
+- Label each arrow with the mechanism
+- Distinguish direct effects from mediated effects
+
+  **Good chain:** Names cause, intermediate transmission, outcome. Labels each arrow with mechanism. Flags confounders by name.
+  **Bad chain:** "X affects Y through various mechanisms." (No mechanism named, no confounder identified.)
+- Flag where the chain relies on proxy rather than direct observation
+
 Guidance:
 
 - Do not merely repeat the verb outputs.
 - Explain how the structural and effect findings combine.
 - Prioritize the user's decision or explanation need over graph-internal jargon.
 - If a search loop was used, say which part of the interpretation comes from graph structure versus mechanism evidence.
+- If the causal chain has a confounder or fork, name it explicitly rather than treating the path as unconditionally causal.
+- End the interpretation with a concrete **"So what"** statement: what the user should do, watch, or reconsider given these findings. If the question is investment-related, name the position implication. If it's a life decision (career, real estate, education, starting a company), name the specific timing signal or condition that should trigger action. If operational, name the lever to pull. If exploratory, name the most valuable next question.
 
 ### 8. Boundaries And Caveats
 
@@ -236,6 +298,7 @@ Always check for these caveats:
 - missing graph support or weak structural evidence
 - searched mechanism that is plausible but not yet structurally re-grounded
 - repeated anchor pattern that may still reflect a bridge rather than a true hub
+- **life decision gap**: the graph models economic conditions, not personal fit, risk tolerance, relationships, or non-financial values. Always name what the graph cannot see when the question is about a life choice.
 
 Prompt for the generator:
 
@@ -261,5 +324,13 @@ Before finalizing a report, verify that:
 - the challenge section names a concrete way the answer could be wrong instead of generic hedging
 - the pressure-test section either sharpens the verdict or gives useful next probes instead of acting like a method dump
 - the integrated interpretation answers the user's question directly
+- the interpretation includes an explicit causal chain (A → mechanism → B → mechanism → C)
+- the interpretation ends with a concrete "So what" — what to do, watch, or reconsider
+- for life decisions: the proxy bridge is named explicitly, the personal-vs-economic boundary is stated, and the "So what" gives a timing signal or condition, not just "it depends"
+- the question archetype was identified and the answer shape matches it (survival→decompose skills, ROI→breakeven, timing→trigger, allocation→ratio, macro→dimensions, graph-sparse→honest handoff)
+- the two-layer rendering rule was followed: verdict layer is ticker-free for life decisions, evidence appendix contains the raw data
+- signal aggregation was applied: no individual ticker predictions in the verdict, only directional signals
+- each significant claim is annotated with its epistemological tier (L2/L0.5/L0)
+- the report ends with an epistemological composition summary
 - caveats are strong enough to prevent overclaiming
 - provenance is clear whenever search evidence or proxy reasoning materially shapes the answer

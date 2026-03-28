@@ -30,12 +30,19 @@ The expected feel is graph-heavy, not search-led.
 
 Translate the user question into 2-4 real dimensions such as:
 
+Financial:
 - supply versus demand
 - product versus distribution
 - subscription versus advertising
-- stable salary versus upside
 - financing conditions versus operating leverage
 - institutional adoption versus retail attention
+
+Career / life:
+- stable salary versus upside (big tech comp vs startup equity EV)
+- automation risk versus human-premium (which sub-skills survive AI?)
+- education ROI versus opportunity cost (salary premium vs years lost)
+- timing signal versus patience (market cycle position)
+- economic wind versus personal fit (graph-visible vs graph-invisible)
 
 ## Step 2: Build The Anchor Set
 
@@ -51,9 +58,15 @@ Rules:
 Layer examples:
 
 - AI and compute: design, manufacturing, infrastructure, platform
-- labor and career: labor marketplaces, hiring appetite, financing stress, displacement pressure
+- labor and career: labor marketplaces (HCM platforms), hiring appetite (big tech capex), financing stress (VC deal flow), displacement pressure (AI automation indices)
 - content and media: subscription publishing, ad distribution, creator capture, platform attention
 - crypto: base asset, exchange, brokerage, ETF or institutional wrapper, activity layer
+- education ROI: salary premium proxies (sector compensation indices), employment rates (hiring platforms), education cost inflation
+- consumer timing: luxury goods (LVMH), tech hardware cycles (semiconductor inventory), retail indices, FX rates for cross-border purchases
+- real estate: mortgage rates (10Y Treasury), building permits, price-to-income proxies, migration/employment proxies
+- insurance/longevity: interest rates (yield curve shape), inflation expectations, healthcare cost indices
+
+For direct ticker driver questions, use this default graph stack: anchor ticker → observe price → inspect parents on price → inspect volume or local blanket only if interpretation is thin → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels"). Then hand off to the orchestration loop for deeper mechanism work.
 
 ## Step 3: Observational Pass On Anchors
 
@@ -65,6 +78,7 @@ Rules:
 - use the observational pass to rank which anchors deserve deeper structural follow-up
 - if one anchor cannot be observed cleanly, do not drop it immediately; compare it with the structural read
 - if a proposed anchor is not an executable market node, use the closest executable proxy and label that mapping clearly later
+- **capillary grafting**: When a direct node returns 503/no-data, use supply-chain capillaries instead of falling back to web. See `references/capillary-mapping.md` for the discovery protocol.
 
 ## Initial Graph Prior
 
@@ -75,7 +89,7 @@ Use a multi-anchor graph read when the unknown is structural:
 1. run `extensions.abel.observe_predict_resolved_time` on the anchor shortlist
 2. inspect local structure with `graph.neighbors`
 3. inspect transmission with `graph.paths`
-4. use `graph.markov_blanket` only when local structure is still too diffuse to stop on
+4. use `graph.markov_blanket` only when local structure is still low-signal
 5. use `discover_consensus`, `discover_deconsensus`, or `discover_fragility` only when live `meta.methods` advertises them and they reduce loop cost
 
 The goal is not to prove the human outcome directly. The goal is to find the cleanest market-signal map of the underlying forces.
@@ -148,7 +162,17 @@ Bad pressure-test behavior:
 - spraying many weak interventions
 - using pressure tests before the graph and web loops are already coherent
 
-## Diffuse Proxy Rules
+## Graph-Sparse Questions
+
+When the question's core lives outside the graph (music trends, cooking vs eating out, passion career choices):
+
+- Do NOT abandon the graph — it still models the economic environment
+- Use graph for environmental context only (1-2 anchors max), then shift to web as primary
+- Frame Abel's contribution as "economic wind direction" not "the answer"
+- Explicitly name what the graph can and cannot see for this question
+- The answer should clearly separate: graph-backed economic context vs web-grounded core answer vs user's personal judgment
+
+## Low-Signal Proxy Rules
 
 - if one anchor family keeps producing bridge noise, switch to a cleaner role-level anchor
 - if `query_node` is noisy, go back to manual anchors
