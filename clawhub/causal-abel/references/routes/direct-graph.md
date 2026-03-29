@@ -29,7 +29,7 @@ Pick the first move from the user's question shape:
 
 For driver or "why did it move" questions, prefer a quick observational read on the target node before the deeper structural pass when the node is executable.
 
-For broad driver questions on liquid names, default graph stack: anchor ticker → observe price → inspect parents on price → inspect volume or local blanket only if interpretation is thin → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels"). Then hand off to the orchestration loop for deeper mechanism work.
+For broad driver questions on liquid names, default graph stack: anchor ticker → observe price → inspect parents on price → inspect volume or local blanket only if interpretation is thin → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels"). 
 
 ## Structural Loop
 

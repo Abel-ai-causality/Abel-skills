@@ -106,7 +106,7 @@ From L0.5 deep, identify blanket parents of the outcome. Intervene on the most r
 ### 4c. Signal aggregation
 Aggregate individual observations into ONE directional signal per dimension. Never present raw predictions in the verdict.
 
-## Step 5: Web Grounding
+## Step 5: Web Grounding (proxy_routed, or direct_graph when freshness matters)
 
 Minimum 4 searches:
 1. **What's happening now** — latest prices, policy, events, dates

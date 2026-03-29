@@ -27,7 +27,7 @@ Beyond `direct_graph` and `proxy_routed`, recognize these question archetypes th
 - **Regret minimization** → Forward-looking scan across asset classes and sectors by causal momentum strength. Ranked shortlist with confidence levels.
 - **Cross-market comparison** → Compare within-market momentum, explicitly name cross-market uncontrollables (currency, regulation, capital controls).
 - **Broad macro** → Decompose into 3-5 measurable proxy dimensions first. **Horizon rule:** >3 years → structural trend analysis (web) with graph as validator, not predictor.
-- **Graph-sparse** → Before declaring, search for capillary proxies (see `references/capillary-mapping.md`). Every human activity has an economic shadow in equity markets. Only declare graph-sparse after capillary search fails. When truly sparse, graph = economic context, web = primary answer.
+- **Graph-sparse** → Before declaring, search for capillary proxies (see Step 3b in SKILL.md). Every human activity has an economic shadow in equity markets. Only declare graph-sparse after capillary search fails. When truly sparse, graph = economic context, web = primary answer.
 
 ### Archetype Answer Shapes
 
