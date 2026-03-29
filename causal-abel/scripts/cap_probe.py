@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import sys
 import argparse
-import ast
 import json
 import os
 import uuid
@@ -300,26 +299,6 @@ def _json_or_text(raw: bytes) -> Any:
         return json.loads(text)
     except json.JSONDecodeError:
         return {"raw": text}
-
-
-def _parse_params_json(raw: str) -> dict[str, Any] | None:
-    if not raw:
-        return None
-
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        try:
-            parsed = ast.literal_eval(raw)
-        except (SyntaxError, ValueError) as literal_exc:
-            raise ValueError(
-                "--params-json must be valid JSON. If you are on Windows, prefer double quotes in PowerShell or escaped double quotes in cmd.exe."
-            ) from literal_exc
-        if not isinstance(parsed, dict):
-            raise ValueError("--params-json must decode to a JSON object.") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError("--params-json must decode to a JSON object.")
-    return parsed
 
 
 def _post_cap(
@@ -733,12 +712,16 @@ def _cmd_intervene_time_lag(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_verb(args: argparse.Namespace) -> dict[str, Any]:
-    params = _parse_params_json(args.params_json)
+    params = json.loads(args.params_json) if args.params_json else None
+    if params is not None and not isinstance(params, dict):
+        raise ValueError("--params-json must decode to a JSON object.")
     return _call_verb(args, args.verb_name, params)
 
 
 def _cmd_route(args: argparse.Namespace) -> dict[str, Any]:
-    params = _parse_params_json(args.params_json)
+    params = json.loads(args.params_json) if args.params_json else None
+    if params is not None and not isinstance(params, dict):
+        raise ValueError("--params-json must decode to a JSON object.")
     return _call_verb(args, _route_to_verb(args.route_name), params)
 
 

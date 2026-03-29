@@ -80,11 +80,20 @@ After each useful result, keep only:
 - `counter-evidence`
 - `inference`
 
+## Search Budget (CurioCat-inspired adversarial protocol)
+
+Minimum 4 searches, structured as:
+1. **What's happening now** — latest prices, policy changes, dates, events
+2. **Supporting evidence** — data that confirms the graph-backed verdict
+3. **Contradicting evidence** — actively search for reasons the verdict is WRONG. "Why buying now might be better" if verdict says wait. This is mandatory.
+4. **User-perspective data** — what a real buyer/decision-maker would search. Second-hand prices, waitlists, alternative channels, community consensus, real people's experiences.
+
+Up to 6 searches for complex questions. Stop when contradicting search returns nothing new.
+
 ## Stop Rules
 
-- stop after 1 baseline search plus 1-2 focused searches
+- stop when contradicting evidence search returns nothing the verdict hasn't already addressed
 - stop when search only repeats generic sector commentary
-- stop when repeated results do not change the next graph question
 
 ## Return-To-Graph Rules
 

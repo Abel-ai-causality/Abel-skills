@@ -64,39 +64,63 @@ Every report has two layers. The user reads the verdict layer. The evidence laye
 - For capillary-grafted signals, show: `Target (unavailable) → Capillary [discovered via: structural/semantic/reasoning] → observation`
 - Keep it compact — a small table, not a wall of JSON
 
+## ASDF Experience Standard
+
+Every Abel report must pass four tests: **Authentic, Sharp, Deep, Fun.**
+
+**Authentic** — every claim traceable to a specific probe or source. Tier annotation enforces this. If you can't name how you know it, don't say it. Web grounding requires TWO types of search: (1) "what's happening now" — latest policy decisions, current rates, recent earnings, this week's data (2) "how to" — rules, strategies, frameworks. Both are mandatory. Name specific events, numbers, dates. **Claim-strength honesty:** For life decisions, Abel provides "causal-graph-grounded decision advice" — not "causal proof." Don't imply stronger causal claims than the evidence supports. L0 claims in the evidence appendix must carry anti-guarantees: "no statistical test, not reproducible, may vary."
+
+**Sharp** — the verdict is ≤3 sentences. Sentence 1: position. Sentence 2: why (the mechanism, one line). Sentence 3: what to do (action + trigger). If you can't tweet the verdict, it's too long. Everything else goes in the body or appendix.
+
+**Deep** — at least one insight the user couldn't have gotten from ChatGPT or common sense. The insight must be QUESTION-SPECIFIC — not a repetition of a general graph property (like "blankets are financial" which is true for all nodes). If the blanket finding is the same as last time, dig one layer deeper: what does THIS node's specific blanket composition tell us about THIS question? Deep ≠ long. Deep = "I didn't know that."
+
+**Fun** — the verdict should make the user want to share it. Self-test after writing: would the user screenshot this and send to a friend? If no, rewrite.
+
+## Story Arc (the source of Fun)
+
+Every report should have a **plot twist** — a moment where the graph overturns the user's intuition. Structure the narrative as:
+
+- **Act 1:** "You'd think..." (L0 common sense — what everyone assumes)
+- **Act 2:** "But the graph says..." (L0.5 structural discovery — the twist)
+- **Act 3:** "So the real answer is..." (fusion verdict — new understanding + action)
+
+When no twist exists (graph confirms L0), the adversarial search is Act 2: "We looked for reasons you're wrong — here's what we found (or didn't)."
+
+## Interleaving Rule (graph × web × action)
+
+NEVER separate graph findings and web evidence into two blocks. Every graph insight must be immediately followed by its web grounding — supporting or contradicting — in the same breath. Then land the action.
+
+**Bad:**
+```
+图谱发现：网安被内容企业驱动...（一大段图谱）
+正在发生的事：网安岗位 480 万空缺...（一大段 web）
+```
+
+**Good:**
+```
+网安被内容/SaaS 企业的数字资产保护需求驱动（图谱 Layer 2: Disney + Dropbox 在安全龙头的因果链上游）— 印证这一点的是，41% 的网安岗位现在要求 AI/ML 技能（StationX 2026），CrowdStrike 正在往 AI 安全方向 pivot。图谱的结构指向和市场的实际招聘在同一个方向。所以：学网安 + AI 交叉是当前最抗替代的组合。
+```
+
+Every paragraph: graph says → web confirms/challenges → so you should. One flow, not three blocks.
+
+L0.5 is the center of the experience. L1/L2 amplify its credibility. L0 web search provides the texture. But the story arc comes from the graph's structural surprise.
+
 ## Output Rules
 
-- For ordinary user-facing answers, lead with a short verdict-first answer before the fuller report body. The verdict must be actionable: not just "X affects Y" but "X affects Y, which means you should [do/watch/avoid Z]."
-  - **Good:** Leads with a position, names the causal mechanism, gives an action or trigger.
-  - **Bad:** "There are several factors to consider..." (Describes, doesn't conclude or advise.)
-- The full report is the default deliverable for most comparative, proxy-routed, multi-anchor, or multi-step analyses.
-- Low-stakes casual comparisons may stay shorter, but they should still preserve graph-grounded reasoning and any critical web-grounded mechanism.
+- **Verdict: ≤3 sentences.** Position + mechanism + action. Everything else is body.
+- **Graph voice first, web voice second.** The verdict must lead with what the GRAPH uniquely discovered — not with web facts anyone could find. Web facts support the graph insight, not the other way around. If your verdict could be written without the graph, you haven't used Abel. The graph's contribution must be FELT in the first sentence.
+- **Insight → action translation is mandatory.** Every insight must end with a specific recommendation, timing trigger, or threshold. Insight without action goes in the appendix.
+- The full report body follows the verdict for those who want depth. Keep it structured but concise.
+- Analysis process (which probes ran, what surprised what) goes in the evidence appendix only.
 - Only collapse to a short answer when the user explicitly asks for brevity or the task is genuinely trivial.
 - Explicit markdown section headings are often helpful, but they are optional.
 - Natural longform prose is acceptable as long as the needed content is covered clearly.
-- After the first-screen answer, prefer a compact card with:
-  - `Signal`
-  - `Causal link`
-  - `Sharp`
-  - `Certain`
-  - `Decision tip`
-- Start from the original question, not from raw graph output.
-- Match the user's language. If the question is in Chinese, the verdict and interpretation should be in Chinese. Technical terms (node IDs, verb names) stay in English but explanations should be in the user's language.
-- Include a short `intent_read` before graph mechanics when the user's request could be interpreted in more than one way.
-- Explain the relationship between the question and the chosen nodes before interpreting verb results.
-- Name the `surface_used` as the minimum sufficient capability set rather than as an exhaustive log of everything available.
-- **L2-First Rule:** When L2 graph findings exist, they take precedence over L0 web narratives in the verdict. Do not let web evidence overwrite a graph answer — state the graph finding first, then label web evidence as explanation, validation, or remaining tension. **Exception:** For graph-sparse dimensions where capillary discovery exhausted all steps without finding an observable proxy, web evidence IS the primary source for that dimension. In that case, anchor the verdict on whichever dimensions DO have L2 support, and clearly mark the web-primary dimensions as lower confidence.
-- Separate graph findings from web-grounded evidence. Do not blur them into one unsupported narrative.
-- For each verb used, separate `result` from `meaning`.
-- When search is used, separate `graph_fact`, `searched_mechanism`, and `inference`.
-- Prefer semantic names over raw node IDs when a node is acting as a proxy or bridge.
-- If the question is proxy-routed, say clearly that the graph is reading market proxies rather than directly modeling the real-world subject. For life decisions, be especially explicit: "Abel reads the economic environment around your decision, not your personal circumstances. The graph tells you whether the wind is at your back or in your face — you still need to judge your own sails."
-- If a financial transmission node or small-cap bridge was considered but then downgraded, say so briefly in the report instead of silently dropping it.
-- Include a short challenge section for non-trivial analyses: untested assumption, counter-evidence, weakest link.
-- Include a short pressure-test section by default for non-trivial comparative reads; if no meaningful live intervention was run, say why and name the cleanest next-step probe.
-- When intervention adds value, frame it as a pressure test or next-step probe, not as a detached method demo.
-- Keep command, route, OAuth, and script details out of the main report unless the user asks for them.
-- Do not dump raw JSON when a short natural-language rendering will preserve the meaning.
+- Match the user's language. Technical terms in English, explanations in user's language.
+- For proxy-routed questions, state clearly: "Abel reads economic environment, not personal circumstances."
+- **L2-First Rule:** Graph findings (L2) take precedence over web narratives (L0). Exception: graph-sparse dimensions where capillary search is exhausted — web is primary for those, mark as lower confidence.
+- Separate `graph_fact`, `searched_mechanism`, and `inference`. Don't blur graph and web into one narrative.
+- Include challenge section (untested assumption, counter-evidence, weakest link) for non-trivial analyses.
+- Keep command/OAuth/script details out of the main report.
 
 Even in compact form, the report should still cover these contract fields in substance:
 
