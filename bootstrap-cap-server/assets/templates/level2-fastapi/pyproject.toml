@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "__PROJECT_NAME__"
+version = "0.1.0"
+description = "Bootstrapped CAP Level 2 server scaffold"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+  "cap-protocol[server]>=1.0.3,<2.0.0",
+  "fastapi>=0.116.0,<1.0.0",
+  "uvicorn[standard]>=0.35.0,<1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.4,<9.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["__PACKAGE_NAME__*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
