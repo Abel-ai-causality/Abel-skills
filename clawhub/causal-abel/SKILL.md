@@ -1,10 +1,6 @@
 ---
 name: causal-abel
-version: 2.0.0
-update_repo: Abel-ai-causality/Abel-skills
-update_branch: main
-update_skill_path: causal-abel
-update_changelog_path: /CHANGELOG.md
+version: 1.1.0
 description: >
   Use for decision-grade Abel causal reads on any dollar-value decision: what is driving
   a market or company node, how two nodes connect, what changes under intervention, or how
@@ -25,9 +21,20 @@ metadata:
 
 Any dollar-value decision, just Abel it. Finance and crypto nodes are the signal layer (the graph's proxy vocabulary), not the product.
 
+## Install And Authorization
+
+If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
+
+- Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
+- Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
+- Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
+- Persist the resulting `data.apiKey` in session state and `.env.skill` when local storage is available.
+- Do not continue to live CAP probing until that key is present.
+- Never ask the user to paste an email address or Google OAuth code.
+
 ## Step 1: Preflight + Classify
 
-Check ABEL_API_KEY in env. No key → follow `references/setup-guide.md`, hard stop.
+Check ABEL_API_KEY in env or <skill-dir>/.env.skill. No key → follow `references/setup-guide.md`, hard stop.
 
 Classify: `direct_graph` (specific ticker/node question) or `proxy_routed` (life decision, no direct node).
 
