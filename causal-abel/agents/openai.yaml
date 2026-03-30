@@ -8,8 +8,10 @@ interface:
     web-grounded validation, then a short red-team pass before finalizing.
     Treat intervention as a pressure-test or next-step probe, not as a default
     flourish. Write in old Abel app style: verdict first, causal link second,
-    keep tickers out of visible text, and use a compact full report for
-    non-trivial analyses. Prefer `extensions.abel.observe_predict_resolved_time`
+    keep life-decision answers ticker-free, and only keep a ticker in the
+    verdict when the user explicitly asked about that named asset. Use a
+    compact full report for non-trivial analyses. Prefer
+    `extensions.abel.observe_predict_resolved_time`
     for observational reads and `extensions.abel.intervene_time_lag` for
     pressure tests. Before any live Abel CAP or business API call, check
     whether an Abel API key is already present in session state, `--api-key`,

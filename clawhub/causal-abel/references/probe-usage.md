@@ -89,7 +89,6 @@ Bridge-node rule:
 
 - `../SKILL.md` for the dispatcher and read order
 - `routes/direct-graph.md` for direct graph flow
-- `routes/proxy-routed.md` for proxy-routed flow
-- `routes/capability-discovery.md` for live surface inspection
-- `grounding-and-labeling.md` for node mapping and answer labels
+- `../SKILL.md` Step 2-4 for proxy-routed flow, screening, and validation
+- `../SKILL.md` Step 5-6 for web grounding and report writing
 - `web-grounding.md` for graph-grounded web search

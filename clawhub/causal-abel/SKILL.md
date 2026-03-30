@@ -33,7 +33,7 @@ Classify: `direct_graph` (specific ticker/node question) or `proxy_routed` (life
 
 **Horizon gate:** If >3 years ("5年后", "未来十年"), set structural mode — web is PRIMARY, graph is VALIDATOR ONLY. Don't observe for momentum.
 
-For `direct_graph` → read `references/routes/direct-graph.md`, then jump to Step 5.
+For `direct_graph` → read `references/routes/direct-graph.md` and use that file as the active working loop. Come back to Step 5 only if freshness or real-world validation is needed, then finish with Step 6.
 
 ## Step 2: Generate Hypotheses (proxy_routed, L0)
 
