@@ -124,14 +124,16 @@ The causal graph is universal. The verdict is personal.
 
 ## Step 6: Write Report
 
-Read `assets/report-guide.md` before writing. Key rules:
+Read `assets/report-guide.md` and `references/rendering.md` before writing.
 
-**Label before narrative:** Before drafting the visible answer, shortlist the nodes that actually matter, run `extensions.abel.node_description` on that shortlist, then rewrite the verdict and body using company names, industries, products, or economic roles instead of raw tickers or raw node ids.
+**Render gate (MANDATORY):**
 
-- Default: visible prose uses semantic labels, not `NVDA.price` or raw ticker lists.
-- Explicit ticker exception: if the user explicitly asked about a ticker or named investment asset, the verdict may keep that named ticker or asset, but supporting drivers and mechanisms should still be rendered as companies, sectors, products, or roles when possible.
-- Life-decision rule: career, education, housing, lifestyle, and other proxy-routed life questions stay ticker-free in the visible answer.
-- Raw node ids and prediction decimals belong in the evidence appendix only.
+- Before drafting visible prose, shortlist the nodes that actually matter and run `extensions.abel.node_description` on that shortlist.
+- Build a `render_map`: `raw node/ticker -> semantic label` (company, industry, product, or economic role).
+- Draft the visible answer from the `render_map`, not from raw anchors.
+- Run `scripts/render_guard.py` on the visible layer before finalizing.
+- If the question is `proxy_routed`, `Broad macro`, or any non-asset question, any raw ticker, raw node id, or signed prediction decimal in visible prose means **report not ready**. Rewrite until the guard passes.
+- Raw node ids, raw tickers for non-asset questions, graph paths, and prediction decimals belong in the evidence appendix only.
 
 **ASDF standard:** Authentic (traceable claims, specific events/numbers), Sharp (verdict ≤ 3 sentences), Deep (at least one question-specific insight the user couldn't get from ChatGPT), Fun (would they screenshot and share?).
 
@@ -152,4 +154,5 @@ Read `references/routes/direct-graph.md`. Default stack: anchor → observe → 
 - `references/routes/direct-graph.md` — ticker question routing
 - `references/setup-guide.md` — OAuth install (only if key missing)
 - `references/probe-usage.md` — exact `cap_probe.py` command shapes
+- `references/rendering.md` — render-map rules, visible/evidence split, guard usage
 - `assets/report-guide.md` — full output contract with archetypes, rendering rules, coverage areas

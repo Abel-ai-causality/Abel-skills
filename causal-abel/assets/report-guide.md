@@ -70,7 +70,9 @@ Before writing the verdict layer:
 
 - shortlist the nodes, bridges, or drivers that materially shape the answer
 - run `extensions.abel.node_description` on that shortlist
+- build a `render_map` from raw anchors to semantic labels
 - rewrite the visible answer using company names, industries, products, or economic roles instead of raw tickers or node ids
+- run `scripts/render_guard.py` on the visible layer before finalizing
 
 Rendering rules:
 
@@ -78,6 +80,7 @@ Rendering rules:
 - Explicit ticker exception: if the user explicitly asked about a ticker or named investment asset, you may keep that named ticker in the verdict, but the surrounding mechanism should still be rendered semantically where possible
 - Life-decision rule: proxy-routed life decisions stay ticker-free in the visible answer
 - Never leave raw node ids such as `NVDA.price` or raw prediction decimals in the verdict layer
+- For proxy-routed or broad-macro questions, visible raw tickers are a failed render pass, not a soft preference
 
 ## ASDF Experience Standard
 
@@ -367,6 +370,7 @@ Before finalizing a report, verify that:
 - the question archetype was identified and the answer shape matches it (survival→decompose skills, ROI→breakeven, timing→trigger, allocation→ratio, macro→dimensions, graph-sparse→honest handoff)
 - the two-layer rendering rule was followed: verdict layer is ticker-free for life decisions, evidence appendix contains the raw data
 - a label pass was done before writing: `node_description` informed the final wording and the visible answer uses company, industry, product, or role labels instead of raw ticker-heavy phrasing
+- the visible layer passed `scripts/render_guard.py`; if the question was proxy-routed, no raw ticker survived outside the appendix
 - signal aggregation was applied: no individual ticker predictions in the verdict, only directional signals
 - each significant claim is annotated with its epistemological tier (L2/L0.5/L0)
 - the report ends with an epistemological composition summary
