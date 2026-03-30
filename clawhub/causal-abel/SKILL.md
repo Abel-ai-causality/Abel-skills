@@ -1,10 +1,17 @@
 ---
 name: causal-abel
-version: 1.0.10
+version: 2.0.0
+update_repo: Abel-ai-causality/Abel-skills
+update_branch: main
+update_skill_path: causal-abel
+update_changelog_path: /CHANGELOG.md
 description: >
-  Use for decision-grade Abel causal reads: explain what is driving a market or
-  company node, how two nodes connect, what changes under intervention, or how
-  a real-world choice looks when routed through Abel proxy signals. Use when user says "Abel" or "causal" or "causality" or "drivers" or "what if" in the context of market, business, crypto, or proxy-routed questions.
+  Use for decision-grade Abel causal reads on any dollar-value decision: what is driving
+  a market or company node, how two nodes connect, what changes under intervention, or how
+  a real-world choice (career, education, investment, lifestyle, macro) looks when routed
+  through Abel proxy signals. Use when user says "Abel" or "causal" or "causality" or
+  "drivers" or "what if" or "worth it" or "should I" in the context of market, business,
+  crypto, career, education, housing, lifestyle, or any dollar-value decision questions.
 metadata:
   openclaw:
     requires:
@@ -16,232 +23,139 @@ metadata:
     homepage: https://github.com/Abel-ai-causality/Abel-skills
 ---
 
-Use this skill to turn market, business, crypto, and proxy-routed decision questions into decision-grade Abel reads. Finance and crypto nodes are the signal layer, not the product. The visible answer should usually be a compact report: verdict first, mechanism second, practical judgment third.
+Any dollar-value decision, just Abel it. Finance and crypto nodes are the signal layer (the graph's proxy vocabulary), not the product.
 
-Keep the skill centered on three rules:
+## Step 1: Preflight + Classify
 
-- Treat Abel graph outputs as primary evidence. The graph is high-value market-data causal structure, not a weak brainstorming prior.
-- For direct graph questions, answer the graph fact first. Do not replace a clear graph result with a more intuitive web narrative.
-- For broad company or ticker driver questions, anchor to the executable ticker and actually run Abel on it before interpreting the result.
+Check ABEL_API_KEY in env. No key → follow `references/setup-guide.md`, hard stop.
 
-## Use This Skill For
+Classify: `direct_graph` (specific ticker/node question) or `proxy_routed` (life decision, no direct node).
 
-- direct Abel graph questions about drivers, paths, neighborhoods, and interventions
-- proxy-routed decisions where the graph does not contain the human question directly
-- live CAP surface inspection and extension-verb discovery
+**Horizon gate:** If >3 years ("5年后", "未来十年"), set structural mode — web is PRIMARY, graph is VALIDATOR ONLY. Don't observe for momentum.
 
-Do not use it for pure price quotes, generic news summaries, raw node dumps, or unrelated repo work.
+For `direct_graph` → read `references/routes/direct-graph.md` and use that file as the active working loop. Come back to Step 5 only if freshness or real-world validation is needed, then finish with Step 6.
 
-## Authorization Gate
+## Step 2: Generate Hypotheses (proxy_routed, L0)
 
-- Before any live Abel CAP or business API call, check session state, `--api-key`, or `<skill-root>/.env.skill`.
-- If a key is already available, skip auth references and continue.
-- If no key is available, stop and follow `references/setup-guide.md`.
-- Return only `data.authUrl` to the user, store `data.resultUrl` or `data.pollToken`, ask the user to confirm when browser auth is finished, and only then poll.
-- Never ask the user to paste an email address, OAuth code, or raw API key.
+Generate 4-6 candidate causal mechanisms:
+- The obvious mechanism
+- A second-order mechanism
+- A **contrarian** (what would make the opposite true?) — REQUIRED
+- A confounder (third factor explaining both)
 
-## Read Order
+Each mechanism: `cause → (transmission) → outcome` with a testable proxy and falsification condition.
 
-Read the minimum needed, in this order:
+## Step 3: Screen + Discover (L0.5)
 
-1. Stay in this file long enough to decide the mode.
-2. Read `references/routes/capability-discovery.md` as the live-surface module.
-3. Read exactly one usage route file:
-   - `references/routes/direct-graph.md`
-   - `references/routes/proxy-routed.md`
-4. Read `references/orchestration-loop.md`.
-5. If you need node mapping or human-facing labels, read `references/grounding-and-labeling.md`.
-6. If the next best move may be external evidence, read `references/web-grounding.md`.
-7. For any comparative, proxy-routed, multi-anchor, or otherwise non-trivial read, open `assets/report-guide.md` before drafting the answer.
-8. Only read `references/probe-usage.md` when you need exact `cap_probe.py` command shapes.
+### 3a. Structural screening
+Map mechanisms to graph nodes (manual → `query_node` → capillary discovery). For each:
+- `graph.paths` between cause and outcome proxy
+- Rank: dist ≤ 2 = strong, 3-4 = plausible, no path = narrative-only
 
-Do not read every reference file by default.
+Structural connection ≠ causal transmission. Many dist=2 paths don't propagate interventions — co-movement is often shared macro exposure.
 
-## Step 1: Preflight
+### 3b. Capillary discovery (when observe returns 503)
+1. `graph.neighbors` on failed node → observe neighbors
+2. If no observable neighbors → `query_node` for the economic function
+3. If still nothing → use world knowledge (what companies' revenue IS this asset?)
+4. All three fail → declare sparse for this dimension
 
-- Treat missing credentials as a hard stop for live Abel usage.
-- Default CAP target: `https://cap.abel.ai/api`.
-- Treat `https://api.abel.ai/echo/` as the OAuth and business API host, not the CAP probe host.
-- Use the bundled probe path first so call behavior stays deterministic.
+### 3c. Graph-structural bias check
+- Cause and outcome in same blanket? → possible confounding
+- Path runs opposite to hypothesis? → check reverse causation
+- Proposed proxy is mega-cap hub? → may be bridge noise
 
-## Step 2: Classify The Question
+### 3d. Deep structural reasoning — the core of Abel's intelligence
 
-Pick one mode only:
+**This is where Abel's moat lives. Don't rush through it.**
 
-- `direct_graph`: a specific node, path, driver, neighborhood, or what-if
-- `proxy_routed`: a real-world decision with no direct node in the graph
+Check `meta.methods` first. On the key outcome node:
 
-Capability discovery is not a peer route. It is a mandatory ability:
+**Layer 1 blanket:** `graph.markov_blanket` — who ACTUALLY controls this node? Layer 1 blankets are usually generic financial (AGNC, credit funds, insurance). That's the macro context — note it but don't stop here.
 
-- know how to check `meta.capabilities`
-- know how to check targeted `meta.methods`
-- know how to verify newer verbs from the live server instead of assuming local wrappers are current
+**Layer 2 blanket (REQUIRED for proxy_routed):** Run `graph.markov_blanket` on the 2 most interesting Layer 1 nodes. Layer 2 is where the question-specific structure emerges. Layer 1 says "MCD is driven by finance." Layer 2 says "WHICH finance — consumer/tourism via AGNC, or industrial/transport via AFGC?" This differentiation IS the insight.
 
-## Step 3: Route
+**Layer 3 (if Layer 2 reveals divergence):** Follow the most surprising Layer 2 node one more level. This is where you find the non-obvious causal chain that makes the user say "卧槽" — the chain nobody would have hypothesized.
 
-- `direct_graph` -> `references/routes/direct-graph.md`
-- `proxy_routed` -> `references/routes/proxy-routed.md`
+Also fire:
+- `validate_connectivity` on whole chain
+- `discover_consensus` / `discover_deconsensus` across mechanisms: convergence or contradiction?
+- `discover_fragility`: single point of failure?
 
-Read `references/routes/capability-discovery.md` as a required live-surface module, then use one usage route. Usage routes define the initial prior and default first move. They do not hardcode the whole chain.
+### 3e. Graph-initiated discovery
+Ask: "Graph, what do YOU see that L0 didn't propose?" Run `discover_consensus` with direction="in" on the outcome. New upstream nodes = graph-generated mechanisms.
 
-## Step 4: Run The Unified Loop
+### 3f. Surprise check + revision
+Compare graph results against L0 hypotheses. If graph contradicts or extends → L0 revises (one sentence). Max 2 rounds.
 
-After route selection, switch to the orchestration loop in `references/orchestration-loop.md`.
+**Adversarial graph search:** If graph only CONFIRMS L0 (no surprise) → actively search for evidence AGAINST L0's strongest conviction. If found → that contradiction IS the Deep insight.
 
-Each round:
+## Step 4: Observe + Verify (L1 + L2)
 
-1. state the current unknown
-2. choose the best next tool: `graph` or `web`
-3. investigate one candidate, one edge, or one mechanism at a time
-4. decide `move`, `switch`, or `stop`
+### 4a. L1 Observe
+`observe_predict_resolved_time` on key nodes.
+- **Driver cross-check:** are observe's top drivers consistent with L0 hypothesis? Mismatch = correction signal.
+- **Multi-node coherence:** does the whole chain move in the expected direction?
 
-Default cadence is graph-heavy, but predictive before structural when executable anchors exist:
-
-- `resolved-time observation -> graph -> graph -> maybe web -> lag pressure test`
-- sometimes `resolved-time observation -> graph -> web -> graph -> lag pressure test`
-
-Only go `web` early when the current unknown is clearly about freshness, timing, or live mechanism.
-
-## Cross-Cutting Rules
-
-### Grounding And Labels
-
-- Use `references/grounding-and-labeling.md` whenever you need to map names, concepts, or proxies into executable nodes.
-- Use manual mapping first for obvious company and crypto anchors.
-- Use `extensions.abel.query_node` as the second recall path for fuzzy, multilingual, or concept-heavy inputs.
-- Use `extensions.abel.node_description` on the final shortlist before writing the answer.
-- In visible prose, prefer company names, sectors, products, or economic roles over raw tickers or raw node ids such as `*.price`.
-- For listed-company driver questions, anchor the company to its ticker first, then treat the ticker node as the primary executable object.
-- For broad reads, check `.price` first and add `.volume` only when it improves the interpretation of pressure or liquidity.
-
-### Web Grounding
-
-- Web is a peer tool inside the loop, not a mandatory final stage.
-- The default bias is still toward graph work.
-- For `proxy_routed`, web usually comes after 1-2 good graph moves on the current mechanism or shortlist.
-- For `direct_graph`, web is required only when the user is asking for freshness, `why now`, current catalysts, policy, earnings, adoption, or a real-world mechanism that the graph itself does not already answer.
-- In ClawHub / OpenClaw environments, first check whether a web search tool is actually available. If not, tell the user they need to install one before you can provide web-grounded validation.
-- Search the company names, sectors, products, or mechanisms surfaced by `node_description`, not raw `*.price` strings.
-- Search is there to explain or validate graph-backed mechanisms, not replace graph work.
-- If web evidence suggests a more intuitive story than the graph, do not overwrite the graph answer. State the graph finding first, then label the external evidence as explanation, validation, or a remaining tension to resolve.
-- Use `references/web-grounding.md` for the search loop.
-
-### Probe Discipline
-
-- `extensions.abel.observe_predict_resolved_time` is the default observational surface when the live method exists.
-- For executable anchors and comparison tickers that materially bear on the question, run one observational read before committing to deeper structure.
-- `extensions.abel.intervene_time_lag` is the default pressure-test surface once the mechanism is coherent enough to stress.
-- For broad driver questions on liquid names, default graph stack is:
-  `anchor ticker -> observe price -> inspect parents on price -> inspect volume or local blanket only if interpretation is still thin -> summarize into driver families`
+### 4b. L2 Intervene (along REAL graph edges, not hypothesized industry edges)
+From L0.5 deep, identify blanket parents of the outcome. Intervene on the most relevant blanket parent → measure outcome.
+- Report β (effect size), first_arrive_step (speed), event_count (breadth)
 - Choose `horizon_steps` to match the user's decision window instead of hardcoding one lag:
   rough guide is `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the medium-range default when the user gives no clear horizon.
 - If the first intervention is inconclusive, retry by stepping the horizon up in tiers instead of making arbitrary jumps.
   Move from the current tier to the next wider window, such as `6 -> 24/42 -> 170`, and stop once the transmission is clear or the wider windows still stay too diffuse to change the interpretation.
-- Check `meta.methods` before assuming a local wrapper is current.
-- Prefer the generic `verb` path for new or unstable extension verbs.
-- If graph calls do not sharpen the mechanism, switch the candidate, switch the tool, or stop instead of spraying more probes.
-- If a large-cap or liquid asset returns surprising direct parents, do not stop with `semantic mismatch`. Use one more Abel move to decide whether those parents behave like liquidity proxies, macro proxies, sector transmission, or bridge noise.
+- If no meaningful target → skip, note why. Don't force noise.
 
-## Answer Contract
+### 4c. Signal aggregation
+Aggregate individual observations into ONE directional signal per dimension. Never present raw predictions in the verdict.
 
-- Lead with the verdict.
-- Then state the causal link in plain language.
-- Then give the practical judgment.
-- Keep tool names, protocol framing, and raw node ids out of the main answer.
-- For proxy-routed reads, say clearly that this is a market-signal proxy read, not a direct model of the person or life outcome.
-- Do not use internal planner labels in visible prose. If the direct layer is messy, describe it as bridge-heavy, diffuse, or better treated as a transmission layer rather than a final explanation layer.
+## Step 5: Web Grounding (proxy_routed, or direct_graph when freshness matters)
 
-### Graph-Fact-First Rule
+Minimum 4 searches:
+1. **What's happening now** — latest prices, policy, events, dates
+2. **Supporting evidence** — confirms graph-backed verdict
+3. **Contradicting evidence** — actively search for why verdict is WRONG (mandatory)
+4. **User-perspective** — what a real buyer/decision-maker would search (second-hand prices, waitlists, real experiences)
 
-For direct graph questions, the answer should preserve this order:
+Graph findings (L2) take precedence over web (L0) in the verdict. Exception: graph-sparse dimensions.
 
-1. `graph_fact`: what the graph literally returned
-2. `interpretation`: what that graph fact might mean in plain language
-3. `web_validation`: only if the user asked for freshness or the interpretation needs dated evidence
+## Step 5.5: Personalize
 
-Never collapse `graph_fact` into `interpretation`.
+Before writing, check agent memory/context for user profile (income, experience, risk tolerance, life stage, goals). If available: tailor "So What" to THIS person — same graph insight, different action for different people. If not available: give universal advice + invite user to share context for sharper advice ("这是通用建议。告诉我你的背景会更具体。")
 
-If the user asks a literal membership question such as:
+The causal graph is universal. The verdict is personal.
 
-- `X 的 driver 里有 Y 吗`
-- `X 的上游是不是 Y`
-- `X 受哪些因素影响`
+## Step 6: Write Report
 
-then answer the graph fact directly with `yes/no` or a driver list before offering any realism check or explanatory caveat.
+Read `assets/report-guide.md` and `references/rendering.md` before writing.
 
-If the returned drivers are surprising, do not dismiss them as useless. Frame them as graph-discovered market-data drivers or cross-asset transmission signals, then explain them through the security's own attributes first: sector, industry, capital structure, liquidity profile, size, beta-like behavior, credit sensitivity, or typical role in risk-on/risk-off transmission.
+**Render gate (MANDATORY):**
 
-### Broad Driver Interpretation Rule
+- Before drafting visible prose, shortlist the nodes that actually matter and run `extensions.abel.node_description` on that shortlist.
+- Build a `render_map`: `raw node/ticker -> semantic label` (company, industry, product, or economic role).
+- Draft the visible answer from the `render_map`, not from raw anchors.
+- Run `scripts/render_guard.py` on the visible layer before finalizing.
+- If the question is `proxy_routed`, `Broad macro`, or any non-asset question, any raw ticker, raw node id, or signed prediction decimal in visible prose means **report not ready**. Rewrite until the guard passes.
+- Raw node ids, raw tickers for non-asset questions, graph paths, and prediction decimals belong in the evidence appendix only.
 
-When the user asks for broad drivers of a ticker or company, do not stop at a raw list of direct parents unless the user explicitly wants only the literal parent set.
+**ASDF standard:** Authentic (traceable claims, specific events/numbers), Sharp (verdict ≤ 3 sentences), Deep (at least one question-specific insight the user couldn't get from ChatGPT), Fun (would they screenshot and share?).
 
-After reporting the graph fact, answer one more Abel-level question:
+**Story arc:** Act 1: "You'd think..." → Act 2: "But the graph says..." → Act 3: "So the real answer is..."
 
-1. do these direct parents cluster into a driver family
-2. is the pressure mainly price, participation/liquidity, or both
-3. does the surrounding graph look more macro, credit, risk-on/risk-off, industry, or cross-asset
+**Graph voice first.** If your verdict could be written without the graph, you haven't used Abel.
 
-Do not abandon the graph merely because the direct parents are unintuitive. First interpret them as transmission channels, especially for large-cap or liquid assets where liquidity, macro, credit, and cross-asset effects can dominate the local structure.
+**Verdict layer:** ticker-free for life decisions (exception: ticker questions). Evidence appendix for raw data.
 
-When possible, prefer an affirmative explanation over `weak` or `unresolved`. A good next move is usually to say what kind of instrument the parent is and why that kind of instrument might transmit pressure into the target:
+**Claim-strength honesty:** Life decisions are "graph-grounded advice," not "causal proof." L0 claims carry anti-guarantees.
 
-1. sector or industry adjacency
-2. liquidity or participation proxy
-3. credit, duration, or rate sensitivity
-4. small-cap or high-beta risk appetite signal
-5. crypto or cross-asset bridge behavior
+## For direct_graph questions
 
-### Main-Answer Label Rule
+Read `references/routes/direct-graph.md`. Default stack: anchor → observe → parents → volume/blanket if thin → summarize into driver families. If large-cap returns surprising parents, interpret as transmission channels before switching.
 
-Before finalizing:
+## References (read only when needed)
 
-1. shortlist the nodes that actually matter
-2. run `extensions.abel.node_description` on that shortlist
-3. rewrite the visible answer using company names, industries, products, or roles
-
-Good:
-
-- `audio distribution platforms`
-- `subscription-led publishing assets`
-- `AI infrastructure names`
-- `labor marketplace proxies`
-
-Avoid in the main answer:
-
-- `SPOT.price`
-- `ETHUSD.price`
-- `NVDA`
-
-### Answer Shapes
-
-- Default to a compact report, using `assets/report-guide.md` as a coverage guide rather than a fixed template.
-- Collapse to a shorter answer only when the user explicitly asks for brevity or the question is genuinely trivial.
-- Low-stakes comparisons may still be shorter, but they should preserve graph-backed reasoning and any critical web-grounded mechanism.
-- High-stakes, comparative, multi-anchor, or non-trivial reads should include a pressure-test section unless no meaningful live intervention surface is available.
-- Natural longform prose is acceptable as long as the guide's contract fields are still covered in substance.
-- If no live intervention was run, include the cleanest next-step probe so the user can see what `extensions.abel.intervene_time_lag` would test next.
-
-
-## Install And Authorization
-
-If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
-
-- Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
-- Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
-- Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
-- Persist the resulting `data.apiKey` in session state and `.env.skill` when local storage is available.
-- Do not continue to live CAP probing until that key is present.
-- Never ask the user to paste an email address or Google OAuth code.
-
-## References
-
-- Route selection compatibility note: `references/question-routing.md`
-- Live-surface discovery and method checks: `references/routes/capability-discovery.md`
-- Direct graph route: `references/routes/direct-graph.md`
-- Proxy-routed route: `references/routes/proxy-routed.md`
-- Grounding and label rendering: `references/grounding-and-labeling.md`
-- Unified graph/web planner: `references/orchestration-loop.md`
-- Web-grounded mechanism loop: `references/web-grounding.md`
-- OAuth install flow and API key reuse: `references/setup-guide.md`
-- Probe script commands and reusable examples: `references/probe-usage.md`
-- Report coverage guide for fuller write-ups: `assets/report-guide.md`
+- `references/routes/direct-graph.md` — ticker question routing
+- `references/setup-guide.md` — OAuth install (only if key missing)
+- `references/probe-usage.md` — exact `cap_probe.py` command shapes
+- `references/rendering.md` — render-map rules, visible/evidence split, guard usage
+- `assets/report-guide.md` — full output contract with archetypes, rendering rules, coverage areas

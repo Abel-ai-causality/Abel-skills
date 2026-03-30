@@ -2,9 +2,7 @@
 
 Read this file when the current unknown is better answered by external evidence than by another graph move.
 
-Search is a peer tool inside the loop, but not the dominant one. Graph structure stays primary.
-
-Web grounding never replaces a clear graph answer. It only clarifies freshness, mechanism, or realism around that answer.
+Search is a peer tool inside the loop, but not the dominant one. Graph structure stays primary. If web evidence suggests a more intuitive narrative than the graph result, do NOT overwrite the graph answer — state the L2 graph finding first, then label the web evidence as explanation, validation, or unresolved tension. Web narratives are L0; graph observations are L2. L2 takes precedence in the verdict.
 
 ## When To Use Web Next
 
@@ -14,12 +12,6 @@ Use web as the next move when:
 - the question is about `latest`, `recently`, or `why now`
 - a bridge candidate needs validation
 - a company, sector, or asset needs current-state grounding
-
-Do not use web next when:
-
-- the user asked a literal driver or parent-membership question
-- the graph already answered the direct question and the remaining gap is only that the answer feels unintuitive
-- the only reason to search is to find a more familiar narrative than the one the graph surfaced
 
 ClawHub / OpenClaw rule:
 
@@ -55,18 +47,28 @@ If you cannot name those, return to the graph first.
 
 Use company names, products, industries, or mechanisms.
 
-Good:
+Good (financial):
 
 - `Spotify podcast advertising monetization latest`
 - `New York Times digital subscription growth latest`
 - `startup software funding hiring 2026`
 - `Ethereum ETF flows latest`
 
+Good (life decisions):
+
+- `AI designer job market automation risk 2026`
+- `MBA salary premium vs opportunity cost latest data`
+- `luxury goods pricing cycle EUR CNY exchange rate trend`
+- `GPU 5090 vs 9090 XT release date pricing comparison`
+- `cooking vs eating out cost health time tradeoff`
+- `San Francisco vs Shanghai housing price forecast 2026`
+
 Bad:
 
 - `Spotify stock price`
 - `Ethereum price`
 - `graph.neighbors news`
+- `should I change jobs` (too vague — search the specific mechanism, not the question)
 
 ## What To Extract
 
@@ -78,17 +80,20 @@ After each useful result, keep only:
 - `counter-evidence`
 - `inference`
 
-If the web result conflicts with the graph-backed answer, keep both instead of letting one erase the other:
+## Search Budget (CurioCat-inspired adversarial protocol)
 
-- `graph_fact`: what the graph literally says
-- `web_state`: what dated external evidence suggests now
-- `tension`: whether the interpretation is aligned, challenged, or unresolved
+Minimum 4 searches, structured as:
+1. **What's happening now** — latest prices, policy changes, dates, events
+2. **Supporting evidence** — data that confirms the graph-backed verdict
+3. **Contradicting evidence** — actively search for reasons the verdict is WRONG. "Why buying now might be better" if verdict says wait. This is mandatory.
+4. **User-perspective data** — what a real buyer/decision-maker would search. Second-hand prices, waitlists, alternative channels, community consensus, real people's experiences.
+
+Up to 6 searches for complex questions. Stop when contradicting search returns nothing new.
 
 ## Stop Rules
 
-- stop after 1 baseline search plus 1-2 focused searches
+- stop when contradicting evidence search returns nothing the verdict hasn't already addressed
 - stop when search only repeats generic sector commentary
-- stop when repeated results do not change the next graph question
 
 ## Return-To-Graph Rules
 

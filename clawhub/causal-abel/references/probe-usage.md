@@ -80,14 +80,6 @@ python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover_fragility --params-json '{"node_ids":["SIM.price","MOOOUSD.price"],"severity_level":"medium","only_fragility":true,"limit":10}'
 ```
 
-- `--params-json` expects a JSON object.
-- `cap_probe.py` also accepts Python-style dict literals as a fallback, which helps when Windows shells rewrite quotes.
-- In `cmd.exe`, prefer escaped double quotes, for example:
-
-```cmd
-python scripts/cap_probe.py --base-url "%BASE_URL%" verb extensions.abel.query_node --params-json "{\"search\":\"music streaming\",\"search_mode\":\"hybrid\",\"top_k\":5}"
-```
-
 ## Validation
 
 Probe the live surface first with:
@@ -113,7 +105,6 @@ Bridge-node rule:
 
 - `../SKILL.md` for the dispatcher and read order
 - `routes/direct-graph.md` for direct graph flow
-- `routes/proxy-routed.md` for proxy-routed flow
-- `routes/capability-discovery.md` for live surface inspection
-- `grounding-and-labeling.md` for node mapping and answer labels
+- `../SKILL.md` Step 2-4 for proxy-routed flow, screening, and validation
+- `../SKILL.md` Step 5-6 for web grounding and report writing
 - `web-grounding.md` for graph-grounded web search

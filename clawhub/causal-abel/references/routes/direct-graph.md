@@ -13,9 +13,7 @@ Read this file only when the question is already about a graph node, path, neigh
 
 ## What This Route Sets
 
-This route sets the default first move and the preferred structural fallback.
-
-After that, return to `../orchestration-loop.md` and choose each next move from the current unknown.
+This route sets the default first move, the preferred structural fallback, and the compact loop to use for the rest of the read.
 
 ## First Move
 
@@ -29,15 +27,23 @@ Pick the first move from the user's question shape:
 
 For driver or "why did it move" questions, prefer a quick observational read on the target node before the deeper structural pass when the node is executable.
 
+For broad driver questions on liquid names, default graph stack: anchor ticker → observe price → inspect parents on price → inspect volume or local blanket only if interpretation is thin → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels"). 
+
 ## Structural Loop
 
-Then use the orchestration loop:
+Then use this compact loop:
 
 1. If an observational read was taken, use it to decide which structural question matters most.
 2. Read the returned structure.
 3. State the open causal question.
 4. Choose the next best tool: another graph move or a web move.
 5. Stop when the user-facing mechanism is already strong enough.
+
+Default bias:
+
+- stay in graph unless the current unknown is clearly about dated evidence, current catalysts, or real-world mechanism
+- for `recently`, `latest`, or `why now` questions, one baseline web search is allowed earlier, then come back to graph if structure is still unresolved
+- if another call is unlikely to change the user-facing conclusion, stop instead of expanding the loop
 
 For literal driver-membership or parent-list questions, stop as soon as the graph fact is clear enough to answer faithfully. Do not force a web move just to make the answer sound more intuitive.
 
@@ -77,7 +83,8 @@ If the graph answer and the intuitive real-world story do not line up, preserve 
 
 - For any non-trivial direct-graph read, render the visible answer as a structured report, not as plain prose.
 - Use `../../assets/report-guide.md` to make sure the report covers the right content. Natural longform prose is acceptable if it still covers the same contract fields.
-- Main answer uses company names, industries, products, or roles.
+- Main answer uses company names, industries, products, or roles by default.
+- If the user's question is explicitly about a ticker or named investment asset, the verdict may keep that ticker or asset name, but still avoid raw node ids and prediction decimals.
 - Include the pressure-test result or, if no live intervention was run, the cleanest next-step probe.
 - If a repeated bridge node looks like microcap or crypto-heavy transmission noise, summarize it as noise unless external evidence says it matters.
 - If the user asked for a literal graph fact, make that fact the first sentence, not the caveat.

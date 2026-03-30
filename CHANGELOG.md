@@ -4,6 +4,23 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.0] - 2026-03-30
+
+### Added
+
+- A multi-tier proxy-routed analysis flow that moves from hypothesis generation to graph screening, deeper structural reasoning, and intervention-backed verification for broader dollar-value decisions.
+- Dedicated rendering guidance and a `scripts/render_guard.py` helper so visible answers are checked for ticker-heavy leakage before finalization.
+- Stronger answer-shaping guidance for decision archetypes such as timing, ROI, allocation, regret minimization, and graph-sparse reads.
+
+### Changed
+
+- Expanded `causal-abel` from market/business/crypto-only reads to broader dollar-value decisions, including career, education, housing, lifestyle, and macro questions routed through Abel market proxies.
+- Reworked the main skill instructions into a more direct end-to-end flow, while trimming dead references and fixing route guidance that pointed to removed files.
+- Tightened visible-answer rendering so agents run `node_description` on the final shortlist, prefer company / industry / product / role labels over raw tickers, and only keep a ticker in the verdict when the user explicitly asked about that named asset.
+- Restored adaptive `horizon_steps` guidance for `intervene_time_lag`, including the `6 -> 24/42 -> 170` widening ladder and medium-range default of `~24` when the prompt does not specify a window.
+- Refined web-grounding and direct-graph rules so graph facts stay primary, graph-sparse handling is explicit, and direct ticker reads no longer depend on stale or contradictory routing notes.
+- Updated the report guide so verdict-layer rendering, proxy-life-decision boundaries, causal-chain writing, and action-oriented conclusions are more explicit.
+
 ## [1.0.10] - 2026-03-27
 
 ### Changed
