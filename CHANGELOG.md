@@ -4,6 +4,13 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.1] - 2026-03-30
+
+### Changed
+
+- Centralized time-sensitive source hierarchy and claim-downgrade rules in `references/web-grounding.md` instead of repeating them across multiple skill files.
+- Simplified `agents/openai.yaml` and the ClawHub build template so UI metadata stays short and skill-specific, with execution detail kept in the skill body and references.
+
 ## [1.1.0] - 2026-03-30
 
 ### Added

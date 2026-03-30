@@ -36,12 +36,8 @@ UPDATE_REFERENCE_LINE = (
 
 CLAWHUB_OPENAI_YAML = """interface:
   display_name: "Causal Abel"
-  short_description: "Causal reads through the Abel CAP surface."
-  default_prompt: >
-    Use $causal-abel to answer direct CAP graph questions, capability audits,
-    or proxy-routed decision questions through the live Abel CAP server, and
-    if `ABEL_API_KEY` is missing start the Abel OAuth handoff from
-    `references/setup-guide.md` before any live API call.
+  short_description: "Abel causal reads for graph and proxy decisions."
+  default_prompt: "Use $causal-abel for an Abel causal read on this market, business, crypto, macro, technology, lifestyle, investing, or other dollar-value decision question."
 """
 
 
