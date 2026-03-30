@@ -126,6 +126,13 @@ The causal graph is universal. The verdict is personal.
 
 Read `assets/report-guide.md` before writing. Key rules:
 
+**Label before narrative:** Before drafting the visible answer, shortlist the nodes that actually matter, run `extensions.abel.node_description` on that shortlist, then rewrite the verdict and body using company names, industries, products, or economic roles instead of raw tickers or raw node ids.
+
+- Default: visible prose uses semantic labels, not `NVDA.price` or raw ticker lists.
+- Explicit ticker exception: if the user explicitly asked about a ticker or named investment asset, the verdict may keep that named ticker or asset, but supporting drivers and mechanisms should still be rendered as companies, sectors, products, or roles when possible.
+- Life-decision rule: career, education, housing, lifestyle, and other proxy-routed life questions stay ticker-free in the visible answer.
+- Raw node ids and prediction decimals belong in the evidence appendix only.
+
 **ASDF standard:** Authentic (traceable claims, specific events/numbers), Sharp (verdict ≤ 3 sentences), Deep (at least one question-specific insight the user couldn't get from ChatGPT), Fun (would they screenshot and share?).
 
 **Story arc:** Act 1: "You'd think..." → Act 2: "But the graph says..." → Act 3: "So the real answer is..."

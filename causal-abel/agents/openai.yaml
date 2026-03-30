@@ -7,7 +7,8 @@ interface:
     that should be routed through Abel market proxies. Run graph-first, then
     web-grounded validation, then a short red-team pass before finalizing.
     Treat intervention as a pressure-test or next-step probe, not as a default
-    flourish. Write in old Abel app style: verdict first, causal link second,
+    flourish. Follow the SKILL and report-guide rendering rules: run
+    `extensions.abel.node_description` on the final shortlist before writing,
     keep life-decision answers ticker-free, and only keep a ticker in the
     verdict when the user explicitly asked about that named asset. Use a
     compact full report for non-trivial analyses. Prefer

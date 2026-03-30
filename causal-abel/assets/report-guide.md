@@ -64,6 +64,21 @@ Every report has two layers. The user reads the verdict layer. The evidence laye
 - For capillary-grafted signals, show: `Target (unavailable) → Capillary [discovered via: structural/semantic/reasoning] → observation`
 - Keep it compact — a small table, not a wall of JSON
 
+## Label Before Narrative
+
+Before writing the verdict layer:
+
+- shortlist the nodes, bridges, or drivers that materially shape the answer
+- run `extensions.abel.node_description` on that shortlist
+- rewrite the visible answer using company names, industries, products, or economic roles instead of raw tickers or node ids
+
+Rendering rules:
+
+- Default: translate tickers into semantic labels in the verdict and body
+- Explicit ticker exception: if the user explicitly asked about a ticker or named investment asset, you may keep that named ticker in the verdict, but the surrounding mechanism should still be rendered semantically where possible
+- Life-decision rule: proxy-routed life decisions stay ticker-free in the visible answer
+- Never leave raw node ids such as `NVDA.price` or raw prediction decimals in the verdict layer
+
 ## ASDF Experience Standard
 
 Every Abel report must pass four tests: **Authentic, Sharp, Deep, Fun.**
@@ -351,6 +366,7 @@ Before finalizing a report, verify that:
 - for life decisions: the proxy bridge is named explicitly, the personal-vs-economic boundary is stated, and the "So what" gives a timing signal or condition, not just "it depends"
 - the question archetype was identified and the answer shape matches it (survival→decompose skills, ROI→breakeven, timing→trigger, allocation→ratio, macro→dimensions, graph-sparse→honest handoff)
 - the two-layer rendering rule was followed: verdict layer is ticker-free for life decisions, evidence appendix contains the raw data
+- a label pass was done before writing: `node_description` informed the final wording and the visible answer uses company, industry, product, or role labels instead of raw ticker-heavy phrasing
 - signal aggregation was applied: no individual ticker predictions in the verdict, only directional signals
 - each significant claim is annotated with its epistemological tier (L2/L0.5/L0)
 - the report ends with an epistemological composition summary
