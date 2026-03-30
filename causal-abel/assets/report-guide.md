@@ -58,11 +58,6 @@ Every report has two layers. The user reads the verdict layer. The evidence laye
 - Never: raw prediction decimals (+0.0013) or node IDs (NVDA.price) in the verdict — always translate to directional language
 - For life decisions: no exception applies. Read like expert advice, not financial analysis.
 
-**Evidence appendix (at the very end, after the main report):**
-- Brief, collapsible section: "Abel Evidence Layer"
-- Here and ONLY here: raw predictions, graph paths, verb results, node IDs
-- For capillary-grafted signals, show: `Target (unavailable) → Capillary [discovered via: structural/semantic/reasoning] → observation`
-- Keep it compact — a small table, not a wall of JSON
 
 ## Label Before Narrative
 
@@ -90,7 +85,7 @@ Every Abel report must pass four tests: **Authentic, Sharp, Deep, Fun.**
 
 **Sharp** — the verdict is ≤3 sentences. Sentence 1: position. Sentence 2: why (the mechanism, one line). Sentence 3: what to do (action + trigger). If you can't tweet the verdict, it's too long. Everything else goes in the body or appendix.
 
-**Deep** — at least one insight the user couldn't have gotten from ChatGPT or common sense. The insight must be QUESTION-SPECIFIC — not a repetition of a general graph property (like "blankets are financial" which is true for all nodes). If the blanket finding is the same as last time, dig one layer deeper: what does THIS node's specific blanket composition tell us about THIS question? Deep ≠ long. Deep = "I didn't know that."
+**Deep** — at least one insight the user couldn't have gotten from ChatGPT or common sense. The insight must be QUESTION-SPECIFIC — not a repetition of a general graph property (like "blankets are financial" which is true for all nodes). If the blanket finding is the same as last time, dig one layer deeper: what does THIS node's specific blanket composition tell us about THIS question? Deep is not long. Deep = "I didn't know that."
 
 **Fun** — the verdict should make the user want to share it. Self-test after writing: would the user screenshot this and send to a friend? If no, rewrite.
 

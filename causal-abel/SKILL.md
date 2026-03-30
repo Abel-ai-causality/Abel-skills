@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 2.0.0
+version: 1.1.0
 update_repo: Abel-ai-causality/Abel-skills
 update_branch: main
 update_skill_path: causal-abel
