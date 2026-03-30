@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.1.0
+version: 1.1.1
 update_repo: Abel-ai-causality/Abel-skills
 update_branch: main
 update_skill_path: causal-abel
@@ -116,6 +116,8 @@ Minimum 4 searches:
 2. **Supporting evidence** — confirms graph-backed verdict
 3. **Contradicting evidence** — actively search for why verdict is WRONG (mandatory)
 4. **User-perspective** — what a real buyer/decision-maker would search (second-hand prices, waitlists, real experiences)
+
+For source hierarchy and wording on time-sensitive claims, follow `references/web-grounding.md`.
 
 Graph findings (L2) take precedence over web (L0) in the verdict. Exception: graph-sparse dimensions.
 

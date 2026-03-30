@@ -4,6 +4,25 @@ Read this file when the current unknown is better answered by external evidence 
 
 Search is a peer tool inside the loop, but not the dominant one. Graph structure stays primary. If web evidence suggests a more intuitive narrative than the graph result, do NOT overwrite the graph answer — state the L2 graph finding first, then label the web evidence as explanation, validation, or unresolved tension. Web narratives are L0; graph observations are L2. L2 takes precedence in the verdict.
 
+## Source Hierarchy
+
+Treat search results by trust tier, not by rank order:
+
+- **Tier A: primary / authoritative**
+  official docs, official blogs or announcements, foundation or company sites, product docs, GitHub repos or release notes, investor relations, regulator filings, government data, standards bodies, first-party research
+- **Tier B: credible secondary**
+  established reporting or analysis that cites named sources and can be checked against Tier A material
+- **Tier C: low-trust secondary / aggregation**
+  AI-written market roundups, finance/news aggregators, exchange blogs, SEO summaries, anonymous reposts, social chatter, affiliate content
+
+Rules:
+
+- Use **Tier A** as the factual anchor whenever the claim is time-sensitive and an original source should exist.
+- Use **Tier B** to discover, contextualize, or cross-check. Do not let Tier B alone establish a completed fact when Tier A should be obtainable.
+- Use **Tier C** only as a lead generator or user-perspective signal. Never use Tier C alone to support a decision-grade factual claim.
+
+If a claim is about "latest", "recent", "today", "launched", "integrated", "supported", "approved", "partnered", "priced", or "available", and you only found Tier B/C coverage, the answer must explicitly say the claim was **not verified in a primary source**.
+
 ## When To Use Web Next
 
 Use web as the next move when:
@@ -23,6 +42,18 @@ Default bias:
 
 - if you have not yet done at least one or two meaningful graph moves on the active mechanism, go back to graph first
 - if you already have a plausible mechanism and the missing piece is dated evidence, use web now
+
+## Search Order
+
+For unstable factual claims, search in this order:
+
+1. official domain or documentation
+2. official repo, release notes, governance repo, or changelog
+3. regulator / investor-relations / earnings / standards source
+4. credible secondary coverage
+5. user-perspective material
+
+Do not stop at step 4 if the claim still needs a step 1-3 confirmation.
 
 ## What To Search
 
@@ -79,6 +110,8 @@ After each useful result, keep only:
 - `state_now`
 - `counter-evidence`
 - `inference`
+- `source_tier`
+- `verification_status`
 
 ## Search Budget (CurioCat-inspired adversarial protocol)
 
@@ -90,10 +123,13 @@ Minimum 4 searches, structured as:
 
 Up to 6 searches for complex questions. Stop when contradicting search returns nothing new.
 
+For time-sensitive factual claims, at least one of the first three searches should explicitly target a **Tier A** source. If that search fails, say so in the write-up instead of silently filling the gap with lower-tier summaries.
+
 ## Stop Rules
 
 - stop when contradicting evidence search returns nothing the verdict hasn't already addressed
 - stop when search only repeats generic sector commentary
+- stop only after you know whether the claim has or does not have a primary-source anchor
 
 ## Return-To-Graph Rules
 
@@ -104,3 +140,10 @@ Go back to the graph when search:
 - contradicts the current causal story
 
 Then return to the orchestration loop and decide the next move explicitly.
+
+## Writing Rules After Search
+
+- Write completed-fact language (`is`, `has`, `supports`, `launched`) only when the evidence anchor is Tier A or a Tier B report that clearly quotes or links the primary source.
+- If the best evidence is Tier B only, write `reported`, `according to`, or `appears`.
+- If the best evidence is Tier C only, do not present the claim as established. Either verify independently or say the claim remains unconfirmed.
+- When sources conflict, name the exact dates and lead with the higher-tier source.
