@@ -32,10 +32,23 @@ python scripts/cap_probe.py --base-url "$BASE_URL" methods extensions.abel.query
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"NVDA.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA.price --scope children --max-neighbors 5
 python scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA.price AMD.price --max-paths 3
-python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"NVDA.price","treatment_value":0.05,"outcome_node":"AMD.price","horizon_steps":3,"model":"linear"}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"NVDA.price","treatment_value":0.05,"outcome_node":"AMD.price","horizon_steps":24,"model":"linear"}'
 ```
 
 For `extensions.abel.intervene_time_lag`, first confirm the treatment/outcome pair is structurally meaningful with `graph.paths`. The request shape above is the template; not every node pair returns a propagated effect.
+
+Treat `horizon_steps` as a coarse time-window selector:
+
+- `~6` for very short-term or immediate transmission checks
+- `~42` for about a trading week
+- `~170` for about a trading month
+- `~24` when the user did not specify a horizon and you want a medium-range default
+
+If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen the horizon in tiers rather than picking random values. A practical ladder is:
+
+- start with the user-requested window, or `~24` if none was given
+- retry at the next wider tier, such as `6 -> 24` or `24/42 -> 170`
+- stop escalating once propagation is clear or the wider windows still show no meaningful transmission
 
 ## Usage Rules
 
@@ -48,6 +61,9 @@ For `extensions.abel.intervene_time_lag`, first confirm the treatment/outcome pa
 - Check `meta.methods` before assuming a local wrapper is current.
 - Use `extensions.abel.observe_predict_resolved_time` as the default observational surface.
 - Use `extensions.abel.intervene_time_lag` as the default pressure-test surface.
+- Choose `horizon_steps` to match the decision window instead of always using the same lag:
+  `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the default when the prompt does not pin down a horizon.
+- If the first lag test is too diffuse to interpret, retry with the next wider horizon tier before concluding the pressure test is uninformative.
 - Treat pressure tests as late robustness checks after the mechanism is already coherent.
 - Call newly added extension verbs through the generic `verb` path.
 
@@ -57,7 +73,7 @@ For `extensions.abel.intervene_time_lag`, first confirm the treatment/outcome pa
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.query_node --params-json '{"search":"music streaming","search_mode":"hybrid","top_k":5}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"SPOT.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"SPOT.price"}'
-python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"SPOT.price","treatment_value":0.05,"outcome_node":"NFLX.price","horizon_steps":3,"model":"linear"}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"SPOT.price","treatment_value":0.05,"outcome_node":"NFLX.price","horizon_steps":24,"model":"linear"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate_connectivity --params-json '{"variables":["NVDA.price","AMD.price","SOXX.price"]}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover_consensus --params-json '{"seed_nodes":["NVDA.price","ANET.price"],"direction":"out","limit":10}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.discover_deconsensus --params-json '{"seed_nodes":["NVDA.price"],"direction":"out","contrast_level":"medium","limit":8}'

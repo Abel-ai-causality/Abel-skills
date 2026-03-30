@@ -100,7 +100,10 @@ Compare graph results against L0 hypotheses. If graph contradicts or extends →
 ### 4b. L2 Intervene (along REAL graph edges, not hypothesized industry edges)
 From L0.5 deep, identify blanket parents of the outcome. Intervene on the most relevant blanket parent → measure outcome.
 - Report β (effect size), first_arrive_step (speed), event_count (breadth)
-- **Multi-horizon mandatory for successful interventions:** h=6, h=24, h=42. Profile = insight (fast = repricing, medium = real transmission, fading = transient).
+- Choose `horizon_steps` to match the user's decision window instead of hardcoding one lag:
+  rough guide is `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the medium-range default when the user gives no clear horizon.
+- If the first intervention is inconclusive, retry by stepping the horizon up in tiers instead of making arbitrary jumps.
+  Move from the current tier to the next wider window, such as `6 -> 24/42 -> 170`, and stop once the transmission is clear or the wider windows still stay too diffuse to change the interpretation.
 - If no meaningful target → skip, note why. Don't force noise.
 
 ### 4c. Signal aggregation
