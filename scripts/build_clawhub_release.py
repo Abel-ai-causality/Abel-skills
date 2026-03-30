@@ -130,26 +130,58 @@ def build_frontmatter(lines: list[str], version_override: str) -> str:
 
 
 def remove_section_if_present(body: str, heading: str) -> str:
+    section_range = find_section_range(body, heading)
+    if section_range is None:
+        return body
+    start, end = section_range
+    if end == len(body):
+        return body[:start].rstrip() + "\n"
+    return body[:start].rstrip() + "\n\n" + body[end:].lstrip()
+
+
+def find_section_range(body: str, heading: str) -> tuple[int, int] | None:
     marker = f"## {heading}\n\n"
     start = body.find(marker)
     if start == -1:
-        return body
+        return None
     next_heading = body.find("\n## ", start + len(marker))
     if next_heading == -1:
-        return body[:start].rstrip() + "\n"
-    return body[:start].rstrip() + "\n\n" + body[next_heading + 1 :].lstrip()
+        return start, len(body)
+    return start, next_heading + 1
 
 
 def replace_section(body: str, heading: str, new_section: str) -> str:
-    marker = f"## {heading}\n\n"
-    start = body.find(marker)
-    if start == -1:
+    section_range = find_section_range(body, heading)
+    if section_range is None:
         raise ValueError(f"Could not find section `{heading}` in SKILL.md.")
-    next_heading = body.find("\n## ", start + len(marker))
+    start, end = section_range
     replacement = new_section.rstrip() + "\n\n"
-    if next_heading == -1:
-        return body[:start] + replacement
-    return body[:start] + replacement + body[next_heading + 1 :]
+    return body[:start] + replacement + body[end:]
+
+
+def replace_or_insert_section(
+    body: str,
+    headings: tuple[str, ...],
+    new_section: str,
+) -> str:
+    for heading in headings:
+        section_range = find_section_range(body, heading)
+        if section_range is None:
+            continue
+        start, end = section_range
+        replacement = new_section.rstrip() + "\n\n"
+        return body[:start] + replacement + body[end:]
+
+    first_heading = body.find("\n## ")
+    replacement = new_section.rstrip() + "\n\n"
+    if first_heading == -1:
+        return body.rstrip() + "\n\n" + new_section.rstrip() + "\n"
+    return (
+        body[:first_heading].rstrip()
+        + "\n\n"
+        + replacement
+        + body[first_heading + 1 :].lstrip()
+    )
 
 
 def remove_line(body: str, line: str, description: str) -> str:
@@ -175,8 +207,10 @@ def transform_skill_md(source_text: str, version_override: str) -> str:
         body,
         "- On first session use, attempt the soft update check from `references/update-flow.md`.",
     )
-    body = replace_section(
-        body, "Install And Authorization", NEW_INSTALL_SECTION
+    body = replace_or_insert_section(
+        body,
+        ("Install And Authorization", "Authorization Gate"),
+        NEW_INSTALL_SECTION,
     )
     body = remove_line_if_present(body, UPDATE_REFERENCE_LINE)
     return frontmatter + body.rstrip() + "\n"

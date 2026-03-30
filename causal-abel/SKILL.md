@@ -27,7 +27,7 @@ Any dollar-value decision, just Abel it. Finance and crypto nodes are the signal
 
 ## Step 1: Preflight + Classify
 
-Check ABEL_API_KEY in env. No key → follow `references/setup-guide.md`, hard stop.
+Check ABEL_API_KEY in env or <skill-dir>/.env.skill. No key → follow `references/setup-guide.md`, hard stop.
 
 Classify: `direct_graph` (specific ticker/node question) or `proxy_routed` (life decision, no direct node).
 
