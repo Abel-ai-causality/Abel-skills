@@ -10,14 +10,13 @@ from cap.server import (
     OBSERVE_PREDICT_CONTRACT,
 )
 
-from .common import get_graph_adapter, validate_graph_ref
+from .common import get_graph_adapter
 
 
 def register_observe_handlers(registry: CAPVerbRegistry) -> None:
 [[IF_INCLUDE_PREDICTOR]]
     @registry.core(OBSERVE_PREDICT_CONTRACT)
     def observe_predict(payload: ObservePredictRequest, request: Request) -> CAPHandlerSuccessSpec:
-        validate_graph_ref(payload)
         graph_adapter = get_graph_adapter(request)
         prediction = graph_adapter.predict(payload.params.target_node)
         return CAPHandlerSuccessSpec(

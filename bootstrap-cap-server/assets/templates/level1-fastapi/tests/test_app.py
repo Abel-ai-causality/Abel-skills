@@ -4,15 +4,11 @@ from __PACKAGE_NAME__.app import app
 
 
 CAP_HEADERS = __TEST_CAP_HEADERS__
-GRAPH_CONTEXT = __TEST_GRAPH_CONTEXT__
 EXPECT_OBSERVE_PREDICT = __TEST_EXPECT_OBSERVE_PREDICT__
 
 
 def build_payload(payload: dict) -> dict:
-    body = dict(payload)
-    if GRAPH_CONTEXT is not None:
-        body["context"] = {"graph_ref": GRAPH_CONTEXT}
-    return body
+    return dict(payload)
 
 
 client = TestClient(app)

@@ -5,6 +5,7 @@ from fastapi import Request
 from cap.core import IDENTIFICATION_STATUS_NOT_APPLICABLE, REASONING_MODE_STRUCTURAL_SEMANTICS
 from cap.core.contracts import GraphPathsRequest
 from cap.server import (
+    CAPAdapterError,
     CAPHandlerSuccessSpec,
     CAPProvenanceHint,
     CAPVerbRegistry,
@@ -13,13 +14,13 @@ from cap.server import (
     GRAPH_PATHS_CONTRACT,
 )
 
-from .common import get_graph_adapter, validate_graph_ref
+from ..adapters.graph_adapter import PathSearchLimitExceeded
+from .common import get_graph_adapter
 
 
 def register_graph_handlers(registry: CAPVerbRegistry) -> None:
     @registry.core(GRAPH_NEIGHBORS_CONTRACT)
     def graph_neighbors(payload, request: Request) -> CAPHandlerSuccessSpec:
-        validate_graph_ref(payload)
         graph_adapter = get_graph_adapter(request)
         neighbors, total = graph_adapter.neighbors(
             node_id=payload.params.node_id,
@@ -46,7 +47,6 @@ def register_graph_handlers(registry: CAPVerbRegistry) -> None:
 
     @registry.core(GRAPH_MARKOV_BLANKET_CONTRACT)
     def graph_markov_blanket(payload, request: Request) -> CAPHandlerSuccessSpec:
-        validate_graph_ref(payload)
         graph_adapter = get_graph_adapter(request)
         neighbors, total = graph_adapter.markov_blanket(
             node_id=payload.params.node_id,
@@ -71,13 +71,19 @@ def register_graph_handlers(registry: CAPVerbRegistry) -> None:
 
     @registry.core(GRAPH_PATHS_CONTRACT)
     def graph_paths(payload: GraphPathsRequest, request: Request) -> CAPHandlerSuccessSpec:
-        validate_graph_ref(payload)
         graph_adapter = get_graph_adapter(request)
-        paths, total = graph_adapter.paths(
-            source_node_id=payload.params.source_node_id,
-            target_node_id=payload.params.target_node_id,
-            max_paths=payload.params.max_paths,
-        )
+        try:
+            paths, total = graph_adapter.paths(
+                source_node_id=payload.params.source_node_id,
+                target_node_id=payload.params.target_node_id,
+                max_paths=payload.params.max_paths,
+            )
+        except PathSearchLimitExceeded as exc:
+            raise CAPAdapterError(
+                "resource_exhausted",
+                str(exc),
+                status_code=400,
+            ) from exc
         return CAPHandlerSuccessSpec(
             result={
                 "source_node_id": payload.params.source_node_id,
