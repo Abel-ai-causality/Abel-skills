@@ -1,6 +1,12 @@
 # Abel Skills
 
-This repository currently publishes the `causal-abel` skill.
+This repository is moving from flat top-level skill directories to a `skills/` layout.
+
+During the compatibility phase:
+
+- existing install and publish paths continue to work from the legacy locations
+- new source copies are also present under `skills/`
+- the legacy locations will be removed only after downstream docs and websites are updated
 
 ## For Users
 
@@ -22,7 +28,13 @@ List installed skills:
 npx --yes skills ls --json
 ```
 
-The source skill lives in `causal-abel/`.
+Current source locations:
+
+- Legacy compatibility path: `causal-abel/`
+- New layout path: `skills/causal-abel/`
+- New layout path: `skills/bootstrap-cap-server/`
+
+Until the cleanup migration lands, keep the legacy and `skills/` copies aligned.
 
 ## For Maintainers
 
@@ -51,7 +63,7 @@ python3 maintainers/causal-abel/render_skill.py --include-local --profile sit --
 
 ### Build The ClawHub Artifact
 
-This repository keeps the source skill in `causal-abel/SKILL.md`.
+This repository still builds and publishes from the legacy `causal-abel/SKILL.md` path during the compatibility phase.
 
 - Local throwaway build output: `dist/clawhub/causal-abel`
 - Repository-committed ClawHub import path: `clawhub/causal-abel`
