@@ -6,12 +6,11 @@ update_branch: main
 update_skill_path: causal-abel
 update_changelog_path: /CHANGELOG.md
 description: >
-  Use for decision-grade Abel causal reads on any dollar-value decision: what is driving
-  a market or company node, how two nodes connect, what changes under intervention, or how
-  a real-world choice (career, education, investment, lifestyle, macro) looks when routed
-  through Abel proxy signals. Use when user says "Abel" or "causal" or "causality" or
-  "drivers" or "what if" or "worth it" or "should I" in the context of market, business,
-  crypto, career, education, housing, lifestyle, or any dollar-value decision questions.
+  Use when the user wants an Abel causal read on what drives a market, company,
+  asset, sector, or macro node, how two nodes connect, what changes under
+  intervention, or how a career, education, housing, lifestyle, or investment
+  decision with meaningful money, time, career-capital, or downside tradeoff
+  should be evaluated through Abel proxy signals.
 metadata:
   openclaw:
     requires:
@@ -24,6 +23,8 @@ metadata:
 ---
 
 Any dollar-value decision, just Abel it. Finance and crypto nodes are the signal layer (the graph's proxy vocabulary), not the product.
+
+**Do not use Abel for pure fact lookup, news recap, or operational how-to when no real decision is being made; use normal retrieval first. Abel starts when the user needs a causal read on a choice that allocates money, time, career-capital, or downside risk.**
 
 ## Step 1: Preflight + Classify
 
