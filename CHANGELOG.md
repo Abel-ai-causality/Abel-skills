@@ -4,6 +4,14 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.3] - 2026-03-31
+
+### Changed
+
+- Removed the `appendix`-as-default output shape from the source `causal-abel` guidance so the normal response now defaults to the main answer only unless the user explicitly asks for trace, evidence, debug, or reproducibility details.
+- Reworked rendering guidance from explicit `render_map` language to a lighter `label pass` flow, reducing the chance that internal rendering artifacts leak into visible prose.
+- Tightened source report rules so raw graph identifiers, raw proxy tickers, paths, prediction decimals, and process transcripts stay internal by default, with the normal answer explicitly avoiding debug-style headings and dumps.
+
 ## [1.1.2] - 2026-03-31
 
 ### Added

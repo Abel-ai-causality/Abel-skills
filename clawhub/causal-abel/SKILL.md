@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.1.2
+version: 1.1.3
 description: >
   Use when the user wants an Abel causal read on what drives a market, company,
   asset, sector, or macro node, how two nodes connect, what changes under
@@ -115,7 +115,9 @@ The causal graph is universal. The verdict is personal.
 
 Read `assets/report-guide.md` and `references/rendering.md` before writing.
 
-**Render gate (MANDATORY):** apply the render-map and guard workflow from `references/rendering.md` before finalizing. For non-asset or `proxy_routed` questions, raw tickers, raw node ids, graph paths, and signed prediction decimals stay out of visible prose.
+**Render gate (MANDATORY):** apply the label-pass and guard workflow from `references/rendering.md` before finalizing. For non-asset or `proxy_routed` questions, raw tickers, raw node ids, graph paths, signed prediction decimals, and rendering scratch work stay out of visible prose.
+
+**Output default (MANDATORY):** default to main answer only. Do not emit an appendix, trace block, evidence dump, rendering scratch work, or probe/process transcript unless the user explicitly asks for evidence details, debug output, reproducibility steps, or a trace.
 
 Write the final answer to the contract in `assets/report-guide.md`.
 
@@ -127,5 +129,5 @@ Keep claim-strength honesty explicit: life decisions are graph-grounded advice, 
 - `references/routes/proxy-routed.md` — proxy-routed graph workflow
 - `references/setup-guide.md` — OAuth install (only if key missing)
 - `references/probe-usage.md` — exact `cap_probe.py` command shapes
-- `references/rendering.md` — render-map rules, visible/evidence split, guard usage
+- `references/rendering.md` — label-pass rules, visible/internal split, guard usage
 - `assets/report-guide.md` — full output contract with archetypes, rendering rules, coverage areas

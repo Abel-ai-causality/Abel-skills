@@ -4,6 +4,8 @@ Use this file after analysis is complete and before writing the final report.
 
 The goal is simple: visible prose should read like an economic explanation, not like internal graph scratch work.
 
+Do a label pass on shortlisted anchors, draft from semantic labels, and keep any rendering scratch work internal. Do not print it unless the user explicitly asks for trace, debug, or evidence details.
+
 ## When This Rule Is Hard
 
 Treat rendering as a hard gate for:
@@ -15,9 +17,9 @@ Treat rendering as a hard gate for:
 
 For these cases, raw tickers in the visible layer are not a style issue. They mean the report is not ready.
 
-## Render Map
+## Label Pass
 
-Before writing visible prose, build a small `render_map` from shortlisted anchors:
+Before writing visible prose, translate shortlisted anchors into semantic labels:
 
 ```text
 XOM.price -> integrated oil majors
@@ -30,9 +32,10 @@ Rules:
 
 - Use the graph anchor only to think.
 - Use the semantic label to write.
-- Keep raw anchors for the appendix only.
+- Keep raw anchors in internal notes only unless the user explicitly asks for evidence details.
+- Keep the label pass lightweight. Do not turn it into a named artifact in the normal answer.
 
-## Visible Layer vs Evidence Layer
+## Visible Layer vs Internal Notes
 
 Visible layer:
 
@@ -41,13 +44,17 @@ Visible layer:
 - challenge section
 - action / implication section
 
-Evidence layer:
+Internal notes stay internal by default:
+- raw graph identifiers
+- raw market symbols used only as proxy anchors
+- graph paths and verb payload details
+- numeric prediction outputs
+- temporary analysis or labeling notes
 
-- raw node ids
-- raw tickers for proxy-routed questions
-- graph paths
-- verb payload summaries
-- prediction decimals such as `+0.0013`
+Only expose these details when the user explicitly asks for trace, evidence details, debug output, or reproducibility.
+
+Do not let the normal answer read like a tool trace, analysis transcript, or protocol dump.
+
 
 ## Allowed Exceptions
 
@@ -60,14 +67,14 @@ Ticker names are allowed in visible prose only when the user's question is expli
 Even then:
 
 - keep supporting mechanisms semantic where possible
-- keep raw node ids and prediction decimals in the appendix
+- keep raw node ids and prediction decimals out of normal visible prose
 
 ## Guard Workflow
 
 1. Shortlist final nodes and bridges.
 2. Run `extensions.abel.node_description` on that shortlist.
-3. Build the `render_map`.
-4. Draft the visible answer from semantic labels.
+3. Do a label pass from raw anchors to semantic labels.
+4. Draft the visible answer from semantic labels only.
 5. Run `scripts/render_guard.py` on the visible draft.
 6. If it fails, rewrite and re-run.
 
@@ -97,5 +104,5 @@ Before finalizing, ask:
 
 - Could a reader understand the mechanism without seeing a ticker?
 - Does the visible layer sound like market/economic explanation rather than debug output?
-- Are all raw graph identifiers confined to the appendix?
+- Are all raw graph identifiers confined to internal notes unless the user explicitly asked for them?
 - If this is proxy-routed, would a screenshot still make sense to someone who never saw the graph?

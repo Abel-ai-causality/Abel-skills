@@ -99,4 +99,4 @@ Aggregate observations into one directional signal per dimension. Do not carry r
 - `../probe-usage.md` for exact probe shapes and horizon handling
 - `../web-grounding.md` for graph-grounded search
 - `../../assets/report-guide.md` for output contract
-- `../rendering.md` for render-map and guard workflow
+- `../rendering.md` for label-pass and guard workflow

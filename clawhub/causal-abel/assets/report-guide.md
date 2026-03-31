@@ -46,11 +46,11 @@ Each archetype demands a different answer structure and rendering rule:
 
 ## Two-Layer Rendering Rule
 
-Every report has two layers. The user reads the verdict layer. The evidence layer is backup.
+Every report has two layers conceptually. The user sees the verdict layer. Raw evidence details remain internal unless the user explicitly asks for them.
 
-**Default rule:** The verdict layer uses human-readable economic roles, not raw tickers or prediction decimals. The evidence appendix is the only place for raw node IDs, predictions, and graph paths.
+**Default rule:** The verdict layer uses human-readable economic roles, not raw tickers or prediction decimals. Raw node IDs, predictions, graph paths, label-pass notes, and probe transcripts stay out of the normal answer.
 
-**One exception:** When the user's question is explicitly about a ticker or investment asset (e.g., "what drives NVDA," "should I buy BTC"), ticker names are allowed in the verdict because the user expects them. Raw prediction decimals still go in the appendix only.
+**One exception:** When the user's question is explicitly about a ticker or investment asset (e.g., "what drives NVDA," "should I buy BTC"), ticker names are allowed in the verdict because the user expects them. Raw prediction decimals still stay out of the normal answer.
 
 **Verdict layer (the main report):**
 - Default: use translated signal names ("AI infrastructure momentum," "cloud computing giants") instead of tickers
@@ -65,9 +65,10 @@ Before writing the verdict layer:
 
 - shortlist the nodes, bridges, or drivers that materially shape the answer
 - run `extensions.abel.node_description` on that shortlist
-- build a `render_map` from raw anchors to semantic labels
+- translate raw anchors into semantic labels before drafting
 - rewrite the visible answer using company names, industries, products, or economic roles instead of raw tickers or node ids
 - run `scripts/render_guard.py` on the visible layer before finalizing
+- do not print rendering scratch work unless the user explicitly asks for trace, debug, or evidence details
 
 Rendering rules:
 
@@ -81,9 +82,9 @@ Rendering rules:
 
 Every Abel report must pass four tests: **Authentic, Sharp, Deep, Fun.**
 
-**Authentic** — every claim traceable to a specific probe or source. Tier annotation enforces this. If you can't name how you know it, don't say it. Web grounding requires TWO types of search: (1) "what's happening now" — latest policy decisions, current rates, recent earnings, this week's data (2) "how to" — rules, strategies, frameworks. Both are mandatory. Name specific events, numbers, dates. **Claim-strength honesty:** For life decisions, Abel provides "causal-graph-grounded decision advice" — not "causal proof." Don't imply stronger causal claims than the evidence supports. L0 claims in the evidence appendix must carry anti-guarantees: "no statistical test, not reproducible, may vary."
+**Authentic** — every claim traceable to a specific probe or source. Tier annotation enforces this. If you can't name how you know it, don't say it. Web grounding requires TWO types of search: (1) "what's happening now" — latest policy decisions, current rates, recent earnings, this week's data (2) "how to" — rules, strategies, frameworks. Both are mandatory. Name specific events, numbers, dates. **Claim-strength honesty:** For life decisions, Abel provides "causal-graph-grounded decision advice" — not "causal proof." Don't imply stronger causal claims than the evidence supports. If L0-only details are exposed because the user explicitly asked for evidence, label them with anti-guarantees: "no statistical test, not reproducible, may vary."
 
-**Sharp** — the verdict is ≤3 sentences. Sentence 1: position. Sentence 2: why (the mechanism, one line). Sentence 3: what to do (action + trigger). If you can't tweet the verdict, it's too long. Everything else goes in the body or appendix.
+**Sharp** — the verdict is ≤3 sentences. Sentence 1: position. Sentence 2: why (the mechanism, one line). Sentence 3: what to do (action + trigger). If you can't tweet the verdict, it's too long. Everything else goes in the body, not in a default appendix.
 
 **Deep** — at least one insight the user couldn't have gotten from ChatGPT or common sense. The insight must be QUESTION-SPECIFIC — not a repetition of a general graph property (like "blankets are financial" which is true for all nodes). If the blanket finding is the same as last time, dig one layer deeper: what does THIS node's specific blanket composition tell us about THIS question? Deep is not long. Deep = "I didn't know that."
 
@@ -122,9 +123,9 @@ L0.5 is the center of the experience. L1/L2 amplify its credibility. L0 web sear
 
 - **Verdict: ≤3 sentences.** Position + mechanism + action. Everything else is body.
 - **Graph voice first, web voice second.** The verdict must lead with what the GRAPH uniquely discovered — not with web facts anyone could find. Web facts support the graph insight, not the other way around. If your verdict could be written without the graph, you haven't used Abel. The graph's contribution must be FELT in the first sentence.
-- **Insight → action translation is mandatory.** Every insight must end with a specific recommendation, timing trigger, or threshold. Insight without action goes in the appendix.
+- **Insight → action translation is mandatory.** Every insight must end with a specific recommendation, timing trigger, or threshold. If an insight does not change action, cut it from the normal answer.
 - The full report body follows the verdict for those who want depth. Keep it structured but concise.
-- Analysis process (which probes ran, what surprised what) goes in the evidence appendix only.
+- Analysis process (which probes ran, what surprised what) stays internal unless the user explicitly asks for trace, debug, or evidence details.
 - Only collapse to a short answer when the user explicitly asks for brevity or the task is genuinely trivial.
 - Explicit markdown section headings are often helpful, but they are optional.
 - Natural longform prose is acceptable as long as the needed content is covered clearly.
@@ -134,6 +135,7 @@ L0.5 is the center of the experience. L1/L2 amplify its credibility. L0 web sear
 - Separate `graph_fact`, `searched_mechanism`, and `inference`. Don't blur graph and web into one narrative.
 - Include challenge section (untested assumption, counter-evidence, weakest link) for non-trivial analyses.
 - Keep command/OAuth/script details out of the main report.
+- Do not emit headings such as `Render map`, `Observations`, `Parents`, `Connectivity`, or `Provenance` in the normal answer.
 
 Even in compact form, the report should still cover these contract fields in substance:
 
@@ -363,9 +365,9 @@ Before finalizing a report, verify that:
 - the interpretation ends with a concrete "So what" — what to do, watch, or reconsider
 - for life decisions: the proxy bridge is named explicitly, the personal-vs-economic boundary is stated, and the "So what" gives a timing signal or condition, not just "it depends"
 - the question archetype was identified and the answer shape matches it (survival→decompose skills, ROI→breakeven, timing→trigger, allocation→ratio, macro→dimensions, graph-sparse→honest handoff)
-- the two-layer rendering rule was followed: verdict layer is ticker-free for life decisions, evidence appendix contains the raw data
+- the two-layer rendering rule was followed: verdict layer is ticker-free for life decisions, and raw data stayed internal unless the user explicitly asked for it
 - a label pass was done before writing: `node_description` informed the final wording and the visible answer uses company, industry, product, or role labels instead of raw ticker-heavy phrasing
-- the visible layer passed `scripts/render_guard.py`; if the question was proxy-routed, no raw ticker survived outside the appendix
+- the visible layer passed `scripts/render_guard.py`; if the question was proxy-routed, no raw ticker survived in the normal answer
 - signal aggregation was applied: no individual ticker predictions in the verdict, only directional signals
 - each significant claim is annotated with its epistemological tier (L2/L0.5/L0)
 - the report ends with an epistemological composition summary
