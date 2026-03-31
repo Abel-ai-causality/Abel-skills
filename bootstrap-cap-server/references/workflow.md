@@ -14,18 +14,24 @@ The skill should be proactive. When the graph is missing predictive or intervent
 
 Before generating a new scaffold, ask these questions explicitly unless the user has already answered them:
 
+- Ask them together in one concise intake message by default. Only split them into follow-up questions when the user's earlier answers are incomplete, inconsistent, or technically ambiguous.
 - Which parent directory should contain the project?
 - What should the project folder be called?
 - Should the generated folder also run `git init`?
-- What runtime shape already exists: local graph files, Python runtime, internal API, or deployed graph service?
-- Does the runtime already support `observe.predict`?
-- Does the runtime already support `intervene.do`?
+- Can the current runtime already produce observational predictions?
+- Can the current runtime already simulate or estimate interventions?
 
-If the answer to prediction or intervention is no or unclear, ask one direct follow-up:
+Infer runtime shape from the user's description when possible. If you still need to ask, use plain language such as:
 
-- Should the scaffold stay structural-only?
-- Should it include an `observe.predict` adapter stub for a future model?
-- Should it include an `intervene.do` adapter stub for a future SCM, simulator, or internal service?
+- "Are you starting from local graph files, existing Python code, or an already-running API/service?"
+
+Do not expect the user to understand internal labels such as `runtime shape`, `observe.predict`, `intervene.do`, `none`, `stub`, or `mounted`.
+
+If the answer to prediction or intervention is no or unclear, ask in plain language what the generated project should do:
+
+- Leave prediction or intervention out for now
+- Add a placeholder prediction adapter for a model to be plugged in later
+- Add a placeholder intervention adapter for an SCM, simulator, or internal service to be plugged in later
 
 Do not silently write into the current directory, do not assume the user wants a new repository, and do not convert missing backend choices into inferred defaults.
 
@@ -60,8 +66,8 @@ Do not add `intervene.do` just because the user wants it. Add it only if the run
 If the user does not yet have the runtime needed for `observe.predict` or `intervene.do`, explicitly ask what they want to do next. Good follow-up patterns:
 
 - "Do you want the scaffold to stay structural-only for now?"
-- "Do you want me to generate an `observe.predict` adapter stub for a model you will plug in?"
-- "Do you want me to generate an `intervene.do` adapter boundary for an SCM or simulator you will add later?"
+- "Do you want me to leave prediction out for now, or generate a placeholder adapter for a model you will plug in later?"
+- "Do you want me to leave intervention out for now, or generate a placeholder adapter boundary for an SCM or simulator you will add later?"
 
 Do not wait passively for the user to infer these options.
 
@@ -71,6 +77,9 @@ Before moving on, give the user a short checkpoint that states:
 - mounted verbs and any stub-only upgrade paths
 - capability-card fields that materially change, especially `supported_verbs`, `reasoning_modes_supported`, `graph`, and `authentication`
 - explicit non-claims such as omitted `observe.predict`, omitted `intervene.do`, or no `context.graph_ref` requirement
+
+Keep this checkpoint short. The goal is to confirm the public contract before code generation, not to dump the whole protocol back at the user.
+Lead with plain language in that checkpoint. Protocol field names and verb ids are secondary and should appear only when they help clarify the public contract.
 
 ## Step 5: Define The Runtime Adapter
 
@@ -121,6 +130,8 @@ Prefer expressing those choices explicitly in the generator invocation, for exam
 
 - `--predictor-mode mounted|stub|none`
 - `--intervention-mode mounted|stub|none`
+
+Those internal flags are for generator calls, not for user-facing intake. Translate from plain-language user answers into these values internally.
 
 ## Step 7: Keep Capability Disclosure Derived
 

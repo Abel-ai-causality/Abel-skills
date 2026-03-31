@@ -101,6 +101,18 @@ def import_generated_module(project_dir: Path, module_name: str) -> subprocess.C
     )
 
 
+def run_generated_pytest(project_dir: Path) -> subprocess.CompletedProcess[str]:
+    env = dict(os.environ)
+    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_app.py", "-q"],
+        text=True,
+        capture_output=True,
+        cwd=project_dir,
+        env=env,
+    )
+
+
 def invoke_generated_app(project_dir: Path, *, package_name: str, verb: str, params: dict) -> dict:
     env = dict(os.environ)
     env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
@@ -341,3 +353,11 @@ def test_json_graph_paths_are_bounded(tmp_path: Path) -> None:
     assert response["result"]["path_count"] == 1
     assert len(response["result"]["paths"]) == 1
     assert response["result"]["paths"][0]["distance"] == 2
+
+
+def test_json_graph_scaffold_generated_pytest_suite_passes(tmp_path: Path) -> None:
+    project_dir = generate_json_graph_project(tmp_path)
+
+    result = run_generated_pytest(project_dir)
+
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr

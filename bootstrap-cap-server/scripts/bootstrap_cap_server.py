@@ -42,6 +42,12 @@ PLACEHOLDERS = {
     "test_cap_headers": "__TEST_CAP_HEADERS__",
     "test_expect_observe_predict": "__TEST_EXPECT_OBSERVE_PREDICT__",
     "test_expect_intervene_do": "__TEST_EXPECT_INTERVENE_DO__",
+    "sample_neighbor_node_id": "__SAMPLE_NEIGHBOR_NODE_ID__",
+    "sample_neighbor_scope": "__SAMPLE_NEIGHBOR_SCOPE__",
+    "sample_path_source_node_id": "__SAMPLE_PATH_SOURCE_NODE_ID__",
+    "sample_path_target_node_id": "__SAMPLE_PATH_TARGET_NODE_ID__",
+    "sample_path_expect_connected": "__SAMPLE_PATH_EXPECT_CONNECTED__",
+    "sample_path_min_count": "__SAMPLE_PATH_MIN_COUNT__",
 }
 
 BLOCK_START = "[[IF_"
@@ -463,6 +469,31 @@ def build_placeholder_values(
     graph_node_types = prepared_json_graph.node_types if prepared_json_graph else ["generic_metric"]
     graph_node_count = prepared_json_graph.node_count if prepared_json_graph else 4
     graph_edge_count = prepared_json_graph.edge_count if prepared_json_graph else 3
+    if prepared_json_graph and prepared_json_graph.edges_payload:
+        first_edge = prepared_json_graph.edges_payload[0]
+        sample_neighbor_node_id = str(first_edge["target_node_id"])
+        sample_neighbor_scope = "parents"
+        sample_path_source_node_id = str(first_edge["source_node_id"])
+        sample_path_target_node_id = str(first_edge["target_node_id"])
+        sample_path_expect_connected = "True"
+        sample_path_min_count = "1"
+    elif prepared_json_graph and prepared_json_graph.nodes_payload:
+        sample_neighbor_node_id = str(prepared_json_graph.nodes_payload[0]["node_id"])
+        sample_neighbor_scope = "both"
+        sample_path_source_node_id = str(prepared_json_graph.nodes_payload[0]["node_id"])
+        if len(prepared_json_graph.nodes_payload) > 1:
+            sample_path_target_node_id = str(prepared_json_graph.nodes_payload[1]["node_id"])
+        else:
+            sample_path_target_node_id = sample_path_source_node_id
+        sample_path_expect_connected = "False"
+        sample_path_min_count = "0"
+    else:
+        sample_neighbor_node_id = "revenue"
+        sample_neighbor_scope = "parents"
+        sample_path_source_node_id = "marketing_spend"
+        sample_path_target_node_id = "revenue"
+        sample_path_expect_connected = "True"
+        sample_path_min_count = "1"
     if prepared_json_graph:
         coverage_description = (
             "Generated from user-supplied local node and edge JSON files for one deployed graph."
@@ -508,6 +539,12 @@ def build_placeholder_values(
         "test_cap_headers": build_test_cap_headers(args.auth, args.api_key_header),
         "test_expect_observe_predict": "True" if predictor_mode == "mounted" else "False",
         "test_expect_intervene_do": "True" if intervention_mode == "mounted" else "False",
+        "sample_neighbor_node_id": sample_neighbor_node_id,
+        "sample_neighbor_scope": sample_neighbor_scope,
+        "sample_path_source_node_id": sample_path_source_node_id,
+        "sample_path_target_node_id": sample_path_target_node_id,
+        "sample_path_expect_connected": sample_path_expect_connected,
+        "sample_path_min_count": sample_path_min_count,
     }
 
 

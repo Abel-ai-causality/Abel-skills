@@ -48,7 +48,7 @@ curl -s http://127.0.0.1:8000/cap \
     "cap_version": "0.2.2",
     "request_id": "req-neighbors",
     "verb": "graph.neighbors",
-    "params": {"node_id": "revenue", "scope": "parents"}
+    "params": {"node_id": "__SAMPLE_NEIGHBOR_NODE_ID__", "scope": "__SAMPLE_NEIGHBOR_SCOPE__"}
   }'
 ```
 
@@ -61,8 +61,8 @@ curl -s http://127.0.0.1:8000/cap \
     "request_id": "req-paths",
     "verb": "graph.paths",
     "params": {
-      "source_node_id": "marketing_spend",
-      "target_node_id": "revenue",
+      "source_node_id": "__SAMPLE_PATH_SOURCE_NODE_ID__",
+      "target_node_id": "__SAMPLE_PATH_TARGET_NODE_ID__",
       "max_paths": 3
     }
   }'

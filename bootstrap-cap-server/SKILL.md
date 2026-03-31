@@ -41,35 +41,29 @@ Use the supporting references only as needed:
 - Default to CAP core verbs only. Do not introduce vendor extensions unless the user explicitly asks for them.
 - Default to CAP-layer scaffolding only. Do not treat auth, gatewaying, tenancy, rate limits, or product access control as part of the main bootstrap workflow.
 - Treat `context.graph_ref` as an optional CAP request-context field, not as a default multi-graph design requirement.
-- Before generating files, explicitly resolve where the new project should live and whether the user wants a fresh git repository initialized there.
-- Before generating files, ask the required bootstrap questions explicitly. Do not replace unanswered user choices with silent defaults.
+- Before generating files, explicitly resolve project placement and whether the generated folder should run `git init`.
+- Ask the required intake questions in one grouped message by default. Do not drag the user through a long one-question-at-a-time intake unless earlier answers are missing or contradictory.
 - Start from Level 1 unless the user's graph and runtime clearly justify Level 2.
 - Never claim Level 3.
 - Be proactive. When key runtime details are missing, ask short concrete questions and propose the next viable options instead of waiting for the user to infer the protocol gap alone.
 - After setting the honesty boundary, proactively summarize the planned public CAP surface and capability-card impact before generating files.
-- Ask about runtime shape before drilling into file formats. Treat `json-graph` as one preset, not the default worldview.
-- If the user has graph structure but no SCM or intervention backend, explicitly ask how they want to enable `observe.predict` and `intervene.do`, then generate the scaffold around the option they choose.
+- Infer runtime shape when the user has already described it clearly. Ask about it only when it remains ambiguous.
+- In user-facing questions, avoid raw internal labels such as `observe.predict`, `intervene.do`, `none`, `stub`, and `mounted`. Ask in plain language, then map back to generator flags internally.
+- In the first user-facing capability checkpoint, prefer plain-language summaries of what the server will and will not do. Mention protocol field names only when they add real value.
 - Keep server-specific execution choices out of CAP core params unless the protocol already standardizes them.
 - Prefer using `scripts/bootstrap_cap_server.py` plus the bundled templates when the user wants a brand-new project scaffold.
 
-## Required Questions
+## Interaction Contract
 
-Before generating files, explicitly resolve:
+Before scaffolding:
 
-- where the new CAP server project should live
-- what the project folder should be called
-- whether the generated folder should also run `git init`
-- what runtime shape already exists: local graph files, Python runtime, internal API, or deployed graph service
-- whether the runtime already supports `observe.predict`
-- whether the runtime already supports `intervene.do`
+- resolve project parent directory, folder name, and `git init`
+- infer the runtime source when possible, or ask in plain language whether the user is starting from local files, Python code, or an already-running service
+- ask whether prediction or intervention already works today
+- if not, ask in plain language whether those should be left out for now or scaffolded as placeholders for later
+- recap the intended mounted verbs, conformance level, capability disclosure shape, and current non-claims before generating files
 
-If prediction or intervention support is missing or unclear, ask the user to choose one path explicitly:
-
-- keep the scaffold structural-only
-- include an `observe.predict` adapter stub for a future model
-- include an `intervene.do` adapter stub for a future SCM, simulator, or internal service
-
-Before scaffolding, explicitly recap the intended mounted verbs, conformance level, capability disclosure shape, and current non-claims.
+The exact intake wording and checkpoint format live in `references/workflow.md`.
 
 ## Quick Reference
 
@@ -98,6 +92,8 @@ Produce code, not only advice. For non-trivial requests, prefer:
 
 - Inferring project location or `git init` instead of asking explicitly.
 - Mounting `observe.predict` or `intervene.do` without a real backend or an explicit stub choice.
+- Asking the user the bootstrap questions one by one when a single grouped intake would do.
+- Repeating the user's runtime description back as protocol jargon instead of plain language.
 - Importing from a local checkout of `python-sdk/` instead of the published package.
 - Treating auth, gateway, or tenancy scaffolding as part of the default CAP bootstrap path.
 - Treating `context.graph_ref` as a default multi-graph requirement instead of an optional server-specific selector.
