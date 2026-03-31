@@ -37,6 +37,10 @@ Classify the request as:
 
 **Horizon gate:** If the decision horizon is >3 years ("5年后", "未来十年"), switch to structural mode: web is PRIMARY, graph is VALIDATOR ONLY, and you should not use momentum-style observe as the main loop.
 
+**Unstable-premise gate:** If the opportunity thesis depends on a recent leak, launch, partnership, shutdown, org change, or other freshness-sensitive claim, do one minimal premise-verification search before L0. Use a Tier A source when possible, or a clearly sourced Tier B report if no primary source exists yet. If the premise is still unanchored, rewrite the task as conditional analysis ("if this is true, where are the opportunities?") and say so before continuing. This gate does not cancel Abel; it decides whether the rest of the read is fact-anchored or conditional. Separate verifiable subclaims from inferred motive/strategy claims, and keep inferences labeled as inference even when some facts are anchored.
+
+**Opportunity-scope gate:** If the user asks a broad question such as "有什么赚钱机会", lock the primary opportunity frame before L0. Distinguish at least among public-market trade, supplier/competitor scan, startup or B2B opportunity, and career/business opportunity. If the user does not specify, default to public-market trade and label other frames as secondary unless they materially change the answer. If multiple frames matter, label them explicitly instead of mixing them into one undifferentiated mechanism list.
+
 If `direct_graph`, switch to `references/routes/direct-graph.md` as the active workflow. Return here only for shared web-grounding and write-up rules.
 
 ## Step 2: Generate Hypotheses (proxy_routed, L0)

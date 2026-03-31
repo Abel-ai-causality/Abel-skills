@@ -43,6 +43,27 @@ Default bias:
 - if you have not yet done at least one or two meaningful graph moves on the active mechanism, go back to graph first
 - if you already have a plausible mechanism and the missing piece is dated evidence, use web now
 
+## Unstable Premise Gate
+
+For event-driven opportunity reads, the first unknown may be whether the premise is true at all.
+
+Examples:
+
+- a leak or rumor about a private model
+- a product launch claim
+- a partnership, shutdown, or acquisition claim
+- a corporate reorg presented as breaking news
+
+If the opportunity thesis depends on one of these freshness-sensitive claims, do one minimal premise-verification search before normal graph expansion:
+
+1. Try a Tier A source first when one should exist.
+2. If no Tier A source exists yet, look for a clearly sourced Tier B report.
+3. If the premise still is not anchored, do not treat it as established fact.
+4. Rewrite the task as conditional analysis: `if this premise is true, what opportunity set follows?`
+5. Split verifiable subclaims from inferred motive/strategy claims. Keep the latter labeled as inference even when the factual subclaims are anchored.
+
+After that premise check, return to the normal Abel loop.
+
 ## Search Order
 
 For unstable factual claims, search in this order:
