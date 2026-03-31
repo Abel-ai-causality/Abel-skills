@@ -17,6 +17,7 @@ Before generating a new scaffold, ask these questions explicitly unless the user
 - Which parent directory should contain the project?
 - What should the project folder be called?
 - Should the generated folder also run `git init`?
+- What runtime shape already exists: local graph files, Python runtime, internal API, or deployed graph service?
 - Does the runtime already support `observe.predict`?
 - Does the runtime already support `intervene.do`?
 
@@ -36,10 +37,11 @@ Use the user's explicit answer for project location, folder name, and `git init`
 
 Ask or infer:
 
-- What graph or runtime already exists?
+- What runtime shape already exists?
+- If it is file-backed, what concrete node and edge files already exist?
 - Is it just topology, or does it include weights, lags, predictors, or structural mechanisms?
 - Does the user want a new project scaffold, or to wrap an existing API or service?
-- Is the server single-graph or multi-graph?
+- What graph version should the scaffold disclose in provenance and capability metadata?
 
 If the shape is unclear, read `user-graph-shapes.md`.
 
@@ -63,6 +65,13 @@ If the user does not yet have the runtime needed for `observe.predict` or `inter
 
 Do not wait passively for the user to infer these options.
 
+Before moving on, give the user a short checkpoint that states:
+
+- planned `conformance_level`
+- mounted verbs and any stub-only upgrade paths
+- capability-card fields that materially change, especially `supported_verbs`, `reasoning_modes_supported`, `graph`, and `authentication`
+- explicit non-claims such as omitted `observe.predict`, omitted `intervene.do`, or no `context.graph_ref` requirement
+
 ## Step 5: Define The Runtime Adapter
 
 Before generating handlers, define a thin adapter contract such as:
@@ -73,7 +82,7 @@ Before generating handlers, define a thin adapter contract such as:
 - `predict_observational(target_node)`
 - `intervene(treatment_node, treatment_value, outcome_node)`
 
-If the runtime is multi-graph, also define how graph selection maps to `context.graph_ref`.
+Default the adapter to one deployed graph. If a specific deployment later needs explicit graph selection or graph-version pinning, add `context.graph_ref` intentionally as server-specific request context instead of treating it as a bootstrap default.
 
 When the user has no SCM, ask what should back stronger verbs:
 
@@ -88,7 +97,7 @@ Generate adapter stubs and TODO markers for the chosen path, but keep the capabi
 Use the published Python SDK:
 
 ```bash
-pip install "cap-protocol[server]"
+uv add "cap-protocol[server]"
 ```
 
 Generate:
@@ -127,6 +136,10 @@ At minimum disclose:
 - `graph`
 - `authentication`
 
+For default bootstrap scaffolds, disclose that the server targets one deployed graph and does not require `context.graph_ref`.
+
+This should be surfaced to the user proactively as part of the bootstrap conversation, not only encoded in generated code.
+
 ## Step 8: Verify The Output
 
 Verify:
@@ -142,7 +155,7 @@ Verify:
 End with a short section that states the current limits and the upgrade path, for example:
 
 - Level 1 only until an intervention backend exists
-- `graph_ref` reserved until multiple graphs are supported
+- one deployed graph by default; add `context.graph_ref` later only if a deployment needs explicit graph selection or version pinning
 - `graph.paths` omitted until path enumeration is implemented
 - no counterfactual support
 - `observe.predict` or `intervene.do` scaffolded behind adapter TODOs but not mounted until the backend is real

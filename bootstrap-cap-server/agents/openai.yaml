@@ -1,4 +1,4 @@
 interface:
   display_name: "Bootstrap CAP Server"
   short_description: "Scaffold a CAP server from an existing graph or runtime."
-  default_prompt: "Use $bootstrap-cap-server to bootstrap a CAP-compatible server from my existing graph, causal runtime, or internal causal API. Start by asking where to create the project, what to name the folder, whether to run git init, and whether observe.predict or intervene.do already have real backends."
+  default_prompt: "Use $bootstrap-cap-server to bootstrap a CAP-compatible server from my existing graph, runtime, or internal causal API. Start by identifying the runtime shape, then ask where to create the project, what to name the folder, whether to run git init, and whether observe.predict or intervene.do already have real backends."

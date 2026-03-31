@@ -1,11 +1,11 @@
 # Python SDK Patterns
 
-Use the published package, not local source-tree imports.
+Use the published package, not local source-tree imports. Generated docs should assume a `uv` workflow even though runtime shape may vary.
 
 ## Install
 
 ```bash
-pip install "cap-protocol[server]"
+uv add "cap-protocol[server]"
 ```
 
 ## Core Imports
@@ -75,14 +75,15 @@ Use the active mounted surface to keep `meta.capabilities` and `meta.methods` al
 
 ## `graph_ref`
 
-Use `context.graph_ref` only if the runtime really supports graph selection.
+`context.graph_ref` is an optional shared request-context field in CAP, not a default bootstrap requirement.
 
-If the runtime is single-graph:
+For the default bootstrap case:
 
-- either omit `graph_ref` from examples
-- or accept it as optional but validate only one supported graph
+- omit `graph_ref` from examples
+- keep the scaffold focused on one deployed graph
+- disclose `graph_version` through provenance and capability metadata
 
-Do not invent graph-selection complexity just because the schema allows it.
+Only add `graph_ref` handling when a specific deployment genuinely needs explicit graph selection or version pinning. Do not invent selector complexity just because the schema allows it.
 
 ## Output Bias
 
