@@ -11,7 +11,7 @@ from pathlib import Path
 from endpoint_config import get_template_values
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE_DIR = REPO_ROOT / "causal-abel"
+DEFAULT_SOURCE_DIR = REPO_ROOT / "skills" / "causal-abel"
 DEFAULT_OUTPUT_DIR = DEFAULT_SOURCE_DIR
 IGNORE_NAMES = {
     "__pycache__",
@@ -32,6 +32,17 @@ def _replace(text: str, pattern: str, replacement: str, *, count: int = 0) -> st
     )
     if matched == 0:
         raise RuntimeError(f"Pattern not found: {pattern}")
+    return updated
+
+
+def _replace_if_present(
+    text: str, pattern: str, replacement: str, *, count: int = 0
+) -> str:
+    updated, matched = re.subn(
+        pattern, replacement, text, count=count, flags=re.MULTILINE
+    )
+    if matched == 0:
+        return text
     return updated
 
 
@@ -56,12 +67,12 @@ def _restore_local_auth_files(output_dir: Path, snapshot: dict[str, str]) -> Non
 def _sync_skill_md(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "SKILL.md"
     text = path.read_text(encoding="utf-8")
-    text = _replace(
+    text = _replace_if_present(
         text,
         r"^- Default CAP target: `[^`]+`\.$",
         f"- Default CAP target: `{values['ACTIVE_CAP_BASE_URL']}`.",
     )
-    text = _replace(
+    text = _replace_if_present(
         text,
         r"^- Treat `[^`]+` as the OAuth and business API host, not the CAP probe host\.$",
         f"- Treat `{values['ACTIVE_OAUTH_BASE_URL']}` as the OAuth and business API host, not the CAP probe host.",

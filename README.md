@@ -1,25 +1,19 @@
 # Abel Skills
 
-This repository is moving from flat top-level skill directories to a `skills/` layout.
-
-During the compatibility phase:
-
-- existing install and publish paths continue to work from the legacy locations
-- new source copies are also present under `skills/`
-- the legacy locations will be removed only after downstream docs and websites are updated
+This repository uses a `skills/` source layout.
 
 ## For Users
 
 Install `causal-abel` with `npx skills`:
 
 ```bash
-npx --yes skills add Abel-ai-causality/Abel-skills --skill causal-abel -y
+npx --yes skills add https://github.com/Abel-ai-causality/Abel-skills/tree/main/skills --skill causal-abel -y
 ```
 
 Install globally instead of project-local:
 
 ```bash
-npx --yes skills add Abel-ai-causality/Abel-skills --skill causal-abel -g -y
+npx --yes skills add https://github.com/Abel-ai-causality/Abel-skills/tree/main/skills --skill causal-abel -g -y
 ```
 
 List installed skills:
@@ -28,13 +22,10 @@ List installed skills:
 npx --yes skills ls --json
 ```
 
-Current source locations:
+Available source skills:
 
-- Legacy compatibility path: `causal-abel/`
-- New layout path: `skills/causal-abel/`
-- New layout path: `skills/bootstrap-cap-server/`
-
-Until the cleanup migration lands, keep the legacy and `skills/` copies aligned.
+- `skills/causal-abel/`
+- `skills/bootstrap-cap-server/`
 
 ## For Maintainers
 
@@ -52,7 +43,7 @@ Endpoint and OAuth defaults for `causal-abel` are maintained in `maintainers/cau
 - Re-render the public skill in place after changing endpoint defaults:
 
 ```bash
-python3 maintainers/causal-abel/render_skill.py --profile prod --output-dir causal-abel
+python3 maintainers/causal-abel/render_skill.py --profile prod --output-dir skills/causal-abel
 ```
 
 - Render a local SIT-flavored skill for testing without touching the public install path:
@@ -63,12 +54,12 @@ python3 maintainers/causal-abel/render_skill.py --include-local --profile sit --
 
 ### Build The ClawHub Artifact
 
-This repository still builds and publishes from the legacy `causal-abel/SKILL.md` path during the compatibility phase.
+This repository builds and publishes from `skills/causal-abel/SKILL.md`.
 
 - Local throwaway build output: `dist/clawhub/causal-abel`
 - Repository-committed ClawHub import path: `clawhub/causal-abel`
 - `main` automatically refreshes `clawhub/causal-abel` through `.github/workflows/sync-clawhub-artifact.yml`
-- The build copies the public `causal-abel/` skill into an agent-facing artifact. Published or committed artifacts must therefore be built only after `causal-abel/` has been rendered with public-safe endpoints.
+- The build copies the public `skills/causal-abel/` skill into an agent-facing artifact. Published or committed artifacts must therefore be built only after `skills/causal-abel/` has been rendered with public-safe endpoints.
 
 ```bash
 python3 scripts/build_clawhub_release.py
@@ -98,4 +89,4 @@ python3 scripts/publish_clawhub_release.py --dry-run
 python3 scripts/publish_clawhub_release.py
 ```
 
-The publish script guarantees that the ClawHub release version matches the source `version` in `causal-abel/SKILL.md`.
+The publish script guarantees that the ClawHub release version matches the source `version` in `skills/causal-abel/SKILL.md`.

@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = SKILL_ROOT.parents[1]
 SCRIPT_PATH = SKILL_ROOT / "scripts" / "bootstrap_cap_server.py"
-PYTHON_SDK_ROOT = REPO_ROOT / "python-sdk"
 FIXTURES_DIR = SKILL_ROOT / "tests" / "fixtures"
 
 
@@ -52,14 +49,6 @@ def test_json_graph_requires_nodes_and_edges(tmp_path: Path) -> None:
     assert "--edges-path" in result.stderr
 
 
-def _build_pythonpath(*entries: Path) -> str:
-    pythonpath_entries = [str(entry) for entry in entries]
-    existing_pythonpath = os.environ.get("PYTHONPATH")
-    if existing_pythonpath:
-        pythonpath_entries.append(existing_pythonpath)
-    return os.pathsep.join(pythonpath_entries)
-
-
 def _parse_json_output(stdout: str) -> dict:
     for line in reversed(stdout.splitlines()):
         if not line.strip():
@@ -90,32 +79,40 @@ def run_generator(tmp_path: Path, project_name: str, *extra_args: str) -> Path:
     return tmp_path / project_name
 
 
-def import_generated_module(project_dir: Path, module_name: str) -> subprocess.CompletedProcess[str]:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
-    return subprocess.run(
-        [sys.executable, "-c", f"import {module_name}"],
+def sync_generated_project(project_dir: Path) -> None:
+    if (project_dir / ".venv").exists():
+        return
+    subprocess.run(
+        ["uv", "sync", "--extra", "dev"],
+        cwd=project_dir,
         text=True,
         capture_output=True,
-        env=env,
+        check=True,
+    )
+
+
+def import_generated_module(project_dir: Path, module_name: str) -> subprocess.CompletedProcess[str]:
+    sync_generated_project(project_dir)
+    return subprocess.run(
+        ["uv", "run", "python", "-c", f"import {module_name}"],
+        text=True,
+        capture_output=True,
+        cwd=project_dir,
     )
 
 
 def run_generated_pytest(project_dir: Path) -> subprocess.CompletedProcess[str]:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
+    sync_generated_project(project_dir)
     return subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_app.py", "-q"],
+        ["uv", "run", "pytest", "tests/test_app.py", "-q"],
         text=True,
         capture_output=True,
         cwd=project_dir,
-        env=env,
     )
 
 
 def invoke_generated_app(project_dir: Path, *, package_name: str, verb: str, params: dict) -> dict:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
+    sync_generated_project(project_dir)
     script = f"""
 import json
 from fastapi.testclient import TestClient
@@ -129,18 +126,17 @@ response = client.post(
 print(json.dumps(response.json()))
 """
     result = subprocess.run(
-        [sys.executable, "-c", script],
+        ["uv", "run", "python", "-c", script],
         text=True,
         capture_output=True,
-        env=env,
+        cwd=project_dir,
         check=True,
     )
     return _parse_json_output(result.stdout)
 
 
 def invoke_generated_well_known(project_dir: Path, *, package_name: str) -> dict:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
+    sync_generated_project(project_dir)
     script = f"""
 import json
 from fastapi.testclient import TestClient
@@ -151,10 +147,10 @@ response = client.get("/.well-known/cap.json")
 print(json.dumps(response.json()))
 """
     result = subprocess.run(
-        [sys.executable, "-c", script],
+        ["uv", "run", "python", "-c", script],
         text=True,
         capture_output=True,
-        env=env,
+        cwd=project_dir,
         check=True,
     )
     return _parse_json_output(result.stdout)
@@ -196,7 +192,7 @@ def generate_json_graph_project(tmp_path: Path) -> Path:
     )
 
 
-def test_generated_app_module_imports_with_local_python_sdk(tmp_path: Path) -> None:
+def test_generated_app_module_imports_with_released_cap_protocol(tmp_path: Path) -> None:
     project_dir = run_generator(
         tmp_path,
         "smoke-level1",
@@ -223,7 +219,7 @@ def test_generated_level1_files_use_uv_workflow(tmp_path: Path) -> None:
     assert_uv_workflow_files(project_dir)
 
 
-def test_generated_level2_app_module_imports_with_local_python_sdk(tmp_path: Path) -> None:
+def test_generated_level2_app_module_imports_with_released_cap_protocol(tmp_path: Path) -> None:
     project_dir = run_generator(
         tmp_path,
         "smoke-level2",

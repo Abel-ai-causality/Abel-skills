@@ -3,7 +3,7 @@ name: causal-abel
 version: 1.1.3
 update_repo: Abel-ai-causality/Abel-skills
 update_branch: main
-update_skill_path: causal-abel
+update_skill_path: skills/causal-abel
 update_changelog_path: /CHANGELOG.md
 description: >
   Use when the user wants an Abel causal read on what drives a market, company,
