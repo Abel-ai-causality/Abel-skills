@@ -23,30 +23,5 @@ jobs:
       - name: Lint Python
         run: ruff check causal-abel/scripts/ maintainers/causal-abel/ scripts/ tests/
 
-      - name: Run tests
+      - name: Run tests (smoke + structural + endpoint isolation)
         run: python3 -m pytest tests/ -v
-
-      - name: Verify no private endpoints in public skill
-        run: |
-          if grep -rn 'cap-sit\|api-sit\|localhost\|127\.0\.0\.1' causal-abel/ clawhub/causal-abel/ \
-            --include='*.md' --include='*.py' --include='*.yaml' --include='*.json' 2>/dev/null; then
-            echo "❌ Private endpoints found in public skill."
-            exit 1
-          fi
-          echo "✓ No private endpoints leaked."
-
-      - name: Verify SKILL.md reference integrity
-        run: |
-          cd causal-abel
-          MISSING=0
-          for ref in $(grep -oP 'references/[a-z/\-]+\.md' SKILL.md); do
-            if [ ! -f "$ref" ]; then
-              echo "❌ Missing: $ref (referenced in SKILL.md)"
-              MISSING=1
-            fi
-          done
-          if [ "$MISSING" -eq 1 ]; then
-            echo "Fix: create the missing file or remove the reference from SKILL.md."
-            exit 1
-          fi
-          echo "✓ All SKILL.md references resolve."

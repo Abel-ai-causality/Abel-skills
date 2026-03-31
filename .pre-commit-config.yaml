@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: verify-no-private-endpoints
+        name: No private endpoints in public skill
+        entry: bash -c '! grep -rn "cap-sit\|api-sit\|localhost\|127\.0\.0\.1" causal-abel/ clawhub/causal-abel/ --include="*.md" --include="*.py" --include="*.yaml" --include="*.json" 2>/dev/null || (echo "❌ Private endpoints in public skill. Fix: remove and re-render." && exit 1)'
+        language: system
+        pass_filenames: false
+
+      - id: check-skill-size
+        name: SKILL.md ≤ 200 lines
+        entry: bash -c 'LINES=$(wc -l < causal-abel/SKILL.md); if [ "$LINES" -gt 200 ]; then echo "❌ SKILL.md is $LINES lines (max 200). Fix: move detail to references/ files."; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      - id: check-ref-integrity
+        name: SKILL.md reference integrity
+        entry: bash -c 'cd causal-abel && for ref in $(grep -oP "references/[a-z/\-]+\.md" SKILL.md); do [ -f "$ref" ] || { echo "❌ Missing: $ref. Fix: create it or remove from SKILL.md."; exit 1; }; done'
+        language: system
+        pass_filenames: false
