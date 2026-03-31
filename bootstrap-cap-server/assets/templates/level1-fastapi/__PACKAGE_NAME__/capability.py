@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from cap.core import (
-    ASSUMPTION_ACYCLICITY,
     CAPABILITY_CARD_SCHEMA_URL,
     CapabilityAuthentication,
     CapabilityCard,
@@ -11,10 +10,13 @@ from cap.core import (
     CapabilityProvider,
     CapabilityStructuralMechanisms,
     CapabilitySupportedVerbs,
+)
+from cap.core.canonical import (
+    ASSUMPTION_ACYCLICITY,
     REASONING_MODE_OBSERVATIONAL_PREDICTION,
+    REASONING_MODE_SCM_SIMULATION,
     REASONING_MODE_STRUCTURAL_SEMANTICS,
 )
-from cap.core.canonical import REASONING_MODE_SCM_SIMULATION
 from cap.server import CAPVerbRegistry
 
 from . import __version__

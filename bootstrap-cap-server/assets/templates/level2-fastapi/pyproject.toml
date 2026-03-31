@@ -23,6 +23,12 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["__PACKAGE_NAME__*"]
 
+[tool.setuptools.package-data]
+"__PACKAGE_NAME__" = ["data/*.json"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.uv]
+package = true

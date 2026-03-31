@@ -14,17 +14,24 @@ The skill should be proactive. When the graph is missing predictive or intervent
 
 Before generating a new scaffold, ask these questions explicitly unless the user has already answered them:
 
+- Ask them together in one concise intake message by default. Only split them into follow-up questions when the user's earlier answers are incomplete, inconsistent, or technically ambiguous.
 - Which parent directory should contain the project?
 - What should the project folder be called?
 - Should the generated folder also run `git init`?
-- Does the runtime already support `observe.predict`?
-- Does the runtime already support `intervene.do`?
+- Can the current runtime already produce observational predictions?
+- Can the current runtime already simulate or estimate interventions?
 
-If the answer to prediction or intervention is no or unclear, ask one direct follow-up:
+Infer runtime shape from the user's description when possible. If you still need to ask, use plain language such as:
 
-- Should the scaffold stay structural-only?
-- Should it include an `observe.predict` adapter stub for a future model?
-- Should it include an `intervene.do` adapter stub for a future SCM, simulator, or internal service?
+- "Are you starting from local graph files, existing Python code, or an already-running API/service?"
+
+Do not expect the user to understand internal labels such as `runtime shape`, `observe.predict`, `intervene.do`, `none`, `stub`, or `mounted`.
+
+If the answer to prediction or intervention is no or unclear, ask in plain language what the generated project should do:
+
+- Leave prediction or intervention out for now
+- Add a placeholder prediction adapter for a model to be plugged in later
+- Add a placeholder intervention adapter for an SCM, simulator, or internal service to be plugged in later
 
 Do not silently write into the current directory, do not assume the user wants a new repository, and do not convert missing backend choices into inferred defaults.
 
@@ -36,10 +43,11 @@ Use the user's explicit answer for project location, folder name, and `git init`
 
 Ask or infer:
 
-- What graph or runtime already exists?
+- What runtime shape already exists?
+- If it is file-backed, what concrete node and edge files already exist?
 - Is it just topology, or does it include weights, lags, predictors, or structural mechanisms?
 - Does the user want a new project scaffold, or to wrap an existing API or service?
-- Is the server single-graph or multi-graph?
+- What graph version should the scaffold disclose in provenance and capability metadata?
 
 If the shape is unclear, read `user-graph-shapes.md`.
 
@@ -58,10 +66,20 @@ Do not add `intervene.do` just because the user wants it. Add it only if the run
 If the user does not yet have the runtime needed for `observe.predict` or `intervene.do`, explicitly ask what they want to do next. Good follow-up patterns:
 
 - "Do you want the scaffold to stay structural-only for now?"
-- "Do you want me to generate an `observe.predict` adapter stub for a model you will plug in?"
-- "Do you want me to generate an `intervene.do` adapter boundary for an SCM or simulator you will add later?"
+- "Do you want me to leave prediction out for now, or generate a placeholder adapter for a model you will plug in later?"
+- "Do you want me to leave intervention out for now, or generate a placeholder adapter boundary for an SCM or simulator you will add later?"
 
 Do not wait passively for the user to infer these options.
+
+Before moving on, give the user a short checkpoint that states:
+
+- planned `conformance_level`
+- mounted verbs and any stub-only upgrade paths
+- capability-card fields that materially change, especially `supported_verbs`, `reasoning_modes_supported`, `graph`, and `authentication`
+- explicit non-claims such as omitted `observe.predict`, omitted `intervene.do`, or no `context.graph_ref` requirement
+
+Keep this checkpoint short. The goal is to confirm the public contract before code generation, not to dump the whole protocol back at the user.
+Lead with plain language in that checkpoint. Protocol field names and verb ids are secondary and should appear only when they help clarify the public contract.
 
 ## Step 5: Define The Runtime Adapter
 
@@ -73,7 +91,7 @@ Before generating handlers, define a thin adapter contract such as:
 - `predict_observational(target_node)`
 - `intervene(treatment_node, treatment_value, outcome_node)`
 
-If the runtime is multi-graph, also define how graph selection maps to `context.graph_ref`.
+Default the adapter to one deployed graph. If a specific deployment later needs explicit graph selection or graph-version pinning, add `context.graph_ref` intentionally as server-specific request context instead of treating it as a bootstrap default.
 
 When the user has no SCM, ask what should back stronger verbs:
 
@@ -88,7 +106,7 @@ Generate adapter stubs and TODO markers for the chosen path, but keep the capabi
 Use the published Python SDK:
 
 ```bash
-pip install "cap-protocol[server]"
+uv add "cap-protocol[server]"
 ```
 
 Generate:
@@ -113,6 +131,8 @@ Prefer expressing those choices explicitly in the generator invocation, for exam
 - `--predictor-mode mounted|stub|none`
 - `--intervention-mode mounted|stub|none`
 
+Those internal flags are for generator calls, not for user-facing intake. Translate from plain-language user answers into these values internally.
+
 ## Step 7: Keep Capability Disclosure Derived
 
 Build the capability card from the real mounted registry. Do not hand-maintain one list of verbs in code and another in docs.
@@ -126,6 +146,10 @@ At minimum disclose:
 - `reasoning_modes_supported`
 - `graph`
 - `authentication`
+
+For default bootstrap scaffolds, disclose that the server targets one deployed graph and does not require `context.graph_ref`.
+
+This should be surfaced to the user proactively as part of the bootstrap conversation, not only encoded in generated code.
 
 ## Step 8: Verify The Output
 
@@ -142,7 +166,7 @@ Verify:
 End with a short section that states the current limits and the upgrade path, for example:
 
 - Level 1 only until an intervention backend exists
-- `graph_ref` reserved until multiple graphs are supported
+- one deployed graph by default; add `context.graph_ref` later only if a deployment needs explicit graph selection or version pinning
 - `graph.paths` omitted until path enumeration is implemented
 - no counterfactual support
 - `observe.predict` or `intervene.do` scaffolded behind adapter TODOs but not mounted until the backend is real

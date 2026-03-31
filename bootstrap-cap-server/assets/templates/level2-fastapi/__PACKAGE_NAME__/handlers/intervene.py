@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from cap.core import (
+from cap.core import IDENTIFICATION_STATUS_NOT_FORMALLY_IDENTIFIED
+from cap.core.canonical import (
     ASSUMPTION_ACYCLICITY,
     ASSUMPTION_LINEARITY,
     ASSUMPTION_MECHANISM_INVARIANCE_UNDER_INTERVENTION,
-    IDENTIFICATION_STATUS_NOT_FORMALLY_IDENTIFIED,
+    REASONING_MODE_SCM_SIMULATION,
 )
-from cap.core.canonical import REASONING_MODE_SCM_SIMULATION
 from cap.server import (
     CAPHandlerSuccessSpec,
     CAPProvenanceHint,
@@ -16,14 +16,13 @@ from cap.server import (
     INTERVENE_DO_CONTRACT,
 )
 
-from .common import get_graph_adapter, validate_graph_ref
+from .common import get_graph_adapter
 
 
 def register_intervene_handlers(registry: CAPVerbRegistry) -> None:
 [[IF_INCLUDE_INTERVENTION]]
     @registry.core(INTERVENE_DO_CONTRACT)
     def intervene_do(payload, request: Request) -> CAPHandlerSuccessSpec:
-        validate_graph_ref(payload)
         graph_adapter = get_graph_adapter(request)
         effect = graph_adapter.intervene(
             treatment_node=payload.params.treatment_node,

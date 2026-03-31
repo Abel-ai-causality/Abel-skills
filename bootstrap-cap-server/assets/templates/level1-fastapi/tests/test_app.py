@@ -4,15 +4,11 @@ from __PACKAGE_NAME__.app import app
 
 
 CAP_HEADERS = __TEST_CAP_HEADERS__
-GRAPH_CONTEXT = __TEST_GRAPH_CONTEXT__
 EXPECT_OBSERVE_PREDICT = __TEST_EXPECT_OBSERVE_PREDICT__
 
 
 def build_payload(payload: dict) -> dict:
-    body = dict(payload)
-    if GRAPH_CONTEXT is not None:
-        body["context"] = {"graph_ref": GRAPH_CONTEXT}
-    return body
+    return dict(payload)
 
 
 client = TestClient(app)
@@ -91,8 +87,8 @@ def test_graph_paths_returns_structural_path() -> None:
                 "request_id": "req-paths",
                 "verb": "graph.paths",
                 "params": {
-                    "source_node_id": "marketing_spend",
-                    "target_node_id": "revenue",
+                    "source_node_id": "__SAMPLE_PATH_SOURCE_NODE_ID__",
+                    "target_node_id": "__SAMPLE_PATH_TARGET_NODE_ID__",
                     "max_paths": 3,
                 },
             }
@@ -102,6 +98,6 @@ def test_graph_paths_returns_structural_path() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["result"]["connected"] is True
-    assert body["result"]["path_count"] == 1
+    assert body["result"]["connected"] is __SAMPLE_PATH_EXPECT_CONNECTED__
+    assert body["result"]["path_count"] >= __SAMPLE_PATH_MIN_COUNT__
 [[END_IF_INCLUDE_PATHS]]

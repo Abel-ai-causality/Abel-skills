@@ -1,6 +1,6 @@
 # User Graph Shapes
 
-Use this file to classify what the user already has before choosing verbs or conformance level.
+Use this file to classify what the user already has before choosing verbs or conformance level. Start with runtime shape, then drill into storage details only if that shape is file-backed.
 
 ## 1. Topology Only
 
@@ -87,11 +87,12 @@ In this case, the bootstrap job is to wrap the existing runtime behind CAP contr
 
 Ask these questions:
 
+- What runtime shape already exists: local files, Python runtime, internal API, or deployed graph service?
 - Can you list direct parents or children of a node?
 - Can you enumerate paths between nodes?
 - Can you predict a node observationally?
 - Can you simulate or estimate an intervention?
-- Can you choose among multiple named graphs?
+- Do you already have a graph version you want disclosed in provenance and capability metadata?
 
 If the answer to prediction or intervention is "not yet", ask one more proactive question:
 
