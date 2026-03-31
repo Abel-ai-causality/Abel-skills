@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import ast
+import json
 import os
 import subprocess
 import sys
@@ -8,9 +8,36 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = SKILL_ROOT.parents[1]
 SCRIPT_PATH = SKILL_ROOT / "scripts" / "bootstrap_cap_server.py"
-PYTHON_SDK_ROOT = Path("/Users/rayz/Documents/causal-agent-protocol/python-sdk")
+PYTHON_SDK_ROOT = REPO_ROOT / "python-sdk"
 FIXTURES_DIR = SKILL_ROOT / "tests" / "fixtures"
+
+
+def test_parse_json_output_ignores_non_json_lines() -> None:
+    payload = _parse_json_output('bootstrap log\n{"status":"success","result":{}}\n')
+    assert payload["status"] == "success"
+
+
+def _build_pythonpath(*entries: Path) -> str:
+    pythonpath_entries = [str(entry) for entry in entries]
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    if existing_pythonpath:
+        pythonpath_entries.append(existing_pythonpath)
+    return os.pathsep.join(pythonpath_entries)
+
+
+def _parse_json_output(stdout: str) -> dict:
+    for line in reversed(stdout.splitlines()):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    raise AssertionError(f"No JSON object found in subprocess stdout: {stdout!r}")
 
 
 def run_generator(tmp_path: Path, project_name: str, *extra_args: str) -> Path:
@@ -32,7 +59,7 @@ def run_generator(tmp_path: Path, project_name: str, *extra_args: str) -> Path:
 
 def import_generated_module(project_dir: Path, module_name: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
-    env["PYTHONPATH"] = f"{project_dir}:{PYTHON_SDK_ROOT}"
+    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
     return subprocess.run(
         [sys.executable, "-c", f"import {module_name}"],
         text=True,
@@ -43,8 +70,9 @@ def import_generated_module(project_dir: Path, module_name: str) -> subprocess.C
 
 def invoke_generated_app(project_dir: Path, *, package_name: str, verb: str, params: dict) -> dict:
     env = dict(os.environ)
-    env["PYTHONPATH"] = f"{project_dir}:{PYTHON_SDK_ROOT}"
+    env["PYTHONPATH"] = _build_pythonpath(project_dir, PYTHON_SDK_ROOT)
     script = f"""
+import json
 from fastapi.testclient import TestClient
 from {package_name}.app import app
 
@@ -53,7 +81,7 @@ response = client.post(
     "/cap",
     json={{"cap_version": "0.2.2", "request_id": "req-smoke", "verb": "{verb}", "params": {params!r}}},
 )
-print(response.json())
+print(json.dumps(response.json()))
 """
     result = subprocess.run(
         [sys.executable, "-c", script],
@@ -62,7 +90,7 @@ print(response.json())
         env=env,
         check=True,
     )
-    return ast.literal_eval(result.stdout.strip())
+    return _parse_json_output(result.stdout)
 
 
 def test_generated_app_module_imports_with_local_python_sdk(tmp_path: Path) -> None:
@@ -78,6 +106,18 @@ def test_generated_app_module_imports_with_local_python_sdk(tmp_path: Path) -> N
 
     result = import_generated_module(project_dir, "smoke_level1.app")
     assert result.returncode == 0, result.stderr
+
+
+def test_generated_level1_readme_mentions_dev_commands(tmp_path: Path) -> None:
+    project_dir = run_generator(
+        tmp_path,
+        "smoke-level1-readme",
+        "--runtime-shape",
+        "generic-runtime",
+        "--predictor-mode",
+        "stub",
+        "--with-paths",
+    )
 
     readme_text = (project_dir / "README.md").read_text()
     assert "uv sync --extra dev" in readme_text
