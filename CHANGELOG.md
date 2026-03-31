@@ -4,6 +4,20 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.2] - 2026-03-31
+
+### Added
+
+- A dedicated `references/routes/proxy-routed.md` route file so the main skill can stay focused on orchestration while proxy-routed reads keep their deeper graph workflow in one place.
+- An event-driven `unstable-premise` gate for recent leaks, launches, shutdowns, partnerships, and org changes, requiring a minimal premise check before normal graph expansion.
+
+### Changed
+
+- Tightened `causal-abel` trigger wording and `agents/openai.yaml` metadata so the skill still covers broad dollar-value decisions without relying on generic phrases like `should I` or `worth it`.
+- Refactored the main `SKILL.md` into a lighter dispatcher with hard gates, stop rules, and references, moving repeated execution detail into route/reference files.
+- Added an `opportunity-scope` gate so broad asks like `有什么赚钱机会` lock a primary frame first instead of mixing public-market, supplier, startup, and career/business opportunities into one mechanism list.
+- Updated web-grounding rules so freshness-sensitive opportunity reads separate verifiable subclaims from inferred strategy claims and downgrade to conditional analysis when the premise is not yet anchored.
+
 ## [1.1.1] - 2026-03-30
 
 ### Changed
