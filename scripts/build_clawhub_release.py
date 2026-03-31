@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 SKILL_NAME = "causal-abel"
-SOURCE_ROOT = Path(__file__).resolve().parents[1] / SKILL_NAME
+SOURCE_ROOT = Path(__file__).resolve().parents[1] / "skills" / SKILL_NAME
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "dist" / "clawhub"
 REMOVE_FRONTMATTER_KEYS = {
     "update_repo",

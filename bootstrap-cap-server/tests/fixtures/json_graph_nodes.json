@@ -1,5 +1,0 @@
-[
-  {"id": 1, "name": "Aave Market Cap", "full_name": "coin.aave.market_caps", "category": "coin"},
-  {"id": 2, "name": "Aptos Market Cap", "full_name": "coin.aptos.market_caps", "category": "coin"},
-  {"id": 3, "name": "Ethena Market Cap", "full_name": "coin.ethena.market_caps", "category": "coin"}
-]

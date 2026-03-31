@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "causal-abel/**"
+      - "skills/causal-abel/**"
       - "scripts/build_clawhub_release.py"
       - ".github/workflows/sync-clawhub-artifact.yml"
 

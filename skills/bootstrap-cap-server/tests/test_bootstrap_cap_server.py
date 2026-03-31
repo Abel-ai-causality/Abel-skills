@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = SKILL_ROOT.parents[1]
+REPO_ROOT = SKILL_ROOT.parents[2]
 SCRIPT_PATH = SKILL_ROOT / "scripts" / "bootstrap_cap_server.py"
 PYTHON_SDK_ROOT = REPO_ROOT / "python-sdk"
 FIXTURES_DIR = SKILL_ROOT / "tests" / "fixtures"
