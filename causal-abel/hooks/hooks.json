@@ -1,0 +1,27 @@
+{
+  "description": "Causal Abel harness hooks — output validation and probe verification",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-abel-verify.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-probe-check.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

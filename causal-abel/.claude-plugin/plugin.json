@@ -1,0 +1,20 @@
+{
+  "name": "causal-abel",
+  "version": "1.0.7",
+  "description": "Abel causal graph skill with harness hooks — decision-grade causal reads for market, business, crypto, and proxy-routed life decisions.",
+  "author": {
+    "name": "Abel AI",
+    "email": "stephen@abel.ai",
+    "url": "https://github.com/Abel-ai-causality/Abel-skills"
+  },
+  "homepage": "https://abel.ai",
+  "repository": "https://github.com/Abel-ai-causality/Abel-skills",
+  "license": "MIT-0",
+  "keywords": [
+    "causal-inference",
+    "causal-graph",
+    "market-analysis",
+    "decision-support",
+    "CAP"
+  ]
+}
