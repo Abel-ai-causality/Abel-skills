@@ -1,0 +1,4 @@
+interface:
+  display_name: "Causal Abel"
+  short_description: "Abel causal reads for market nodes and proxy-routed decisions."
+  default_prompt: "Use $causal-abel when the user wants an Abel causal read on a market, company, asset, sector, or macro question, or wants a career, education, housing, lifestyle, or investment decision evaluated through Abel proxy signals."
