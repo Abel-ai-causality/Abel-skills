@@ -63,7 +63,7 @@ Map the mechanisms to graph nodes and separate them into:
 - weakly connected
 - narrative-only
 
-When `extensions.abel.query_node` is used for fuzzy mapping, inspect `node_kind` before picking the next surface. Do not assume every returned node can be coerced into `<ticker>.price` or `<ticker>.volume`.
+When `extensions.abel.query_node` is used for fuzzy mapping, inspect `node_kind` before picking the next surface. Do not assume every returned node can be coerced into `<ticker>.price` or `<ticker>.volume`. If the hit is `macro`, prefer direct `verb` calls for macro-capable structural surfaces instead of asset-only probe shortcuts.
 
 Required passes:
 

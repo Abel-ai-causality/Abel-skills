@@ -16,7 +16,7 @@ This file is the active workflow for `proxy_routed` reads.
 Map mechanisms to graph nodes (manual -> `query_node` -> capillary discovery). After `query_node`, inspect `node_kind` before choosing the next verb.
 
 - `asset` -> keep the current observe / neighbors / paths / intervene flow
-- `macro` -> use the canonical macro node id directly for `node_description` and any macro-capable structural surface
+- `macro` -> use the canonical macro node id directly for `node_description` and any macro-capable structural surface; for `graph.paths` and similar checks, prefer direct `verb` calls instead of asset-only probe shortcuts that normalize to `<ticker>.price|volume`
 - if the next surface is still asset-only, say so explicitly and choose a proxy route intentionally instead of silently coercing the macro node
 
 For each structurally executable mapping:

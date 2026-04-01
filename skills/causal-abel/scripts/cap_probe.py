@@ -61,6 +61,33 @@ COMMON_CRYPTO_ALIASES = {
     "ADA",
     "AVAX",
 }
+KNOWN_MACRO_NODE_IDS = {
+    "15YearFixedRateMortgageAverage",
+    "30YearFixedRateMortgageAverage",
+    "3MonthOr90DayRatesAndYieldsCertificatesOfDeposit",
+    "CPI",
+    "GDP",
+    "commercialBankInterestRateOnCreditCardPlansAllAccounts",
+    "consumerSentiment",
+    "durableGoods",
+    "federalFunds",
+    "industrialProductionTotalIndex",
+    "inflation",
+    "inflationRate",
+    "initialClaims",
+    "newPrivatelyOwnedHousingUnitsStartedTotalUnits",
+    "nominalPotentialGDP",
+    "realGDP",
+    "realGDPPerCapita",
+    "retailMoneyFunds",
+    "retailSales",
+    "smoothedUSRecessionProbabilities",
+    "totalNonfarmPayroll",
+    "totalVehicleSales",
+    "treasuryRateYear10",
+    "unemploymentRate",
+}
+KNOWN_MACRO_NODE_ID_MAP = {node_id.lower(): node_id for node_id in KNOWN_MACRO_NODE_IDS}
 ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
 
 
@@ -292,6 +319,18 @@ def _normalize_node_list(
         _normalize_public_node_id(value, default_suffix=default_suffix)
         for value in values
     ]
+
+
+def _normalize_graph_capable_node_id(value: str, *, default_suffix: str = "price") -> str:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("Node input cannot be empty.")
+
+    macro_node_id = KNOWN_MACRO_NODE_ID_MAP.get(raw.lower())
+    if macro_node_id is not None:
+        return macro_node_id
+
+    return _normalize_public_node_id(raw, default_suffix=default_suffix)
 
 
 def _strip_public_node_suffix(value: str) -> str:
@@ -545,11 +584,11 @@ def _cmd_neighbors(args: argparse.Namespace) -> dict[str, Any]:
 
 def _cmd_paths(args: argparse.Namespace) -> dict[str, Any]:
     params = {
-        "source_node_id": _normalize_public_node_id(
+        "source_node_id": _normalize_graph_capable_node_id(
             args.source_node_id,
             default_suffix=args.default_suffix,
         ),
-        "target_node_id": _normalize_public_node_id(
+        "target_node_id": _normalize_graph_capable_node_id(
             args.target_node_id,
             default_suffix=args.default_suffix,
         ),
