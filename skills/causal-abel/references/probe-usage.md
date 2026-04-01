@@ -56,6 +56,7 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 - `normalize-node` is the safest first step when a prompt gives a bare ticker.
 - Manual mapping is still the first pass for obvious company and proxy anchors.
 - Use `extensions.abel.query_node` for fuzzy or broad phrases.
+- `extensions.abel.query_node` can now return typed results. Inspect `node_kind` before assuming the hit is an asset with `.price` or `.volume`.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
 - For executable anchors that materially bear on the question, run one observational read before deeper structure.
 - Default to `observe-dual` for direct tickers or liquid names when coverage is unknown, price explanations are noisy, or liquidity/crowding may matter.
@@ -76,6 +77,7 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 ```bash
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.query_node --params-json '{"search":"music streaming","search_mode":"hybrid","top_k":5}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"SPOT.price"}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"CPI"}'
 python scripts/cap_probe.py observe-dual SPOT
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"SPOT.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"SPOT.price","treatment_value":0.05,"outcome_node":"NFLX.price","horizon_steps":24,"model":"linear"}'

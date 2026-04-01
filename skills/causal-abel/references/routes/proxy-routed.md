@@ -13,7 +13,13 @@ This file is the active workflow for `proxy_routed` reads.
 
 ### 3a. Structural screening
 
-Map mechanisms to graph nodes (manual -> `query_node` -> capillary discovery). For each:
+Map mechanisms to graph nodes (manual -> `query_node` -> capillary discovery). After `query_node`, inspect `node_kind` before choosing the next verb.
+
+- `asset` -> keep the current observe / neighbors / paths / intervene flow
+- `macro` -> use the canonical macro node id directly for `node_description` and any macro-capable structural surface
+- if the next surface is still asset-only, say so explicitly and choose a proxy route intentionally instead of silently coercing the macro node
+
+For each structurally executable mapping:
 
 - `graph.paths` between cause and outcome proxy
 - Rank: dist <= 2 = strong, 3-4 = plausible, no path = narrative-only
