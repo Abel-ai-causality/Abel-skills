@@ -4,6 +4,17 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.4] - 2026-04-01
+
+### Added
+
+- Added an `observe-dual` helper to `scripts/cap_probe.py` so agents can probe both `price` and `volume` surfaces in one call before choosing the first-pass executable anchor.
+
+### Changed
+
+- Updated direct-graph routing guidance to default liquid-name driver reads to a paired `price` + `volume` observational pass instead of assuming `price` is the only meaningful first anchor.
+- Tightened probe guidance so agents explicitly carry forward whichever surface materializes (`price`, `volume`, or both`) before running deeper structural reads or pressure tests.
+
 ## [1.1.3] - 2026-03-31
 
 ### Changed

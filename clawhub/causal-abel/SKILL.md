@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.1.3
+version: 1.1.4
 description: >
   Use when the user wants an Abel causal read on what drives a market, company,
   asset, sector, or macro node, how two nodes connect, what changes under
