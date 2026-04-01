@@ -57,6 +57,7 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 - Manual mapping is still the first pass for obvious company and proxy anchors.
 - Use `extensions.abel.query_node` for fuzzy or broad phrases.
 - `extensions.abel.query_node` can now return typed results. Inspect `node_kind` before assuming the hit is an asset with `.price` or `.volume`.
+- If the chosen node is `macro`, call macro-capable structural surfaces through `verb ... --params-json ...` instead of the asset-only `paths` or `validate-connectivity` shortcuts in `cap_probe.py`.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
 - For executable anchors that materially bear on the question, run one observational read before deeper structure.
 - Default to `observe-dual` for direct tickers or liquid names when coverage is unknown, price explanations are noisy, or liquidity/crowding may matter.
