@@ -36,6 +36,7 @@ COMMANDS = {
     "normalize-node",
     "methods",
     "observe",
+    "observe-dual",
     "neighbors",
     "paths",
     "markov-blanket",
@@ -293,6 +294,33 @@ def _normalize_node_list(
     ]
 
 
+def _strip_public_node_suffix(value: str) -> str:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("Node input cannot be empty.")
+
+    normalized = raw.upper()
+    ticker, separator, suffix = normalized.rpartition(".")
+    if separator and suffix.lower() in SUPPORTED_NODE_SUFFIXES:
+        return ticker
+
+    ticker, separator, suffix = normalized.rpartition("_")
+    if separator:
+        suffix = suffix.lower()
+        if suffix in {"close", "close_price", "volume"}:
+            return ticker
+
+    return raw
+
+
+def _normalize_dual_anchor_nodes(value: str) -> dict[str, str]:
+    base_value = _strip_public_node_suffix(value)
+    return {
+        "price": _normalize_public_node_id(base_value, default_suffix="price"),
+        "volume": _normalize_public_node_id(base_value, default_suffix="volume"),
+    }
+
+
 def _json_or_text(raw: bytes) -> Any:
     text = raw.decode("utf-8", errors="replace")
     try:
@@ -452,6 +480,52 @@ def _cmd_observe(args: argparse.Namespace) -> dict[str, Any]:
             )
         },
     )
+
+
+def _cmd_observe_dual(args: argparse.Namespace) -> dict[str, Any]:
+    anchors = _normalize_dual_anchor_nodes(args.target_node)
+    price_result = _call_verb(
+        args,
+        "extensions.abel.observe_predict_resolved_time",
+        {"target_node": anchors["price"]},
+    )
+    volume_result = _call_verb(
+        args,
+        "extensions.abel.observe_predict_resolved_time",
+        {"target_node": anchors["volume"]},
+    )
+
+    if price_result.get("ok") and volume_result.get("ok"):
+        recommended_primary_anchor = "both"
+        recommendation_reason = (
+            "Both price and volume observations materialized; keep both in the first pass."
+        )
+    elif price_result.get("ok"):
+        recommended_primary_anchor = "price"
+        recommendation_reason = (
+            "Price observation materialized while volume did not; continue on price and note the missing volume surface."
+        )
+    elif volume_result.get("ok"):
+        recommended_primary_anchor = "volume"
+        recommendation_reason = (
+            "Volume observation materialized while price did not; continue on volume and note the missing price surface."
+        )
+    else:
+        recommended_primary_anchor = "none"
+        recommendation_reason = (
+            "Neither price nor volume materialized; fall back to structural discovery or remap the anchor."
+        )
+
+    return {
+        "ok": bool(price_result.get("ok") or volume_result.get("ok")),
+        "status_code": 0,
+        "input": args.target_node,
+        "anchors": anchors,
+        "recommended_primary_anchor": recommended_primary_anchor,
+        "recommendation_reason": recommendation_reason,
+        "price_observe": price_result,
+        "volume_observe": volume_result,
+    }
 
 
 def _cmd_neighbors(args: argparse.Namespace) -> dict[str, Any]:
@@ -800,6 +874,16 @@ def _build_parser() -> argparse.ArgumentParser:
     observe = sub.add_parser("observe", help="Call observe.predict.")
     observe.add_argument("target_node")
     observe.set_defaults(func=_cmd_observe)
+
+    observe_dual = sub.add_parser(
+        "observe-dual",
+        help=(
+            "Probe both <ticker>.price and <ticker>.volume with "
+            "extensions.abel.observe_predict_resolved_time and recommend the first-pass anchor."
+        ),
+    )
+    observe_dual.add_argument("target_node")
+    observe_dual.set_defaults(func=_cmd_observe_dual)
 
     neighbors = sub.add_parser("neighbors", help="Call graph.neighbors.")
     neighbors.add_argument("node_id")

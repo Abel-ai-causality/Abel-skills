@@ -25,9 +25,9 @@ Pick the first move from the user's question shape:
 - transmission -> `graph.paths`
 - ambiguity after one structural pass -> `graph.markov_blanket`
 
-For driver or "why did it move" questions, prefer a quick observational read on the target node before the deeper structural pass when the node is executable.
+For driver or "why did it move" questions, prefer a quick observational read on the target node before the deeper structural pass when the node is executable. Default to a paired `price` + `volume` observational pass when the name is liquid, the mechanism may include liquidity/crowding, or surface coverage is still unknown.
 
-For broad driver questions on liquid names, default graph stack: anchor ticker → observe price → inspect parents on price → inspect volume or local blanket only if interpretation is thin → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels"). 
+For broad driver questions on liquid names, default graph stack: anchor ticker → `observe-dual` on price and volume → pick the surviving or jointly useful anchor set → inspect parents on the strongest anchor → use the other anchor to confirm whether the mechanism is informational, liquidity-led, or both → summarize into driver families (e.g., "macro proxies", "sector transmission", "liquidity channels").
 
 ## Structural Loop
 
@@ -53,6 +53,8 @@ For literal driver-membership or parent-list questions, stop as soon as the grap
 - default pressure test -> `extensions.abel.intervene_time_lag`
 
 For non-trivial direct-node or comparative reads, one `extensions.abel.intervene_time_lag` pressure test is the default before finalizing. Do not start with a pressure test for a driver question or run it before you can name the mechanism being stressed.
+
+Before `extensions.abel.intervene_time_lag`, check whether the active mechanism shows up on `price`, `volume`, or both. If `price` is sparse or the story looks liquidity-led, probe `volume` in the first pass instead of treating it as a late fallback.
 
 ## Web Grounding Rule
 
