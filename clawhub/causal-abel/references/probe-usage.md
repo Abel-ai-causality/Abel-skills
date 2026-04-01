@@ -29,6 +29,7 @@ BASE_URL="https://cap.abel.ai/api"
 python scripts/cap_probe.py --base-url "$BASE_URL" capabilities
 python scripts/cap_probe.py normalize-node NVDA
 python scripts/cap_probe.py --base-url "$BASE_URL" methods extensions.abel.query_node extensions.abel.node_description
+python scripts/cap_probe.py observe-dual NVDA
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"NVDA.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA.price --scope children --max-neighbors 5
 python scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA.price AMD.price --max-paths 3
@@ -57,10 +58,13 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 - Use `extensions.abel.query_node` for fuzzy or broad phrases.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
 - For executable anchors that materially bear on the question, run one observational read before deeper structure.
+- Default to `observe-dual` for direct tickers or liquid names when coverage is unknown, price explanations are noisy, or liquidity/crowding may matter.
+- If only one of `price` or `volume` materializes, continue on the surviving anchor and explicitly note the missing counterpart instead of silently reverting to `price`.
 - Search the company or industry labels from `node_description`, not raw node ids.
 - Check `meta.methods` before assuming a local wrapper is current.
 - Use `extensions.abel.observe_predict_resolved_time` as the default observational surface.
 - Use `extensions.abel.intervene_time_lag` as the default pressure-test surface.
+- Before `extensions.abel.intervene_time_lag`, identify whether the active mechanism is showing up on `price`, `volume`, or both. Do not assume `price` is the only executable anchor.
 - Choose `horizon_steps` to match the decision window instead of always using the same lag:
   `~6` for very short-term, `~42` for about a week, `~170` for about a month, and `~24` as the default when the prompt does not pin down a horizon.
 - If the first lag test is too diffuse to interpret, retry with the next wider horizon tier before concluding the pressure test is uninformative.
@@ -72,6 +76,7 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 ```bash
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.query_node --params-json '{"search":"music streaming","search_mode":"hybrid","top_k":5}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"SPOT.price"}'
+python scripts/cap_probe.py observe-dual SPOT
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"SPOT.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"SPOT.price","treatment_value":0.05,"outcome_node":"NFLX.price","horizon_steps":24,"model":"linear"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate_connectivity --params-json '{"variables":["NVDA.price","AMD.price","SOXX.price"]}'
