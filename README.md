@@ -33,6 +33,22 @@ Maintainer workflow for endpoint rendering, local SIT testing, and artifact buil
 
 - `maintainers/causal-abel/README.md`
 
+### Branching And Releases
+
+This repository now uses a lightweight `develop`-first workflow:
+
+- `develop` is the default integration branch for normal feature work.
+- `main` remains the only release branch for user installs and ClawHub publishing.
+- Feature branches should usually be cut from `develop` and merged back into `develop`.
+- Release bookkeeping happens only in release PRs to `main`:
+  - bump `skills/causal-abel/SKILL.md` version
+  - update `CHANGELOG.md`
+  - refresh committed `clawhub/causal-abel/`
+
+Detailed maintainer instructions live in:
+
+- `docs/branching-and-releases.md`
+
 ### Endpoint Defaults
 
 Endpoint and OAuth defaults for `causal-abel` are maintained in `maintainers/causal-abel/endpoints.json`.
