@@ -89,6 +89,7 @@ KNOWN_MACRO_NODE_IDS = {
 }
 KNOWN_MACRO_NODE_ID_MAP = {node_id.lower(): node_id for node_id in KNOWN_MACRO_NODE_IDS}
 ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
+ENV_FALLBACK_BASENAME = ".env"
 
 
 def _load_env_file(path: str) -> None:
@@ -99,6 +100,9 @@ def _load_env_file(path: str) -> None:
             candidate = env_path.with_name(basename)
             if candidate not in candidates:
                 candidates.append(candidate)
+        fallback_candidate = env_path.with_name(ENV_FALLBACK_BASENAME)
+        if fallback_candidate not in candidates:
+            candidates.append(fallback_candidate)
 
     for candidate in candidates:
         if not candidate.exists():

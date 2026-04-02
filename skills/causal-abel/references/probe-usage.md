@@ -10,10 +10,10 @@ This file is a command manual, not the main workflow.
 
 ## Authorization First
 
-- Do not run the bundled probe until an Abel user API key is available in session state, `--api-key`, or `<skill-root>/.env.skill`.
+- Do not run the bundled probe until an Abel user API key is available in session state, `--api-key`, `<skill-root>/.env.skill`, or a same-directory fallback `.env`.
 - If a key is already available, skip auth docs and go straight to the chosen route.
 - If the key is missing, start the OAuth handoff from `setup-guide.md` first.
-- By default, use `<skill-root>/.env.skill` as the local auth file.
+- By default, use `<skill-root>/.env.skill` as the local auth file. If an agent accidentally stored `ABEL_API_KEY` in the same-directory `.env`, the bundled probe also falls back to that file.
 
 ## Bundled Script
 

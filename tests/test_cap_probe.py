@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 from pathlib import Path
 
 
@@ -104,3 +105,36 @@ def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> Non
         "max_paths": 4,
         "include_edge_signs": True,
     }
+
+
+def test_load_env_file_falls_back_to_dot_env_when_skill_env_missing(
+    monkeypatch, tmp_path
+) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("ABEL_API_KEY=abel-from-dot-env\n", encoding="utf-8")
+
+    cap_probe._load_env_file(str(tmp_path / ".env.skill"))
+
+    assert os.getenv("ABEL_API_KEY") == "abel-from-dot-env"
+
+
+def test_load_env_file_prefers_skill_env_over_dot_env(monkeypatch, tmp_path) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+
+    (tmp_path / ".env.skill").write_text(
+        "ABEL_API_KEY=abel-from-dot-env-skill\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("ABEL_API_KEY=abel-from-dot-env\n", encoding="utf-8")
+
+    cap_probe._load_env_file(str(tmp_path / ".env.skill"))
+
+    assert os.getenv("ABEL_API_KEY") == "abel-from-dot-env-skill"
