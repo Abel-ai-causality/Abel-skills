@@ -107,6 +107,44 @@ def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> Non
     }
 
 
+def test_normalize_node_command_preserves_macro_canonical_node_id() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    args = argparse.Namespace(
+        input_value="CPI",
+        default_suffix="price",
+    )
+
+    result = cap_probe._cmd_normalize_node(args)
+
+    assert result == {
+        "ok": True,
+        "status_code": 0,
+        "input": "CPI",
+        "normalized_node_id": "CPI",
+        "default_suffix": "price",
+    }
+
+
+def test_normalize_node_command_accepts_lowercase_macro_alias() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    args = argparse.Namespace(
+        input_value="cpi",
+        default_suffix="price",
+    )
+
+    result = cap_probe._cmd_normalize_node(args)
+
+    assert result == {
+        "ok": True,
+        "status_code": 0,
+        "input": "cpi",
+        "normalized_node_id": "CPI",
+        "default_suffix": "price",
+    }
+
+
 def test_load_env_file_falls_back_to_dot_env_when_skill_env_missing(
     monkeypatch, tmp_path
 ) -> None:

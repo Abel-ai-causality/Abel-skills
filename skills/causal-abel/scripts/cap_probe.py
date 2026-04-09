@@ -488,7 +488,7 @@ def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_normalize_node(args: argparse.Namespace) -> dict[str, Any]:
-    normalized = _normalize_public_node_id(
+    normalized = _normalize_graph_capable_node_id(
         args.input_value,
         default_suffix=args.default_suffix,
     )
@@ -887,7 +887,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     normalize = sub.add_parser(
         "normalize-node",
-        help="Normalize a ticker or node candidate to Abel public node-id form.",
+        help="Normalize a ticker, macro id, or node candidate to probe-ready node-id form.",
     )
     normalize.add_argument("input_value")
     normalize.set_defaults(func=_cmd_normalize_node)

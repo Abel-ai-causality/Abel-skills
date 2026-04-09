@@ -53,9 +53,10 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 
 ## Usage Rules
 
-- `normalize-node` is the safest first step when a prompt gives a bare ticker.
+- `normalize-node` is optional. Use it for bare tickers or known macro ids when you want a quick local check.
+- If you already know the canonical node id, call the target verb directly.
 - Manual mapping is still the first pass for obvious company and proxy anchors.
-- Use `extensions.abel.query_node` for fuzzy or broad phrases.
+- Use `extensions.abel.query_node` for fuzzy or broad phrases; do not rely on local normalization for open-ended resolution.
 - `extensions.abel.query_node` can now return typed results. Inspect `node_kind` before assuming the hit is an asset with `.price` or `.volume`.
 - If the chosen node is `macro`, call macro-capable structural surfaces through `verb ... --params-json ...` instead of the asset-only `paths` or `validate-connectivity` shortcuts in `cap_probe.py`.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
