@@ -2,11 +2,12 @@
 
 Base URL: `https://api.abel.ai/echo/`
 
-This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, `<skill-root>/.env.skill`, or a same-directory fallback `.env`.
+This is the required entrypoint whenever `python scripts/cap_probe.py auth-status` returns `auth_source=missing` and the user agrees to start OAuth.
 
 ## Rules
 
 - Call `GET /web/credentials/oauth/google/authorize/agent` first.
+- Ask the user whether they want to start OAuth before requesting the auth URL.
 - Return only the returned `data.authUrl` to the user.
 - Do not continue to CAP probing until a user API key is available.
 - Do not ask for email, OAuth code, or raw API key.
