@@ -5,6 +5,8 @@ import importlib.util
 import os
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CAP_PROBE_PATH = REPO_ROOT / "skills" / "causal-abel" / "scripts" / "cap_probe.py"
@@ -107,45 +109,15 @@ def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> Non
     }
 
 
-def test_validate_connectivity_command_preserves_macro_canonical_node_ids(
-    monkeypatch,
-) -> None:
+def test_validate_connectivity_shortcut_is_not_registered() -> None:
     cap_probe = _load_cap_probe_module()
 
-    captured: dict[str, object] = {}
-
-    def _fake_call_verb(
-        args, verb: str, params: dict[str, object] | None = None
-    ) -> dict[str, object]:
-        captured["verb"] = verb
-        captured["params"] = params or {}
-        return {"ok": True}
-
-    monkeypatch.setattr(cap_probe, "_call_verb", _fake_call_verb)
-
-    args = argparse.Namespace(
-        variables=["CPI", "NVDA", "treasuryrateyear10"],
-        default_suffix="price",
-    )
-
-    result = cap_probe._cmd_validate_connectivity(args)
-
-    assert result == {"ok": True}
-    assert captured["verb"] == "extensions.abel.validate_connectivity"
-    assert captured["params"] == {
-        "variables": ["CPI", "NVDA.price", "treasuryRateYear10"]
-    }
-
-
-def test_parser_keeps_validate_connectivity_shortcut() -> None:
-    cap_probe = _load_cap_probe_module()
+    assert "validate-connectivity" not in cap_probe.COMMANDS
+    assert not hasattr(cap_probe, "_cmd_validate_connectivity")
 
     parser = cap_probe._build_parser()
-
-    args = parser.parse_args(["validate-connectivity", "CPI", "NVDA"])
-
-    assert args.variables == ["CPI", "NVDA"]
-    assert args.func == cap_probe._cmd_validate_connectivity
+    with pytest.raises(SystemExit):
+        parser.parse_args(["validate-connectivity", "CPI", "NVDA"])
 
 
 def test_normalize_node_command_preserves_macro_canonical_node_id() -> None:

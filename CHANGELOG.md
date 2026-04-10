@@ -12,7 +12,7 @@ This project follows a repo-level release log so agents can summarize user-visib
 
 ### Changed
 
-- Updated bundled probe normalization so macro-capable graph reads keep canonical macro node ids across `normalize-node`, `paths`, and `validate-connectivity` instead of coercing them into asset-only suffixes.
+- Updated bundled probe normalization so macro-capable graph reads keep canonical macro node ids across `normalize-node` and `paths` instead of coercing them into asset-only suffixes.
 - Updated routing and probe guidance so `extensions.abel.query_node` results inspect `node_kind` before choosing the next surface, making macro hits route through direct graph-capable verbs instead of asset-only shortcuts.
 - Updated local auth lookup so the bundled probe can fall back to a same-directory `.env` when `.env.skill` or `.env.skills` is absent.
 

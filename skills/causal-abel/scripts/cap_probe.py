@@ -43,7 +43,6 @@ COMMANDS = {
     "intervene-do",
     "traverse-parents",
     "traverse-children",
-    "validate-connectivity",
     "abel-markov-blanket",
     "counterfactual-preview",
     "intervene-time-lag",
@@ -314,17 +313,6 @@ def _normalize_public_node_id(value: str, *, default_suffix: str = "price") -> s
     raise ValueError(
         "Input does not look like a ticker or public node id. Map the proxy phrase to a ticker first, then probe '<ticker>.price' or '<ticker>.volume'."
     )
-
-
-def _normalize_node_list(
-    values: list[str], *, default_suffix: str = "price"
-) -> list[str]:
-    return [
-        _normalize_graph_capable_node_id(value, default_suffix=default_suffix)
-        for value in values
-    ]
-
-
 def _normalize_graph_capable_node_id(value: str, *, default_suffix: str = "price") -> str:
     raw = value.strip()
     if not raw:
@@ -726,21 +714,6 @@ def _cmd_traverse_children(args: argparse.Namespace) -> dict[str, Any]:
             "top_k": args.top_k,
         },
     )
-
-
-def _cmd_validate_connectivity(args: argparse.Namespace) -> dict[str, Any]:
-    return _call_verb(
-        args,
-        "extensions.abel.validate_connectivity",
-        {
-            "variables": _normalize_node_list(
-                args.variables,
-                default_suffix=args.default_suffix,
-            )
-        },
-    )
-
-
 def _cmd_abel_markov_blanket(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(
         args,
@@ -978,15 +951,6 @@ def _build_parser() -> argparse.ArgumentParser:
     traverse_children.add_argument("node_id")
     traverse_children.add_argument("--top-k", type=int, default=10)
     traverse_children.set_defaults(func=_cmd_traverse_children)
-
-    validate = sub.add_parser(
-        "validate-connectivity", help="Call extensions.abel.validate_connectivity."
-    )
-    validate.add_argument(
-        "variables", nargs="+", help="At least two variable node IDs."
-    )
-    validate.set_defaults(func=_cmd_validate_connectivity)
-
 
     abel_blanket = sub.add_parser(
         "abel-markov-blanket", help="Call extensions.abel.markov_blanket."
