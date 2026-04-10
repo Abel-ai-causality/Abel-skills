@@ -2,7 +2,7 @@
 
 Base URL: `https://api.abel.ai/echo/`
 
-This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, or `<skill-root>/.env.skill`.
+This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, `<skill-root>/.env.skill`, or a same-directory fallback `.env`.
 
 ## Rules
 
@@ -35,7 +35,7 @@ Preferred local auth file:
 ABEL_API_KEY=abel_xxx
 ```
 
-Use `.env.skill` as the local auth file for this skill.
+Use `.env.skill` as the local auth file for this skill. The bundled probe also checks a same-directory `.env` as a fallback when `.env.skill` or `.env.skills` is missing.
 
 ## Endpoint: Get Agent OAuth Authorization URL
 

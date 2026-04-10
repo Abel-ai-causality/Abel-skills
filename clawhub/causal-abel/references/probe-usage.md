@@ -10,10 +10,10 @@ This file is a command manual, not the main workflow.
 
 ## Authorization First
 
-- Do not run the bundled probe until an Abel user API key is available in session state, `--api-key`, or `<skill-root>/.env.skill`.
+- Do not run the bundled probe until an Abel user API key is available in session state, `--api-key`, `<skill-root>/.env.skill`, or a same-directory fallback `.env`.
 - If a key is already available, skip auth docs and go straight to the chosen route.
 - If the key is missing, start the OAuth handoff from `setup-guide.md` first.
-- By default, use `<skill-root>/.env.skill` as the local auth file.
+- By default, use `<skill-root>/.env.skill` as the local auth file. If an agent accidentally stored `ABEL_API_KEY` in the same-directory `.env`, the bundled probe also falls back to that file.
 
 ## Bundled Script
 
@@ -53,9 +53,12 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 
 ## Usage Rules
 
-- `normalize-node` is the safest first step when a prompt gives a bare ticker.
+- `normalize-node` is optional. Use it for bare tickers or known macro ids when you want a quick local check.
+- If you already know the canonical node id, call the target verb directly.
 - Manual mapping is still the first pass for obvious company and proxy anchors.
-- Use `extensions.abel.query_node` for fuzzy or broad phrases.
+- Use `extensions.abel.query_node` for fuzzy or broad phrases; do not rely on local normalization for open-ended resolution.
+- `extensions.abel.query_node` can now return typed results. Inspect `node_kind` before assuming the hit is an asset with `.price` or `.volume`.
+- If the chosen node is `macro`, call macro-capable structural surfaces through `verb ... --params-json ...` instead of the asset-only `paths` or `validate-connectivity` shortcuts in `cap_probe.py`.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
 - For executable anchors that materially bear on the question, run one observational read before deeper structure.
 - Default to `observe-dual` for direct tickers or liquid names when coverage is unknown, price explanations are noisy, or liquidity/crowding may matter.
@@ -76,6 +79,7 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 ```bash
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.query_node --params-json '{"search":"music streaming","search_mode":"hybrid","top_k":5}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"SPOT.price"}'
+python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"CPI"}'
 python scripts/cap_probe.py observe-dual SPOT
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"SPOT.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"SPOT.price","treatment_value":0.05,"outcome_node":"NFLX.price","horizon_steps":24,"model":"linear"}'

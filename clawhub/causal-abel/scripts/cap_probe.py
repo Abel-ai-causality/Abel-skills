@@ -61,7 +61,35 @@ COMMON_CRYPTO_ALIASES = {
     "ADA",
     "AVAX",
 }
+KNOWN_MACRO_NODE_IDS = {
+    "15YearFixedRateMortgageAverage",
+    "30YearFixedRateMortgageAverage",
+    "3MonthOr90DayRatesAndYieldsCertificatesOfDeposit",
+    "CPI",
+    "GDP",
+    "commercialBankInterestRateOnCreditCardPlansAllAccounts",
+    "consumerSentiment",
+    "durableGoods",
+    "federalFunds",
+    "industrialProductionTotalIndex",
+    "inflation",
+    "inflationRate",
+    "initialClaims",
+    "newPrivatelyOwnedHousingUnitsStartedTotalUnits",
+    "nominalPotentialGDP",
+    "realGDP",
+    "realGDPPerCapita",
+    "retailMoneyFunds",
+    "retailSales",
+    "smoothedUSRecessionProbabilities",
+    "totalNonfarmPayroll",
+    "totalVehicleSales",
+    "treasuryRateYear10",
+    "unemploymentRate",
+}
+KNOWN_MACRO_NODE_ID_MAP = {node_id.lower(): node_id for node_id in KNOWN_MACRO_NODE_IDS}
 ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
+ENV_FALLBACK_BASENAME = ".env"
 
 
 def _load_env_file(path: str) -> None:
@@ -72,6 +100,9 @@ def _load_env_file(path: str) -> None:
             candidate = env_path.with_name(basename)
             if candidate not in candidates:
                 candidates.append(candidate)
+        fallback_candidate = env_path.with_name(ENV_FALLBACK_BASENAME)
+        if fallback_candidate not in candidates:
+            candidates.append(fallback_candidate)
 
     for candidate in candidates:
         if not candidate.exists():
@@ -289,9 +320,21 @@ def _normalize_node_list(
     values: list[str], *, default_suffix: str = "price"
 ) -> list[str]:
     return [
-        _normalize_public_node_id(value, default_suffix=default_suffix)
+        _normalize_graph_capable_node_id(value, default_suffix=default_suffix)
         for value in values
     ]
+
+
+def _normalize_graph_capable_node_id(value: str, *, default_suffix: str = "price") -> str:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("Node input cannot be empty.")
+
+    macro_node_id = KNOWN_MACRO_NODE_ID_MAP.get(raw.lower())
+    if macro_node_id is not None:
+        return macro_node_id
+
+    return _normalize_public_node_id(raw, default_suffix=default_suffix)
 
 
 def _strip_public_node_suffix(value: str) -> str:
@@ -445,7 +488,7 @@ def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_normalize_node(args: argparse.Namespace) -> dict[str, Any]:
-    normalized = _normalize_public_node_id(
+    normalized = _normalize_graph_capable_node_id(
         args.input_value,
         default_suffix=args.default_suffix,
     )
@@ -545,11 +588,11 @@ def _cmd_neighbors(args: argparse.Namespace) -> dict[str, Any]:
 
 def _cmd_paths(args: argparse.Namespace) -> dict[str, Any]:
     params = {
-        "source_node_id": _normalize_public_node_id(
+        "source_node_id": _normalize_graph_capable_node_id(
             args.source_node_id,
             default_suffix=args.default_suffix,
         ),
-        "target_node_id": _normalize_public_node_id(
+        "target_node_id": _normalize_graph_capable_node_id(
             args.target_node_id,
             default_suffix=args.default_suffix,
         ),
@@ -844,7 +887,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     normalize = sub.add_parser(
         "normalize-node",
-        help="Normalize a ticker or node candidate to Abel public node-id form.",
+        help="Normalize a ticker, macro id, or node candidate to probe-ready node-id form.",
     )
     normalize.add_argument("input_value")
     normalize.set_defaults(func=_cmd_normalize_node)
@@ -943,6 +986,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "variables", nargs="+", help="At least two variable node IDs."
     )
     validate.set_defaults(func=_cmd_validate_connectivity)
+
 
     abel_blanket = sub.add_parser(
         "abel-markov-blanket", help="Call extensions.abel.markov_blanket."

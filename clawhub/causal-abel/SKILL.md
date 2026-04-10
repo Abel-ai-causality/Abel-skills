@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.1.4
+version: 1.1.5
 description: >
   Use when the user wants an Abel causal read on what drives a market, company,
   asset, sector, or macro node, how two nodes connect, what changes under
@@ -69,6 +69,8 @@ Map the mechanisms to graph nodes and separate them into:
 - structurally supported
 - weakly connected
 - narrative-only
+
+When `extensions.abel.query_node` is used for fuzzy mapping, inspect `node_kind` before picking the next surface. Do not assume every returned node can be coerced into `<ticker>.price` or `<ticker>.volume`. If the hit is `macro`, prefer direct `verb` calls for macro-capable structural surfaces instead of asset-only probe shortcuts.
 
 Required passes:
 
