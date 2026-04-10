@@ -1,0 +1,40 @@
+name: Check PR Release Policy
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  check-pr-release-policy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run PR release policy guard
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin "${{ github.base_ref }}" --depth=1
+
+          mapfile -t changed_files < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+
+          args=(--base-branch "${{ github.base_ref }}")
+          for path in "${changed_files[@]}"; do
+            if [[ -n "$path" ]]; then
+              args+=(--changed-file "$path")
+            fi
+          done
+
+          python3 scripts/check_pr_release_policy.py "${args[@]}"

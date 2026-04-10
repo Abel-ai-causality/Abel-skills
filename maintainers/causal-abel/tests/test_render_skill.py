@@ -29,3 +29,11 @@ def test_render_skill_renders_current_public_skill(tmp_path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert (output_dir / "SKILL.md").exists()
+    assert (output_dir / "references" / "routes" / "proxy-routed.md").exists()
+    assert (output_dir / "references" / "probe-usage.md").exists()
+
+    rendered_route = (output_dir / "references" / "routes" / "proxy-routed.md").read_text(encoding="utf-8")
+    rendered_probe_usage = (output_dir / "references" / "probe-usage.md").read_text(encoding="utf-8")
+
+    assert "inspect `node_kind`" in rendered_route
+    assert "typed results" in rendered_probe_usage

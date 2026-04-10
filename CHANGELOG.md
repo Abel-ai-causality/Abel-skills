@@ -4,6 +4,18 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.5] - 2026-04-10
+
+### Added
+
+- Added a maintainer smoke probe runner for rendered local `causal-abel` installs, covering query-node ranking checks, `observe-dual`, `paths`, `intervene-do`, and `intervene-time-lag`.
+
+### Changed
+
+- Updated bundled probe normalization so macro-capable graph reads keep canonical macro node ids across `normalize-node` and `paths` instead of coercing them into asset-only suffixes.
+- Updated routing and probe guidance so `extensions.abel.query_node` results inspect `node_kind` before choosing the next surface, making macro hits route through direct graph-capable verbs instead of asset-only shortcuts.
+- Updated local auth lookup so the bundled probe can fall back to a same-directory `.env` when `.env.skill` or `.env.skills` is absent.
+
 ## [1.1.4] - 2026-04-01
 
 ### Added

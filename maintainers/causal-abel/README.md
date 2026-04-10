@@ -69,6 +69,26 @@ Build the committed import path instead of `dist/clawhub`:
 python3 scripts/build_clawhub_release.py --output-root clawhub
 ```
 
+## Smoke Probe
+
+Use the maintainer smoke runner to verify the rendered local skill against the
+live CAP surface. It defaults to `dist/local/causal-abel` and checks:
+
+- query-node ranking regressions for the maintainer macro/asset cases
+- `observe-dual` coverage across a small asset basket
+- `paths`, `intervene-do`, and `intervene-time-lag` on connected asset pairs
+
+```bash
+python3 maintainers/causal-abel/smoke_cap_probe.py
+```
+
+For JSON output or a different rendered skill root:
+
+```bash
+python3 maintainers/causal-abel/smoke_cap_probe.py --json
+python3 maintainers/causal-abel/smoke_cap_probe.py --skill-root skills/causal-abel
+```
+
 ## Build Outputs
 
 - `skills/causal-abel/`: checked-in public install root used by the normal skill installer
