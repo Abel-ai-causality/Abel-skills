@@ -10,9 +10,10 @@ This file is a command manual, not the main workflow.
 
 ## Authorization First
 
-- Do not run the bundled probe until an Abel user API key is available in session state, `--api-key`, `<skill-root>/.env.skill`, or a same-directory fallback `.env`.
-- If a key is already available, skip auth docs and go straight to the chosen route.
-- If the key is missing, start the OAuth handoff from `setup-guide.md` first.
+- Start every live Abel session with `python scripts/cap_probe.py auth-status`.
+- Do not infer missing auth from a blank shell env alone.
+- If `auth_ready` is true, continue to the chosen route.
+- If `auth_source` is `missing`, stop and ask the user whether to start the OAuth handoff from `setup-guide.md`. Do not run probes or substitute web search just because auth is missing.
 - By default, use `<skill-root>/.env.skill` as the local auth file. If an agent accidentally stored `ABEL_API_KEY` in the same-directory `.env`, the bundled probe also falls back to that file.
 
 ## Bundled Script
@@ -27,6 +28,7 @@ Run these from the skill root:
 BASE_URL="https://cap.abel.ai/api"
 
 python scripts/cap_probe.py --base-url "$BASE_URL" capabilities
+python scripts/cap_probe.py auth-status
 python scripts/cap_probe.py normalize-node NVDA
 python scripts/cap_probe.py --base-url "$BASE_URL" methods extensions.abel.query_node extensions.abel.node_description
 python scripts/cap_probe.py observe-dual NVDA

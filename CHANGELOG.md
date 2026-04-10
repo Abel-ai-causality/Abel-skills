@@ -4,6 +4,17 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.1.6] - 2026-04-10
+
+### Added
+
+- Added an `auth-status` command to `skills/causal-abel/scripts/cap_probe.py` so agents can check auth readiness and source without exposing the key.
+
+### Changed
+
+- Tightened `causal-abel` preflight guidance so live runs start with `auth-status`, treat `.env.skill` as a first-class local auth source, and stop to ask the user before starting OAuth.
+- Tightened the missing-auth flow so agents do not fall back to web search merely because Abel auth is unavailable.
+
 ## [1.1.5] - 2026-04-10
 
 ### Added
