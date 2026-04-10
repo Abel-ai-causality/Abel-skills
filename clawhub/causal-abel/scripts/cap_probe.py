@@ -32,6 +32,7 @@ GLOBAL_OPTIONS = {
     "--compact": False,
 }
 COMMANDS = {
+    "auth-status",
     "capabilities",
     "normalize-node",
     "methods",
@@ -91,7 +92,7 @@ ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
 ENV_FALLBACK_BASENAME = ".env"
 
 
-def _load_env_file(path: str) -> None:
+def _candidate_env_files(path: str) -> list[Path]:
     env_path = Path(path).expanduser()
     candidates = [env_path]
     if env_path.name in ENV_FILE_BASENAMES:
@@ -102,17 +103,30 @@ def _load_env_file(path: str) -> None:
         fallback_candidate = env_path.with_name(ENV_FALLBACK_BASENAME)
         if fallback_candidate not in candidates:
             candidates.append(fallback_candidate)
+    return candidates
 
-    for candidate in candidates:
+
+def _read_env_file_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+def _load_env_file(path: str) -> None:
+    for candidate in _candidate_env_files(path):
         if not candidate.exists():
             continue
-        for raw in candidate.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
+        for key, value in _read_env_file_values(candidate).items():
             if key and key not in os.environ:
                 os.environ[key] = value
         return
@@ -159,6 +173,38 @@ def _resolve_api_token(api_key: str | None) -> str:
     return (
         api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
     ).strip()
+
+
+def _resolve_auth_status(api_key: str | None, env_file: str) -> dict[str, Any]:
+    if (api_key or "").strip():
+        return {
+            "auth_ready": True,
+            "auth_source": "--api-key",
+            "oauth_required": False,
+        }
+
+    for env_var in ("CAP_API_KEY", "ABEL_API_KEY"):
+        if (os.getenv(env_var) or "").strip():
+            return {
+                "auth_ready": True,
+                "auth_source": "session",
+                "oauth_required": False,
+            }
+
+    for candidate in _candidate_env_files(env_file):
+        values = _read_env_file_values(candidate)
+        if any((values.get(key) or "").strip() for key in ("CAP_API_KEY", "ABEL_API_KEY")):
+            return {
+                "auth_ready": True,
+                "auth_source": candidate.name,
+                "oauth_required": False,
+            }
+
+    return {
+        "auth_ready": False,
+        "auth_source": "missing",
+        "oauth_required": True,
+    }
 
 
 def _extract_path(obj: Any, path: str) -> tuple[bool, Any]:
@@ -473,6 +519,14 @@ def _extract_paths_verdict(payload: Any) -> bool | None:
 
 def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, "meta.capabilities")
+
+
+def _cmd_auth_status(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "status_code": 0,
+        **_resolve_auth_status(args.api_key, args.env_file),
+    }
 
 
 def _cmd_normalize_node(args: argparse.Namespace) -> dict[str, Any]:
@@ -854,6 +908,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub = parser.add_subparsers(dest="command", required=True)
 
+    sub.add_parser(
+        "auth-status",
+        help="Report whether auth is ready and which source would be used.",
+    ).set_defaults(func=_cmd_auth_status)
+
     sub.add_parser("capabilities", help="Call meta.capabilities.").set_defaults(
         func=_cmd_capabilities
     )
@@ -1064,7 +1123,8 @@ def main() -> int:
         )
         return 1
     args = parser.parse_args(argv)
-    _load_env_file(args.env_file)
+    if args.command != "auth-status":
+        _load_env_file(args.env_file)
 
     try:
         result = args.func(args)

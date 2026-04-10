@@ -1,6 +1,6 @@
 ---
 name: causal-abel
-version: 1.1.5
+version: 1.1.6
 description: >
   Use when the user wants an Abel causal read on what drives a market, company,
   asset, sector, or macro node, how two nodes connect, what changes under
@@ -35,7 +35,7 @@ If the user installs this skill, asks to connect Abel, or the workflow is missin
 
 ## Step 1: Preflight + Classify
 
-Confirm auth via `references/probe-usage.md`. If no Abel key is available, stop and follow `references/setup-guide.md`.
+Confirm auth via `python scripts/cap_probe.py auth-status` and `references/probe-usage.md`. Do not infer missing auth from shell env alone. If `auth_source` is `missing`, stop and ask the user whether to start the OAuth handoff from `references/setup-guide.md`; do not substitute web search just because auth is missing.
 
 Classify the request as:
 
