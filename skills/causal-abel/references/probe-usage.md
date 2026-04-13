@@ -20,6 +20,13 @@ This file is a command manual, not the main workflow.
 
 Prefer `scripts/cap_probe.py` over ad hoc payload construction. Default to the generic `verb` path for extension surfaces, then use the dedicated graph helpers for local structure.
 
+Envelope defaults:
+
+- Graph-aware probes default to `context.graph_ref = {"graph_id":"abel-main","graph_version":"CausalNodeV3"}`.
+- Use `--graph-version` for the common V2/V3 switch.
+- Use `--context-json` only as an envelope-level escape hatch when you need more than the graph-version shortcut.
+- `--params-json` is only for verb `params`; do not stuff `context` into it.
+
 ## Common Direct Calls
 
 Run these from the skill root:
@@ -32,7 +39,10 @@ python scripts/cap_probe.py auth-status
 python scripts/cap_probe.py normalize-node NVDA
 python scripts/cap_probe.py --base-url "$BASE_URL" methods extensions.abel.query_node extensions.abel.node_description
 python scripts/cap_probe.py observe-dual NVDA
+python scripts/cap_probe.py --graph-version CausalNodeV2 observe BTCUSD.volume
+python scripts/cap_probe.py --graph-version CausalNodeV3 observe BTCUSD.volume
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"NVDA.price"}'
+python scripts/cap_probe.py --base-url "$BASE_URL" --context-json '{"trace":{"source":"manual-probe"}}' verb observe.predict --params-json '{"target_node":"NVDA.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" neighbors NVDA.price --scope children --max-neighbors 5
 python scripts/cap_probe.py --base-url "$BASE_URL" paths NVDA.price AMD.price --max-paths 3
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"NVDA.price","treatment_value":0.05,"outcome_node":"AMD.price","horizon_steps":24,"model":"linear"}'
@@ -61,6 +71,9 @@ If the first `extensions.abel.intervene_time_lag` call is inconclusive, widen th
 - Use `extensions.abel.query_node` for fuzzy or broad phrases; do not rely on local normalization for open-ended resolution.
 - `extensions.abel.query_node` can now return typed results. Inspect `node_kind` before assuming the hit is an asset with `.price` or `.volume`.
 - If the chosen node is `macro`, call macro-capable structural surfaces through `verb ... --params-json ...` instead of asset-only local shortcuts that normalize to `<ticker>.price` or `<ticker>.volume`.
+- Prefer `--graph-version` when the only envelope choice is V2 versus V3.
+- Use `--context-json` when you need a nonstandard envelope field in addition to, or instead of, the graph-version shortcut.
+- If an observational probe fails on the default `CausalNodeV3` surface with `prediction_temporarily_unavailable`, retry once with `--graph-version CausalNodeV2` before concluding the node is uncovered.
 - Use `extensions.abel.node_description` on the final shortlist before writing the answer.
 - For executable anchors that materially bear on the question, run one observational read before deeper structure.
 - Default to `observe-dual` for direct tickers or liquid names when coverage is unknown, price explanations are noisy, or liquidity/crowding may matter.
@@ -83,6 +96,7 @@ python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.query_no
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"SPOT.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.node_description --params-json '{"node_id":"CPI"}'
 python scripts/cap_probe.py observe-dual SPOT
+python scripts/cap_probe.py --graph-version CausalNodeV2 observe SPOT.volume
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.observe_predict_resolved_time --params-json '{"target_node":"SPOT.price"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.intervene_time_lag --params-json '{"treatment_node":"SPOT.price","treatment_value":0.05,"outcome_node":"NFLX.price","horizon_steps":24,"model":"linear"}'
 python scripts/cap_probe.py --base-url "$BASE_URL" verb extensions.abel.validate_connectivity --params-json '{"variables":["NVDA.price","AMD.price","SOXX.price"]}'

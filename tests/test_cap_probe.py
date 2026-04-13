@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import os
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -236,3 +237,186 @@ def test_auth_status_reports_missing_and_requires_oauth(monkeypatch, tmp_path) -
         "auth_source": "missing",
         "oauth_required": True,
     }
+
+
+def test_build_payload_includes_default_v3_graph_context_for_non_meta_verbs() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    payload = cap_probe._build_payload(
+        "observe.predict",
+        {"target_node": "BTCUSD.volume"},
+    )
+
+    assert payload["context"] == {
+        "graph_ref": {
+            "graph_id": "abel-main",
+            "graph_version": "CausalNodeV3",
+        }
+    }
+
+
+def test_build_payload_omits_default_graph_context_for_meta_verbs() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    payload = cap_probe._build_payload("meta.capabilities")
+
+    assert "context" not in payload
+
+
+def test_build_payload_merges_context_json_with_default_graph_context() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    payload = cap_probe._build_payload(
+        "graph.paths",
+        {"source_node_id": "CPI", "target_node_id": "NVDA.price"},
+        context={"trace": {"source": "pytest"}},
+    )
+
+    assert payload["context"] == {
+        "trace": {"source": "pytest"},
+        "graph_ref": {
+            "graph_id": "abel-main",
+            "graph_version": "CausalNodeV3",
+        },
+    }
+
+
+def test_build_payload_respects_explicit_graph_version_override() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    payload = cap_probe._build_payload(
+        "observe.predict",
+        {"target_node": "BTCUSD.volume"},
+        graph_version="CausalNodeV2",
+    )
+
+    assert payload["context"] == {
+        "graph_ref": {
+            "graph_id": "abel-main",
+            "graph_version": "CausalNodeV2",
+        }
+    }
+
+
+def test_build_payload_rejects_conflicting_graph_version_between_flag_and_context() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    with pytest.raises(ValueError, match="Conflicting graph_version values"):
+        cap_probe._build_payload(
+            "observe.predict",
+            {"target_node": "BTCUSD.volume"},
+            graph_version="CausalNodeV2",
+            context={"graph_ref": {"graph_version": "CausalNodeV3"}},
+        )
+
+
+def test_parser_accepts_global_graph_version_after_command() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    parser = cap_probe._build_parser()
+    args = parser.parse_args(
+        cap_probe._normalize_argv(
+            ["observe", "BTCUSD.volume", "--graph-version", "CausalNodeV2"]
+        )
+    )
+
+    assert args.command == "observe"
+    assert args.graph_version == "CausalNodeV2"
+
+
+def test_parser_accepts_global_context_json_after_command() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    parser = cap_probe._build_parser()
+    args = parser.parse_args(
+        cap_probe._normalize_argv(
+            [
+                "verb",
+                "observe.predict",
+                "--params-json",
+                '{"target_node":"BTCUSD.volume"}',
+                "--context-json",
+                '{"trace":{"source":"pytest"}}',
+            ]
+        )
+    )
+
+    assert args.command == "verb"
+    assert args.context_json == '{"trace":{"source":"pytest"}}'
+
+
+@pytest.mark.parametrize("argv", [["observe", "--help"], ["paths", "--help"]])
+def test_common_subcommand_help_mentions_global_envelope_flags(
+    monkeypatch, capsys, argv: list[str]
+) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    monkeypatch.setattr(sys, "argv", ["cap_probe.py", *argv])
+
+    with pytest.raises(SystemExit) as exc_info:
+        cap_probe.main()
+
+    assert exc_info.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "--graph-version" in help_text
+    assert "--context-json" in help_text
+
+
+def test_main_appends_v2_retry_hint_for_v3_prediction_unavailable(
+    monkeypatch, capsys
+) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    def _fake_observe(args):
+        return {
+            "ok": False,
+            "status_code": 400,
+            "verb": "observe.predict",
+            "message": "Prediction is temporarily unavailable for this node.",
+            "error": {
+                "code": "invalid_request",
+                "message": "Prediction is temporarily unavailable for this node.",
+                "details": {
+                    "reason": "prediction_temporarily_unavailable",
+                    "target_node": "NVDA.price",
+                    "graph_version": "CausalNodeV3",
+                },
+            },
+            "response_payload": {},
+        }
+
+    monkeypatch.setattr(cap_probe, "_cmd_observe", _fake_observe)
+    monkeypatch.setattr(sys, "argv", ["cap_probe.py", "observe", "NVDA.price"])
+
+    exit_code = cap_probe.main()
+
+    assert exit_code == 1
+    payload = capsys.readouterr().out
+    assert "Prediction is temporarily unavailable for this node." in payload
+    assert "--graph-version CausalNodeV2" in payload
+
+
+def test_retry_hint_uses_response_payload_verb_when_top_level_verb_missing() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    enriched = cap_probe._maybe_add_graph_version_retry_hint(
+        {
+            "ok": False,
+            "status_code": 400,
+            "message": "Prediction is temporarily unavailable for this node.",
+            "error": {
+                "code": "invalid_request",
+                "message": "Prediction is temporarily unavailable for this node.",
+                "details": {
+                    "reason": "prediction_temporarily_unavailable",
+                    "target_node": "NVDA.price",
+                    "graph_version": "CausalNodeV3",
+                },
+            },
+            "response_payload": {
+                "verb": "observe.predict",
+            },
+        }
+    )
+
+    assert "--graph-version CausalNodeV2" in enriched["hint"]
