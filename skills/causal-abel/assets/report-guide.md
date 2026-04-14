@@ -219,7 +219,7 @@ When a verb materially shapes the answer, these are the useful things to render:
 - `result`: which surrounding nodes best localize the node's informational neighborhood
 - `meaning`: what this says about the node's most relevant local causal context
 
-#### `paths` / `validate-connectivity`
+#### `graph.paths`
 
 - `result`: whether a connection exists, through which intermediaries, and whether it looks direct or indirect
 - `meaning`: what this says about transmission, mediation, or whether the proposed relationship is structurally plausible

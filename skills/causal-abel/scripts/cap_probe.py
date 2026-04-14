@@ -48,8 +48,11 @@ COMMANDS = {
     "observe",
     "observe-dual",
     "neighbors",
+    "graph.neighbors",
     "paths",
+    "graph.paths",
     "markov-blanket",
+    "graph.markov_blanket",
     "intervene-do",
     "traverse-parents",
     "traverse-children",
@@ -961,6 +964,31 @@ def _cmd_route(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, _route_to_verb(args.route_name), params)
 
 
+def _configure_neighbors_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("node_id")
+    parser.add_argument("--scope", choices=("parents", "children"), default="parents")
+    parser.add_argument("--max-neighbors", type=int, default=5)
+    parser.set_defaults(func=_cmd_neighbors)
+
+
+def _configure_paths_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("source_node_id")
+    parser.add_argument("target_node_id")
+    parser.add_argument("--max-paths", type=int, default=3)
+    parser.add_argument(
+        "--include-edge-signs",
+        action="store_true",
+        help="Request signed edges in returned path details when supported.",
+    )
+    parser.set_defaults(func=_cmd_paths)
+
+
+def _configure_markov_blanket_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("node_id")
+    parser.add_argument("--max-neighbors", type=int, default=10)
+    parser.set_defaults(func=_cmd_markov_blanket)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Probe Abel CAP server verbs as atomic operations."
@@ -1076,39 +1104,45 @@ def _build_parser() -> argparse.ArgumentParser:
 
     neighbors = sub.add_parser(
         "neighbors",
-        help="Call graph.neighbors.",
+        help="Call graph.neighbors. Alias: graph.neighbors.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    neighbors.add_argument("node_id")
-    neighbors.add_argument(
-        "--scope", choices=("parents", "children"), default="parents"
+    _configure_neighbors_parser(neighbors)
+
+    graph_neighbors = sub.add_parser(
+        "graph.neighbors",
+        help="Call graph.neighbors. Alias: neighbors.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
-    neighbors.add_argument("--max-neighbors", type=int, default=5)
-    neighbors.set_defaults(func=_cmd_neighbors)
+    _configure_neighbors_parser(graph_neighbors)
 
     paths = sub.add_parser(
         "paths",
-        help="Call graph.paths.",
+        help="Call graph.paths. Alias: graph.paths.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    paths.add_argument("source_node_id")
-    paths.add_argument("target_node_id")
-    paths.add_argument("--max-paths", type=int, default=3)
-    paths.add_argument(
-        "--include-edge-signs",
-        action="store_true",
-        help="Request signed edges in returned path details when supported.",
+    _configure_paths_parser(paths)
+
+    graph_paths = sub.add_parser(
+        "graph.paths",
+        help="Call graph.paths. Alias: paths.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
-    paths.set_defaults(func=_cmd_paths)
+    _configure_paths_parser(graph_paths)
 
     blanket = sub.add_parser(
         "markov-blanket",
-        help="Call graph.markov_blanket.",
+        help="Call graph.markov_blanket. Alias: graph.markov_blanket.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    blanket.add_argument("node_id")
-    blanket.add_argument("--max-neighbors", type=int, default=10)
-    blanket.set_defaults(func=_cmd_markov_blanket)
+    _configure_markov_blanket_parser(blanket)
+
+    graph_markov_blanket = sub.add_parser(
+        "graph.markov_blanket",
+        help="Call graph.markov_blanket. Alias: markov-blanket.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
+    _configure_markov_blanket_parser(graph_markov_blanket)
 
     intervene_do = sub.add_parser(
         "intervene-do",

@@ -121,6 +121,27 @@ def test_validate_connectivity_shortcut_is_not_registered() -> None:
         parser.parse_args(["validate-connectivity", "CPI", "NVDA"])
 
 
+@pytest.mark.parametrize(
+    ("argv", "command_name", "handler_name"),
+    [
+        (["graph.neighbors", "NVDA", "--scope", "children"], "graph.neighbors", "_cmd_neighbors"),
+        (["graph.paths", "NVDA", "AMD"], "graph.paths", "_cmd_paths"),
+        (["graph.markov_blanket", "NVDA"], "graph.markov_blanket", "_cmd_markov_blanket"),
+    ],
+)
+def test_graph_command_aliases_dispatch_to_existing_handlers(
+    argv: list[str], command_name: str, handler_name: str
+) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    parser = cap_probe._build_parser()
+    args = parser.parse_args(cap_probe._normalize_argv(argv))
+
+    assert command_name in cap_probe.COMMANDS
+    assert args.command == command_name
+    assert args.func is getattr(cap_probe, handler_name)
+
+
 def test_normalize_node_command_preserves_macro_canonical_node_id() -> None:
     cap_probe = _load_cap_probe_module()
 
