@@ -12,3 +12,4 @@ causal-abel/references/test-prompts.md
 causal-abel/references/verb-change-checklist.md
 codex-skill-eval/runs/*
 !codex-skill-eval/runs/.gitkeep
+.DS_Store

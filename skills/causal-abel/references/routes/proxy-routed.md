@@ -15,7 +15,7 @@ This file is the active workflow for `proxy_routed` reads.
 
 Map mechanisms to graph nodes (manual -> `query_node` -> capillary discovery). After `query_node`, inspect `node_kind` before choosing the next verb.
 
-- `asset` -> keep the current observe / neighbors / paths / intervene flow
+- `asset` -> keep the current observe / `graph.neighbors` / `graph.paths` / intervene flow
 - `macro` -> use the canonical macro node id directly for `node_description` and any macro-capable structural surface; for `graph.paths` and similar checks, prefer direct `verb` calls instead of asset-only probe shortcuts that normalize to `<ticker>.price|volume`
 - if the next surface is still asset-only, say so explicitly and choose a proxy route intentionally instead of silently coercing the macro node
 
@@ -55,7 +55,6 @@ Layer 1 often gives generic financial context. Layer 2 is where the question-spe
 
 Also fire:
 
-- `validate_connectivity` on the whole chain
 - `discover_consensus` / `discover_deconsensus` across mechanisms
 - `discover_fragility` for single points of failure
 
