@@ -157,11 +157,30 @@ def _sync_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _sync_narrative_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
+    path = skill_root / "scripts" / "narrative_cap_probe.py"
+    text = path.read_text(encoding="utf-8")
+    default_base_url = values.get("ACTIVE_NARRATIVE_CAP_BASE_URL", "")
+    default_api_key_env = values.get("ACTIVE_NARRATIVE_CAP_API_KEY_ENV", "")
+    text = _replace(
+        text,
+        r'^DEFAULT_BASE_URL = "[^"]*"$',
+        f'DEFAULT_BASE_URL = "{default_base_url}"',
+    )
+    text = _replace(
+        text,
+        r'^DEFAULT_API_KEY_ENV = "[^"]*"$',
+        f'DEFAULT_API_KEY_ENV = "{default_api_key_env}"',
+    )
+    path.write_text(text, encoding="utf-8")
+
+
 def _render_into(skill_root: Path, values: dict[str, str]) -> None:
     _sync_skill_md(skill_root, values)
     _sync_setup_guide(skill_root, values)
     _sync_probe_usage(skill_root, values)
     _sync_cap_probe(skill_root, values)
+    _sync_narrative_cap_probe(skill_root, values)
 
 
 def _copy_source_tree(source_dir: Path, output_dir: Path) -> None:

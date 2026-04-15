@@ -11,11 +11,13 @@ Treat `../../skills/causal-abel` as the checked-in public product, not as the pl
 - `endpoints.local.example.json`: example local override shape
 - `endpoint_config.py`: endpoint loading and profile resolution for maintainer renders
 - `render_skill.py`: renders a public or local skill artifact from the current endpoint profile to `dist/`
+- `smoke_narrative_cap_probe.py`: smoke runner for the narrative CAP helper in rendered local builds
 
 ## Rules
 
 - Keep `endpoints.json` public-safe. Anything rendered from it can end up in `skills/causal-abel/`, `clawhub/causal-abel/`, or a published artifact.
 - Keep private or test endpoints only in `endpoints.local.json`.
+- Keep narrative CAP SIT endpoints only in `endpoints.local.json` until a production provider exists.
 - Do not rely on `.env.skill` or `.env.skills` for endpoint injection. Those files are only for API keys.
 - Treat `skills/causal-abel/` as a rendered public install root.
 - Local auth files already present in `dist/local/causal-abel/` are preserved across re-renders. They are not copied from `skills/causal-abel/`, so prod and SIT keys can stay separate.
@@ -36,6 +38,10 @@ Local private overrides:
 cp maintainers/causal-abel/endpoints.local.example.json maintainers/causal-abel/endpoints.local.json
 $EDITOR maintainers/causal-abel/endpoints.local.json
 ```
+
+If you are testing the narrative CAP helper locally, set `narrative_cap_base_url`
+in the selected profile. The rendered `dist/local/causal-abel/scripts/narrative_cap_probe.py`
+will inherit that base URL as its default target.
 
 2. Re-render the checked-in public skill.
 
@@ -87,6 +93,25 @@ For JSON output or a different rendered skill root:
 ```bash
 python3 maintainers/causal-abel/smoke_cap_probe.py --json
 python3 maintainers/causal-abel/smoke_cap_probe.py --skill-root skills/causal-abel
+```
+
+Use the narrative smoke runner to verify the rendered local skill against the
+narrative CAP surface configured in `endpoints.local.json`. It checks:
+
+- capability card reachability
+- `meta.methods` access
+- `narrate`
+- `search-prepare`
+
+```bash
+python3 maintainers/causal-abel/smoke_narrative_cap_probe.py
+```
+
+For JSON output or a different rendered skill root:
+
+```bash
+python3 maintainers/causal-abel/smoke_narrative_cap_probe.py --json
+python3 maintainers/causal-abel/smoke_narrative_cap_probe.py --skill-root skills/causal-abel
 ```
 
 ## Build Outputs

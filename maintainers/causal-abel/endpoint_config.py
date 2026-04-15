@@ -77,7 +77,7 @@ def _profile_label(name: str) -> str:
 def build_profile(name: str, profile: dict) -> dict[str, str]:
     cap_base_url = profile["cap_base_url"].rstrip("/")
     oauth_base_url = normalize_base_url(profile["oauth_base_url"])
-    return {
+    built = {
         "name": name,
         "label": _profile_label(name),
         "cap_base_url": cap_base_url,
@@ -90,6 +90,15 @@ def build_profile(name: str, profile: dict) -> dict[str, str]:
             oauth_base_url, f"{CALLBACK_PATH}?code=GOOGLE_CODE&format=json"
         ),
     }
+    for optional_key in (
+        "narrative_cap_base_url",
+        "narrative_cap_api_key_env",
+        "narrative_cap_enabled",
+    ):
+        value = profile.get(optional_key)
+        if value not in (None, ""):
+            built[optional_key] = str(value)
+    return built
 
 
 def get_profiles(
@@ -123,6 +132,18 @@ def get_template_values(
         "ACTIVE_CALLBACK_URL": active["callback_url"],
         "ACTIVE_CALLBACK_EXAMPLE_URL": active["callback_example_url"],
     }
+    if "narrative_cap_base_url" in active:
+        values["ACTIVE_NARRATIVE_CAP_BASE_URL"] = active[
+            "narrative_cap_base_url"
+        ]
+    if "narrative_cap_api_key_env" in active:
+        values["ACTIVE_NARRATIVE_CAP_API_KEY_ENV"] = active[
+            "narrative_cap_api_key_env"
+        ]
+    if "narrative_cap_enabled" in active:
+        values["ACTIVE_NARRATIVE_CAP_ENABLED"] = active[
+            "narrative_cap_enabled"
+        ]
     for name, profile in profiles.items():
         prefix = name.upper()
         values[f"{prefix}_PROFILE_LABEL"] = profile["label"]
@@ -135,4 +156,16 @@ def get_template_values(
         values[f"{prefix}_CALLBACK_EXAMPLE_URL"] = profile[
             "callback_example_url"
         ]
+        if "narrative_cap_base_url" in profile:
+            values[f"{prefix}_NARRATIVE_CAP_BASE_URL"] = profile[
+                "narrative_cap_base_url"
+            ]
+        if "narrative_cap_api_key_env" in profile:
+            values[f"{prefix}_NARRATIVE_CAP_API_KEY_ENV"] = profile[
+                "narrative_cap_api_key_env"
+            ]
+        if "narrative_cap_enabled" in profile:
+            values[f"{prefix}_NARRATIVE_CAP_ENABLED"] = profile[
+                "narrative_cap_enabled"
+            ]
     return values
