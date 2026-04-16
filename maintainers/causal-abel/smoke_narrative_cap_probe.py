@@ -77,6 +77,7 @@ def _run_checks(skill_root: Path, base_url: str) -> list[dict[str, Any]]:
         ("card", ["--base-url", base_url, "card"]),
         ("methods", ["--base-url", base_url, "methods", "--verbs", "narrate"]),
         ("narrate", ["--base-url", base_url, "narrate", "--query", DEFAULT_QUERY]),
+        ("query-node", ["--base-url", base_url, "query-node", "--query", DEFAULT_QUERY]),
         ("search-prepare", ["--base-url", base_url, "search-prepare", "--query", DEFAULT_QUERY]),
     ]
     checks: list[dict[str, Any]] = []

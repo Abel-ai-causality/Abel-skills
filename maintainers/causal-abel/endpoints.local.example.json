@@ -6,10 +6,9 @@
       "oauth_base_url": "https://api.abel.ai/echo/"
     },
     "sit": {
-      "cap_base_url": "https://<test-cap-base-url>/api",
-      "oauth_base_url": "https://<test-oauth-base-url>/echo/",
-      "narrative_cap_base_url": "https://<test-narrative-cap-base-url>",
-      "narrative_cap_api_key_env": "ABEL_DATA_INTEL_API_KEY",
+      "cap_base_url": "https://cap-sit.abel.ai/api",
+      "oauth_base_url": "https://api-sit.abel.ai/echo/",
+      "narrative_cap_base_url": "https://cap-sit.abel.ai/narrative",
       "narrative_cap_enabled": true
     }
   }

@@ -46,3 +46,33 @@ def test_build_narrative_cap_probe_command_targets_dist_local_script() -> None:
         "--query",
         "AI datacenter demand and NVDA",
     ]
+
+
+def test_run_checks_covers_query_node_extension(monkeypatch) -> None:
+    smoke_narrative_cap_probe = _load_smoke_narrative_cap_probe_module()
+    captured: list[list[str]] = []
+
+    def _fake_run_probe(skill_root, probe_args):
+        captured.append(list(probe_args))
+        return {
+            "command": ["python3", "narrative_cap_probe.py", *probe_args],
+            "exit_code": 0,
+            "payload": {"ok": True, "status_code": 200},
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(smoke_narrative_cap_probe, "_run_probe", _fake_run_probe)
+
+    checks = smoke_narrative_cap_probe._run_checks(
+        Path("/tmp/causal-abel"),
+        "https://cap-sit.abel.ai/narrative",
+    )
+
+    assert [check["name"] for check in checks] == [
+        "card",
+        "methods",
+        "narrate",
+        "query-node",
+        "search-prepare",
+    ]
+    assert any(args[-2:] == ["--query", smoke_narrative_cap_probe.DEFAULT_QUERY] for args in captured)

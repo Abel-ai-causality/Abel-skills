@@ -8,6 +8,14 @@ Use this file only after `SKILL.md` has already fixed:
 
 This file is a command manual for `scripts/narrative_cap_probe.py`, not the main workflow.
 
+## Authorization First
+
+- Start every live narrative session with `python scripts/narrative_cap_probe.py auth-status`.
+- Do not infer missing auth from a blank shell env alone.
+- If `auth_ready` is true, continue to the chosen route.
+- If `auth_source` is `missing`, stop and ask the user whether to start the OAuth handoff from `setup-guide.md`. Do not run probes or substitute web search just because auth is missing.
+- By default, use `<skill-root>/.env.skill` as the local auth file. If an agent accidentally stored `ABEL_API_KEY` in the same-directory `.env`, the bundled probe also falls back to that file.
+
 ## Role In The Workflow
 
 Narrative CAP is the scout layer inside `proxy_routed`.
@@ -55,15 +63,24 @@ If one rewrite still fails, stop calling the answer narrative-assisted. From tha
 Run these from the skill root:
 
 ```bash
-BASE_URL="https://abel-data-intelligence-sit.abel.ai"
+BASE_URL="https://cap.abel.ai/narrative"
 
+python scripts/narrative_cap_probe.py auth-status
 python scripts/narrative_cap_probe.py card
 python scripts/narrative_cap_probe.py methods --verbs narrate
 ```
 
-The script accepts a site base URL such as `https://abel-data-intelligence-sit.abel.ai` and resolves it to `POST /api/v1/cap` plus `GET /.well-known/cap.json`.
+The script accepts a narrative base URL such as `https://cap.abel.ai/narrative` and resolves it to `POST /narrative/cap` plus `GET /.well-known/cap.json`.
 
-By default, the local rendered skill may already inject `DEFAULT_BASE_URL` from maintainer config. If not, pass `--base-url` or set `NARRATIVE_CAP_BASE_URL`.
+By default, the local rendered skill may already inject `DEFAULT_BASE_URL` from maintainer config. If not, pass `--base-url`.
+
+Authorization uses the same shared Abel token as graph CAP. Pass `--api-key` explicitly or set `CAP_API_KEY` / `ABEL_API_KEY`. Narrative probing no longer uses a separate narrative-only API key env path.
+
+## Endpoint Notes
+
+- The current default narrative CAP surface answers on `https://cap.abel.ai/narrative/cap`.
+- Production narrative CAP surface answers on `https://cap.abel.ai/narrative/cap`.
+- The probe accepts base URLs such as `https://cap.abel.ai/narrative` and resolves them to `/cap`.
 
 ## Recommended First Pass
 

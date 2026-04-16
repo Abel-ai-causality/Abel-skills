@@ -17,7 +17,7 @@ Treat `../../skills/causal-abel` as the checked-in public product, not as the pl
 
 - Keep `endpoints.json` public-safe. Anything rendered from it can end up in `skills/causal-abel/`, `clawhub/causal-abel/`, or a published artifact.
 - Keep private or test endpoints only in `endpoints.local.json`.
-- Keep narrative CAP SIT endpoints only in `endpoints.local.json` until a production provider exists.
+- Keep non-production narrative CAP endpoints only in `endpoints.local.json`. The production narrative base in `endpoints.json` is public-safe.
 - Do not rely on `.env.skill` or `.env.skills` for endpoint injection. Those files are only for API keys.
 - Treat `skills/causal-abel/` as a rendered public install root.
 - Local auth files already present in `dist/local/causal-abel/` are preserved across re-renders. They are not copied from `skills/causal-abel/`, so prod and SIT keys can stay separate.
@@ -39,9 +39,15 @@ cp maintainers/causal-abel/endpoints.local.example.json maintainers/causal-abel/
 $EDITOR maintainers/causal-abel/endpoints.local.json
 ```
 
-If you are testing the narrative CAP helper locally, set `narrative_cap_base_url`
-in the selected profile. The rendered `dist/local/causal-abel/scripts/narrative_cap_probe.py`
-will inherit that base URL as its default target.
+The public prod profile now points narrative CAP at `https://cap.abel.ai/narrative/cap`
+through `narrative_cap_base_url = https://cap.abel.ai/narrative`.
+The local `sit` example mirrors graph CAP and points narrative CAP at
+`https://cap-sit.abel.ai/narrative/cap` through
+`narrative_cap_base_url = https://cap-sit.abel.ai/narrative`.
+If you are testing a different non-production narrative CAP helper locally, override
+`narrative_cap_base_url` in the selected local profile. The rendered
+`dist/local/causal-abel/scripts/narrative_cap_probe.py` and
+`references/narrative-probe-usage.md` will inherit that base URL as their default target.
 
 2. Re-render the checked-in public skill.
 

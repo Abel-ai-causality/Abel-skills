@@ -3,6 +3,8 @@
   "profiles": {
     "prod": {
       "cap_base_url": "https://cap.abel.ai/api",
+      "narrative_cap_base_url": "https://cap.abel.ai/narrative",
+      "narrative_cap_enabled": true,
       "oauth_base_url": "https://api.abel.ai/echo/"
     }
   }
