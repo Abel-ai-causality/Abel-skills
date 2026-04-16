@@ -16,6 +16,13 @@ from typing import Any
 
 DEFAULT_BASE_URL = "https://cap.abel.ai/api"
 CAP_VERSION = "0.2.2"
+DEFAULT_GRAPH_ID = "abel-main"
+DEFAULT_GRAPH_VERSION = "CausalNodeV3"
+SUPPORTED_GRAPH_VERSIONS = ("CausalNodeV2", "CausalNodeV3")
+GLOBAL_ENVELOPE_HELP = (
+    "Global envelope flags also work after the subcommand: "
+    "--graph-version {CausalNodeV2,CausalNodeV3}, --context-json JSON"
+)
 TEXT_TRUNCATE_EXACT_KEYS = {
     "description",
     "summary",
@@ -30,16 +37,22 @@ GLOBAL_OPTIONS = {
     "--pick-fields": True,
     "--max-description-chars": True,
     "--compact": False,
+    "--graph-version": True,
+    "--context-json": True,
 }
 COMMANDS = {
+    "auth-status",
     "capabilities",
     "normalize-node",
     "methods",
     "observe",
     "observe-dual",
     "neighbors",
+    "graph.neighbors",
     "paths",
+    "graph.paths",
     "markov-blanket",
+    "graph.markov_blanket",
     "intervene-do",
     "traverse-parents",
     "traverse-children",
@@ -91,7 +104,7 @@ ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
 ENV_FALLBACK_BASENAME = ".env"
 
 
-def _load_env_file(path: str) -> None:
+def _candidate_env_files(path: str) -> list[Path]:
     env_path = Path(path).expanduser()
     candidates = [env_path]
     if env_path.name in ENV_FILE_BASENAMES:
@@ -102,17 +115,30 @@ def _load_env_file(path: str) -> None:
         fallback_candidate = env_path.with_name(ENV_FALLBACK_BASENAME)
         if fallback_candidate not in candidates:
             candidates.append(fallback_candidate)
+    return candidates
 
-    for candidate in candidates:
+
+def _read_env_file_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+def _load_env_file(path: str) -> None:
+    for candidate in _candidate_env_files(path):
         if not candidate.exists():
             continue
-        for raw in candidate.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
+        for key, value in _read_env_file_values(candidate).items():
             if key and key not in os.environ:
                 os.environ[key] = value
         return
@@ -127,10 +153,7 @@ def resolve_cap_endpoint(base_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid base URL: {base_url!r}")
     path = parsed.path.rstrip("/")
-    if path.endswith("/echo"):
-        endpoint_path = f"{path}/api/v1/cap"
-    else:
-        endpoint_path = f"{path}/cap"
+    endpoint_path = f"{path}/cap"
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, endpoint_path, "", "")
     )
@@ -159,6 +182,38 @@ def _resolve_api_token(api_key: str | None) -> str:
     return (
         api_key or os.getenv("CAP_API_KEY") or os.getenv("ABEL_API_KEY") or ""
     ).strip()
+
+
+def _resolve_auth_status(api_key: str | None, env_file: str) -> dict[str, Any]:
+    if (api_key or "").strip():
+        return {
+            "auth_ready": True,
+            "auth_source": "--api-key",
+            "oauth_required": False,
+        }
+
+    for env_var in ("CAP_API_KEY", "ABEL_API_KEY"):
+        if (os.getenv(env_var) or "").strip():
+            return {
+                "auth_ready": True,
+                "auth_source": "session",
+                "oauth_required": False,
+            }
+
+    for candidate in _candidate_env_files(env_file):
+        values = _read_env_file_values(candidate)
+        if any((values.get(key) or "").strip() for key in ("CAP_API_KEY", "ABEL_API_KEY")):
+            return {
+                "auth_ready": True,
+                "auth_source": candidate.name,
+                "oauth_required": False,
+            }
+
+    return {
+        "auth_ready": False,
+        "auth_source": "missing",
+        "oauth_required": True,
+    }
 
 
 def _extract_path(obj: Any, path: str) -> tuple[bool, Any]:
@@ -241,7 +296,13 @@ def _route_to_verb(route: str) -> str:
     return ".".join(segment for segment in normalized.split("/") if segment)
 
 
-def _build_payload(verb: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+def _build_payload(
+    verb: str,
+    params: dict[str, Any] | None = None,
+    *,
+    context: dict[str, Any] | None = None,
+    graph_version: str | None = None,
+) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "cap_version": CAP_VERSION,
         "request_id": str(uuid.uuid4()),
@@ -249,7 +310,76 @@ def _build_payload(verb: str, params: dict[str, Any] | None = None) -> dict[str,
     }
     if params is not None:
         payload["params"] = params
+    resolved_context = _resolve_payload_context(
+        verb,
+        context=context,
+        graph_version=graph_version,
+    )
+    if resolved_context is not None:
+        payload["context"] = resolved_context
     return payload
+
+
+def _parse_json_object(raw: str, *, flag_name: str) -> dict[str, Any]:
+    if not raw:
+        return {}
+    parsed = json.loads(raw)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{flag_name} must decode to a JSON object.")
+    return dict(parsed)
+
+
+def _merge_graph_ref(
+    context: dict[str, Any],
+    *,
+    graph_version: str | None,
+    graph_id: str = DEFAULT_GRAPH_ID,
+) -> dict[str, Any]:
+    merged = dict(context)
+    graph_ref_raw = merged.get("graph_ref")
+    graph_ref = dict(graph_ref_raw) if isinstance(graph_ref_raw, dict) else {}
+
+    existing_graph_id = graph_ref.get("graph_id")
+    if existing_graph_id is not None and existing_graph_id != graph_id:
+        raise ValueError(
+            f"Conflicting graph_id values: context-json has {existing_graph_id!r}, expected {graph_id!r}."
+        )
+
+    existing_graph_version = graph_ref.get("graph_version")
+    if (
+        graph_version is not None
+        and existing_graph_version is not None
+        and existing_graph_version != graph_version
+    ):
+        raise ValueError(
+            "Conflicting graph_version values between --graph-version and --context-json."
+        )
+
+    resolved_graph_version = existing_graph_version or graph_version
+    if resolved_graph_version is None:
+        return merged
+
+    graph_ref["graph_id"] = graph_id
+    graph_ref["graph_version"] = resolved_graph_version
+    merged["graph_ref"] = graph_ref
+    return merged
+
+
+def _resolve_payload_context(
+    verb: str,
+    *,
+    context: dict[str, Any] | None = None,
+    graph_version: str | None = None,
+) -> dict[str, Any] | None:
+    if verb.startswith("meta.") and graph_version is None:
+        return context or None
+
+    resolved_graph_version = graph_version or DEFAULT_GRAPH_VERSION
+    merged = _merge_graph_ref(
+        context or {},
+        graph_version=resolved_graph_version,
+    )
+    return merged or None
 
 
 def _looks_like_ticker(value: str) -> bool:
@@ -361,9 +491,15 @@ def _json_or_text(raw: bytes) -> Any:
 
 
 def _post_cap(
-    base_url: str, verb: str, params: dict[str, Any] | None, headers: dict[str, str]
+    base_url: str,
+    verb: str,
+    params: dict[str, Any] | None,
+    headers: dict[str, str],
+    *,
+    context: dict[str, Any] | None = None,
+    graph_version: str | None = None,
 ) -> dict[str, Any]:
-    payload = _build_payload(verb, params)
+    payload = _build_payload(verb, params, context=context, graph_version=graph_version)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         _cap_endpoint(base_url),
@@ -408,11 +544,17 @@ def _post_cap(
 def _call_verb(
     args: argparse.Namespace, verb: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
+    context = _parse_json_object(
+        getattr(args, "context_json", ""),
+        flag_name="--context-json",
+    )
     return _post_cap(
         _resolve_base_url(args.base_url),
         verb,
         params,
         _resolve_headers(args.api_key),
+        context=context,
+        graph_version=getattr(args, "graph_version", "") or None,
     )
 
 
@@ -473,6 +615,14 @@ def _extract_paths_verdict(payload: Any) -> bool | None:
 
 def _cmd_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     return _call_verb(args, "meta.capabilities")
+
+
+def _cmd_auth_status(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "status_code": 0,
+        **_resolve_auth_status(args.api_key, args.env_file),
+    }
 
 
 def _cmd_normalize_node(args: argparse.Namespace) -> dict[str, Any]:
@@ -802,17 +952,38 @@ def _cmd_intervene_time_lag(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_verb(args: argparse.Namespace) -> dict[str, Any]:
-    params = json.loads(args.params_json) if args.params_json else None
-    if params is not None and not isinstance(params, dict):
-        raise ValueError("--params-json must decode to a JSON object.")
+    params = _parse_json_object(args.params_json, flag_name="--params-json") if args.params_json else None
     return _call_verb(args, args.verb_name, params)
 
 
 def _cmd_route(args: argparse.Namespace) -> dict[str, Any]:
-    params = json.loads(args.params_json) if args.params_json else None
-    if params is not None and not isinstance(params, dict):
-        raise ValueError("--params-json must decode to a JSON object.")
+    params = _parse_json_object(args.params_json, flag_name="--params-json") if args.params_json else None
     return _call_verb(args, _route_to_verb(args.route_name), params)
+
+
+def _configure_neighbors_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("node_id")
+    parser.add_argument("--scope", choices=("parents", "children"), default="parents")
+    parser.add_argument("--max-neighbors", type=int, default=5)
+    parser.set_defaults(func=_cmd_neighbors)
+
+
+def _configure_paths_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("source_node_id")
+    parser.add_argument("target_node_id")
+    parser.add_argument("--max-paths", type=int, default=3)
+    parser.add_argument(
+        "--include-edge-signs",
+        action="store_true",
+        help="Request signed edges in returned path details when supported.",
+    )
+    parser.set_defaults(func=_cmd_paths)
+
+
+def _configure_markov_blanket_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("node_id")
+    parser.add_argument("--max-neighbors", type=int, default=10)
+    parser.set_defaults(func=_cmd_markov_blanket)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -846,6 +1017,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "--compact", action="store_true", help="Print compact single-line JSON."
     )
     parser.add_argument(
+        "--graph-version",
+        choices=SUPPORTED_GRAPH_VERSIONS,
+        default="",
+        help=(
+            "Preferred graph version for graph-aware verbs "
+            f"(default: {DEFAULT_GRAPH_VERSION})."
+        ),
+    )
+    parser.add_argument(
+        "--context-json",
+        default="",
+        help=(
+            "JSON object merged into the CAP request context. "
+            "Use as an escape hatch for envelope-level fields."
+        ),
+    )
+    parser.add_argument(
         "--default-suffix",
         choices=("price", "volume"),
         default="price",
@@ -853,6 +1041,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser(
+        "auth-status",
+        help="Report whether auth is ready and which source would be used.",
+    ).set_defaults(func=_cmd_auth_status)
 
     sub.add_parser("capabilities", help="Call meta.capabilities.").set_defaults(
         func=_cmd_capabilities
@@ -887,7 +1080,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     methods.set_defaults(func=_cmd_methods)
 
-    observe = sub.add_parser("observe", help="Call observe.predict.")
+    observe = sub.add_parser(
+        "observe",
+        help="Call observe.predict.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
     observe.add_argument("target_node")
     observe.set_defaults(func=_cmd_observe)
 
@@ -897,37 +1094,57 @@ def _build_parser() -> argparse.ArgumentParser:
             "Probe both <ticker>.price and <ticker>.volume with "
             "extensions.abel.observe_predict_resolved_time and recommend the first-pass anchor."
         ),
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     observe_dual.add_argument("target_node")
     observe_dual.set_defaults(func=_cmd_observe_dual)
 
-    neighbors = sub.add_parser("neighbors", help="Call graph.neighbors.")
-    neighbors.add_argument("node_id")
-    neighbors.add_argument(
-        "--scope", choices=("parents", "children"), default="parents"
+    neighbors = sub.add_parser(
+        "neighbors",
+        help="Call graph.neighbors. Alias: graph.neighbors.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
-    neighbors.add_argument("--max-neighbors", type=int, default=5)
-    neighbors.set_defaults(func=_cmd_neighbors)
+    _configure_neighbors_parser(neighbors)
 
-    paths = sub.add_parser("paths", help="Call graph.paths.")
-    paths.add_argument("source_node_id")
-    paths.add_argument("target_node_id")
-    paths.add_argument("--max-paths", type=int, default=3)
-    paths.add_argument(
-        "--include-edge-signs",
-        action="store_true",
-        help="Request signed edges in returned path details when supported.",
+    graph_neighbors = sub.add_parser(
+        "graph.neighbors",
+        help="Call graph.neighbors. Alias: neighbors.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
-    paths.set_defaults(func=_cmd_paths)
+    _configure_neighbors_parser(graph_neighbors)
 
-    blanket = sub.add_parser("markov-blanket", help="Call graph.markov_blanket.")
-    blanket.add_argument("node_id")
-    blanket.add_argument("--max-neighbors", type=int, default=10)
-    blanket.set_defaults(func=_cmd_markov_blanket)
+    paths = sub.add_parser(
+        "paths",
+        help="Call graph.paths. Alias: graph.paths.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
+    _configure_paths_parser(paths)
+
+    graph_paths = sub.add_parser(
+        "graph.paths",
+        help="Call graph.paths. Alias: paths.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
+    _configure_paths_parser(graph_paths)
+
+    blanket = sub.add_parser(
+        "markov-blanket",
+        help="Call graph.markov_blanket. Alias: graph.markov_blanket.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
+    _configure_markov_blanket_parser(blanket)
+
+    graph_markov_blanket = sub.add_parser(
+        "graph.markov_blanket",
+        help="Call graph.markov_blanket. Alias: markov-blanket.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
+    _configure_markov_blanket_parser(graph_markov_blanket)
 
     intervene_do = sub.add_parser(
         "intervene-do",
         help="Check graph.paths, then call intervene.do when supported.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     intervene_do.add_argument("treatment_node")
     intervene_do.add_argument("treatment_value", type=float)
@@ -940,26 +1157,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     intervene_do.set_defaults(func=_cmd_intervene_do)
 
-    traverse_parents = sub.add_parser("traverse-parents", help="Call traverse.parents.")
+    traverse_parents = sub.add_parser(
+        "traverse-parents",
+        help="Call traverse.parents.",
+        epilog=GLOBAL_ENVELOPE_HELP,
+    )
     traverse_parents.add_argument("node_id")
     traverse_parents.add_argument("--top-k", type=int, default=10)
     traverse_parents.set_defaults(func=_cmd_traverse_parents)
 
     traverse_children = sub.add_parser(
-        "traverse-children", help="Call traverse.children."
+        "traverse-children",
+        help="Call traverse.children.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     traverse_children.add_argument("node_id")
     traverse_children.add_argument("--top-k", type=int, default=10)
     traverse_children.set_defaults(func=_cmd_traverse_children)
 
     abel_blanket = sub.add_parser(
-        "abel-markov-blanket", help="Call extensions.abel.markov_blanket."
+        "abel-markov-blanket",
+        help="Call extensions.abel.markov_blanket.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     abel_blanket.add_argument("target_node")
     abel_blanket.set_defaults(func=_cmd_abel_markov_blanket)
 
     cf_preview = sub.add_parser(
         "counterfactual-preview", help="Call extensions.abel.counterfactual_preview."
+        ,
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     cf_preview.add_argument("--intervene-node", required=True)
     cf_preview.add_argument("--intervene-time", required=True)
@@ -974,6 +1201,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Call extensions.abel.intervene_time_lag. Accepts the outcome "
             "node as either the third positional argument or --outcome-node."
         ),
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     time_lag.add_argument("treatment_node")
     time_lag.add_argument("treatment_value", type=float)
@@ -987,7 +1215,9 @@ def _build_parser() -> argparse.ArgumentParser:
     time_lag.set_defaults(func=_cmd_intervene_time_lag)
 
     generic_verb = sub.add_parser(
-        "verb", help="Call an arbitrary CAP verb with optional JSON params."
+        "verb",
+        help="Call an arbitrary CAP verb with optional JSON params.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     generic_verb.add_argument("verb_name")
     generic_verb.add_argument(
@@ -996,7 +1226,9 @@ def _build_parser() -> argparse.ArgumentParser:
     generic_verb.set_defaults(func=_cmd_verb)
 
     generic_route = sub.add_parser(
-        "route", help="Call an arbitrary Abel route alias with optional JSON params."
+        "route",
+        help="Call an arbitrary Abel route alias with optional JSON params.",
+        epilog=GLOBAL_ENVELOPE_HELP,
     )
     generic_route.add_argument("route_name")
     generic_route.add_argument(
@@ -1043,6 +1275,48 @@ def _normalize_argv(argv: list[str]) -> list[str]:
     return prefix + suffix
 
 
+def _maybe_add_graph_version_retry_hint(result: dict[str, Any]) -> dict[str, Any]:
+    if result.get("ok") is not False:
+        return result
+
+    verb = result.get("verb")
+    if not isinstance(verb, str):
+        response_payload = result.get("response_payload")
+        if isinstance(response_payload, dict):
+            response_verb = response_payload.get("verb")
+            if isinstance(response_verb, str):
+                verb = response_verb
+    if not isinstance(verb, str) or verb.startswith("meta."):
+        return result
+
+    error = result.get("error")
+    if not isinstance(error, dict):
+        return result
+
+    details = error.get("details")
+    if not isinstance(details, dict):
+        return result
+
+    if details.get("graph_version") != "CausalNodeV3":
+        return result
+
+    if details.get("reason") != "prediction_temporarily_unavailable":
+        return result
+
+    target_node = details.get("target_node")
+    target_arg = target_node if isinstance(target_node, str) and target_node else "<target_node>"
+    hint = (
+        "Hint: this node may materialize only on CausalNodeV2. "
+        f"Retry with `--graph-version CausalNodeV2`, for example: "
+        f"`python scripts/cap_probe.py --graph-version CausalNodeV2 observe {target_arg}`"
+    )
+
+    return {
+        **result,
+        "hint": hint,
+    }
+
+
 def main() -> int:
     parser = _build_parser()
     raw_argv = sys.argv[1:]
@@ -1064,7 +1338,8 @@ def main() -> int:
         )
         return 1
     args = parser.parse_args(argv)
-    _load_env_file(args.env_file)
+    if args.command != "auth-status":
+        _load_env_file(args.env_file)
 
     try:
         result = args.func(args)
@@ -1077,6 +1352,7 @@ def main() -> int:
             "response_payload": {},
         }
 
+    result = _maybe_add_graph_version_retry_hint(result)
     result = _truncate_description_fields(result, args.max_description_chars)
     result = _apply_pick_fields(result, args.pick_fields)
 

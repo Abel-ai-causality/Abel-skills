@@ -1,12 +1,13 @@
 # Abel AI API Key OAuth Flow
 
-Base URL: `https://api.abel.ai/echo/`
+Base URL: `https://api.abel.ai/router/`
 
-This is the required entrypoint whenever a live Abel call starts without an existing user API key in session state, `--api-key`, `<skill-root>/.env.skill`, or a same-directory fallback `.env`.
+This is the required entrypoint whenever `python scripts/cap_probe.py auth-status` returns `auth_source=missing` and the user agrees to start OAuth.
 
 ## Rules
 
 - Call `GET /web/credentials/oauth/google/authorize/agent` first.
+- Ask the user whether they want to start OAuth before requesting the auth URL.
 - Return only the returned `data.authUrl` to the user.
 - Do not continue to CAP probing until a user API key is available.
 - Do not ask for email, OAuth code, or raw API key.
@@ -41,7 +42,7 @@ Use `.env.skill` as the local auth file for this skill. The bundled probe also c
 
 Method: `GET`  
 Path: `/web/credentials/oauth/google/authorize/agent`  
-Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/authorize/agent`
+Full URL: `https://api.abel.ai/router/web/credentials/oauth/google/authorize/agent`
 
 The browser URL is the returned `data.authUrl`, not this API URL itself.
 
@@ -56,7 +57,7 @@ The browser URL is the returned `data.authUrl`, not this API URL itself.
     "provider": "google",
     "flow": "agent_handoff",
     "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?...",
-    "resultUrl": "https://api.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
+    "resultUrl": "https://api.abel.ai/router/web/credentials/oauth/google/result?pollToken=POLL_TOKEN",
     "pollToken": "POLL_TOKEN",
     "authorizationState": "pending_user_action",
     "expiresAt": 1773906755
@@ -90,7 +91,7 @@ Do not wrap the actual URL in backticks inside the user-facing message. In many 
 
 Method: `GET`  
 Path: `/web/credentials/oauth/google/result`  
-Full URL: `https://api.abel.ai/echo/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
+Full URL: `https://api.abel.ai/router/web/credentials/oauth/google/result?pollToken=POLL_TOKEN`
 
 ### Pending Response
 
