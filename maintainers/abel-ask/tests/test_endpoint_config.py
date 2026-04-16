@@ -30,7 +30,7 @@ def test_get_profiles_preserves_optional_narrative_fields() -> None:
         "profiles": {
             "sit": {
                 "cap_base_url": "https://cap-sit.abel.ai/api",
-                "oauth_base_url": "https://api-sit.abel.ai/echo/",
+                "oauth_base_url": "https://api-sit.abel.ai/router/",
                 "narrative_cap_base_url": "https://cap-sit.abel.ai/narrative",
             }
         },
@@ -54,7 +54,7 @@ def test_get_template_values_exposes_active_narrative_base_url() -> None:
         "profiles": {
             "sit": {
                 "cap_base_url": "https://cap-sit.abel.ai/api",
-                "oauth_base_url": "https://api-sit.abel.ai/echo/",
+                "oauth_base_url": "https://api-sit.abel.ai/router/",
                 "narrative_cap_base_url": "https://cap-sit.abel.ai/narrative",
             }
         },
