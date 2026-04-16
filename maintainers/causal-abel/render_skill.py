@@ -89,22 +89,22 @@ def _sync_setup_guide(skill_root: Path, values: dict[str, str]) -> None:
         f"Base URL: `{values['ACTIVE_OAUTH_BASE_URL']}`",
     )
     text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/authorize/agent",
+        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/authorize/agent",
         values["ACTIVE_AUTHORIZE_AGENT_URL"],
         text,
     )
     text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/result\?pollToken=POLL_TOKEN",
+        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/result\?pollToken=POLL_TOKEN",
         values["ACTIVE_RESULT_URL_TEMPLATE"],
         text,
     )
     text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/callback\?code=GOOGLE_CODE&format=json",
+        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/callback\?code=GOOGLE_CODE&format=json",
         values["ACTIVE_CALLBACK_EXAMPLE_URL"],
         text,
     )
     text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/callback",
+        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/callback",
         values["ACTIVE_CALLBACK_URL"],
         text,
     )

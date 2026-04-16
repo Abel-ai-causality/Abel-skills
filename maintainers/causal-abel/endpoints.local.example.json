@@ -3,11 +3,11 @@
   "profiles": {
     "prod": {
       "cap_base_url": "https://cap.abel.ai/api",
-      "oauth_base_url": "https://api.abel.ai/echo/"
+      "oauth_base_url": "https://api.abel.ai/router/"
     },
     "sit": {
       "cap_base_url": "https://cap-sit.abel.ai/api",
-      "oauth_base_url": "https://api-sit.abel.ai/echo/",
+      "oauth_base_url": "https://api-sit.abel.ai/router/",
       "narrative_cap_base_url": "https://cap-sit.abel.ai/narrative",
       "narrative_cap_enabled": true
     }
