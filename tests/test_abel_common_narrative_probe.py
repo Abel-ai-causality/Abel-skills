@@ -24,12 +24,21 @@ def _load_narrative_cap_probe_module():
     return module
 
 
-def test_resolve_cap_endpoint_uses_api_v1_cap_route() -> None:
+def test_resolve_cap_endpoint_uses_narrative_cap_route() -> None:
     narrative_cap_probe = _load_narrative_cap_probe_module()
 
     assert (
-        narrative_cap_probe.resolve_cap_endpoint("https://abel-data-intelligence-sit.abel.ai")
-        == "https://abel-data-intelligence-sit.abel.ai/api/v1/cap"
+        narrative_cap_probe.resolve_cap_endpoint("https://cap.abel.ai/narrative")
+        == "https://cap.abel.ai/narrative/cap"
+    )
+
+
+def test_resolve_cap_endpoint_preserves_explicit_narrative_cap_route() -> None:
+    narrative_cap_probe = _load_narrative_cap_probe_module()
+
+    assert (
+        narrative_cap_probe.resolve_cap_endpoint("https://cap.abel.ai/narrative/cap")
+        == "https://cap.abel.ai/narrative/cap"
     )
 
 
@@ -37,9 +46,19 @@ def test_resolve_card_endpoint_uses_well_known_card_route() -> None:
     narrative_cap_probe = _load_narrative_cap_probe_module()
 
     assert (
-        narrative_cap_probe.resolve_card_endpoint("https://abel-data-intelligence-sit.abel.ai")
-        == "https://abel-data-intelligence-sit.abel.ai/.well-known/cap.json"
+        narrative_cap_probe.resolve_card_endpoint("https://cap.abel.ai/narrative")
+        == "https://cap.abel.ai/.well-known/cap.json"
     )
+
+
+def test_resolve_base_url_ignores_runtime_narrative_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    narrative_cap_probe = _load_narrative_cap_probe_module()
+
+    monkeypatch.setenv("NARRATIVE_CAP_BASE_URL", "https://override.example/narrative")
+
+    assert narrative_cap_probe._resolve_base_url("") == "https://cap.abel.ai/narrative"
 
 
 def test_build_payload_preserves_provider_graph_ref_and_response_detail() -> None:
@@ -199,19 +218,20 @@ def test_query_node_passes_through_advanced_json() -> None:
     }
 
 
-def test_resolve_api_token_honors_configured_env_name(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_api_token_uses_shared_graph_token_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     narrative_cap_probe = _load_narrative_cap_probe_module()
 
-    monkeypatch.delenv("NARRATIVE_CAP_API_KEY", raising=False)
-    monkeypatch.delenv("CAP_API_KEY", raising=False)
-    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+    monkeypatch.setenv("ABEL_API_KEY", "shared-graph-token")
+    monkeypatch.setenv("CAP_API_KEY", "shared-cap-token")
     monkeypatch.setenv("ACTIVE_NARRATIVE_CAP_API_KEY_ENV", "ABEL_DATA_INTEL_API_KEY")
-    monkeypatch.setenv("ABEL_DATA_INTEL_API_KEY", "test-narrative-token")
+    monkeypatch.setenv("ABEL_DATA_INTEL_API_KEY", "narrative-only-token")
 
-    assert narrative_cap_probe._resolve_api_token(None) == "test-narrative-token"
+    assert narrative_cap_probe._resolve_api_token(None) == "shared-cap-token"
 
 
-def test_blank_configured_env_blocks_fallback_to_abel_api_key(
+def test_resolve_api_token_falls_back_to_abel_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     narrative_cap_probe = _load_narrative_cap_probe_module()
@@ -219,10 +239,98 @@ def test_blank_configured_env_blocks_fallback_to_abel_api_key(
     monkeypatch.delenv("NARRATIVE_CAP_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
     monkeypatch.setenv("ACTIVE_NARRATIVE_CAP_API_KEY_ENV", "ABEL_DATA_INTEL_API_KEY")
-    monkeypatch.setenv("ABEL_DATA_INTEL_API_KEY", " ")
-    monkeypatch.setenv("ABEL_API_KEY", "graph-token-should-not-leak")
+    monkeypatch.setenv("ABEL_DATA_INTEL_API_KEY", "test-narrative-token")
+    monkeypatch.setenv("ABEL_API_KEY", "shared-graph-token")
 
-    assert narrative_cap_probe._resolve_api_token(None) == ""
+    assert narrative_cap_probe._resolve_api_token(None) == "shared-graph-token"
+
+
+def test_resolve_auth_status_matches_graph_probe_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    narrative_cap_probe = _load_narrative_cap_probe_module()
+
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+
+    status = narrative_cap_probe._resolve_auth_status(None, ".env.skill")
+
+    assert status == {
+        "auth_ready": False,
+        "auth_source": "missing",
+        "oauth_required": True,
+    }
+
+
+def test_resolve_auth_status_reports_session_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    narrative_cap_probe = _load_narrative_cap_probe_module()
+
+    monkeypatch.setenv("ABEL_API_KEY", "shared-graph-token")
+
+    status = narrative_cap_probe._resolve_auth_status(None, ".env.skill")
+
+    assert status == {
+        "auth_ready": True,
+        "auth_source": "session",
+        "oauth_required": False,
+    }
+
+
+def test_resolve_headers_match_graph_bearer_auth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    narrative_cap_probe = _load_narrative_cap_probe_module()
+
+    monkeypatch.delenv("NARRATIVE_CAP_API_KEY", raising=False)
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+    monkeypatch.setenv("ABEL_API_KEY", "shared-graph-token")
+
+    headers = narrative_cap_probe._resolve_headers(None)
+
+    assert headers["Authorization"] == "Bearer shared-graph-token"
+    assert "X-API-Key" not in headers
+
+
+def test_capability_card_request_reuses_auth_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    narrative_cap_probe = _load_narrative_cap_probe_module()
+    captured: dict[str, object] = {}
+
+    class _FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"name":"narrative"}'
+
+    def _fake_urlopen(request, timeout=20.0):
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr(
+        narrative_cap_probe.urllib.request, "urlopen", _fake_urlopen
+    )
+
+    result = narrative_cap_probe._get_card(
+        "https://cap.abel.ai/narrative",
+        {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": "Bearer shared-graph-token",
+        },
+    )
+
+    assert result["ok"] is True
+    assert captured["headers"]["Authorization"] == "Bearer shared-graph-token"
 
 
 def test_core_observe_predict_and_intervene_do_pass_params() -> None:
@@ -276,6 +384,7 @@ def test_core_observe_predict_and_intervene_do_pass_params() -> None:
 @pytest.mark.parametrize(
     ("argv", "command_name"),
     [
+        (["auth-status"], "auth-status"),
         (["card"], "card"),
         (["methods"], "methods"),
         (["narrate", "--query", "Why is NVDA strong?"], "narrate"),

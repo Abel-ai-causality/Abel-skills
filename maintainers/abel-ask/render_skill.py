@@ -115,6 +115,53 @@ def _sync_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _sync_narrative_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
+    path = skill_root / "references" / "narrative-probe-usage.md"
+    text = path.read_text(encoding="utf-8")
+    narrative_base_url = values.get(
+        "ACTIVE_NARRATIVE_CAP_BASE_URL", "https://cap.abel.ai/narrative"
+    )
+    narrative_endpoint_url = values.get(
+        "ACTIVE_NARRATIVE_CAP_ENDPOINT_URL",
+        f"{narrative_base_url.rstrip('/')}/cap",
+    )
+    text = _replace(
+        text,
+        r'^BASE_URL="[^"]+"$',
+        f'BASE_URL="{narrative_base_url}"',
+    )
+    text = _replace(
+        text,
+        r"^The script accepts a narrative base URL such as `[^`]+` and resolves it to `POST [^`]+` plus `GET [^`]+`\.$",
+        (
+            f"The script accepts a narrative base URL such as `{narrative_base_url}` "
+            "and resolves it to `POST /narrative/cap` plus `GET /.well-known/cap.json`."
+        ),
+    )
+    endpoint_notes = [
+        "## Endpoint Notes",
+        "",
+        f"- The current default narrative CAP surface answers on `{narrative_endpoint_url}`.",
+    ]
+    if "PROD_NARRATIVE_CAP_ENDPOINT_URL" in values:
+        endpoint_notes.append(
+            f"- Production narrative CAP surface answers on `{values['PROD_NARRATIVE_CAP_ENDPOINT_URL']}`."
+        )
+    if "SIT_NARRATIVE_CAP_ENDPOINT_URL" in values:
+        endpoint_notes.append(
+            f"- SIT narrative CAP surface answers on `{values['SIT_NARRATIVE_CAP_ENDPOINT_URL']}`."
+        )
+    endpoint_notes.append(
+        f"- The probe accepts base URLs such as `{narrative_base_url}` and resolves them to `/cap`."
+    )
+    text = _replace(
+        text,
+        r"## Endpoint Notes\n\n(?:.*\n)*?(?=\n## |\Z)",
+        "\n".join(endpoint_notes) + "\n",
+    )
+    path.write_text(text, encoding="utf-8")
+
+
 def _sync_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "scripts" / "cap_probe.py"
     text = path.read_text(encoding="utf-8")
@@ -130,16 +177,10 @@ def _sync_narrative_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "scripts" / "narrative_cap_probe.py"
     text = path.read_text(encoding="utf-8")
     default_base_url = values.get("ACTIVE_NARRATIVE_CAP_BASE_URL", "")
-    default_api_key_env = values.get("ACTIVE_NARRATIVE_CAP_API_KEY_ENV", "")
     text = _replace(
         text,
         r'^DEFAULT_BASE_URL = "[^"]*"$',
         f'DEFAULT_BASE_URL = "{default_base_url}"',
-    )
-    text = _replace(
-        text,
-        r'^DEFAULT_API_KEY_ENV = "[^"]*"$',
-        f'DEFAULT_API_KEY_ENV = "{default_api_key_env}"',
     )
     path.write_text(text, encoding="utf-8")
 
@@ -147,6 +188,7 @@ def _sync_narrative_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
 def _render_into(skill_root: Path, values: dict[str, str]) -> None:
     _sync_skill_md(skill_root, values)
     _sync_probe_usage(skill_root, values)
+    _sync_narrative_probe_usage(skill_root, values)
     _sync_cap_probe(skill_root, values)
     _sync_narrative_cap_probe(skill_root, values)
 
