@@ -106,8 +106,8 @@ def _resolve_auth_status(api_key: str | None, env_file: str) -> dict[str, Any]:
                 "oauth_required": False,
             }
 
-    for candidate in _candidate_env_files(env_file):
-        values = _read_env_file_values(candidate)
+    for candidate in candidate_env_files(env_file):
+        values = read_env_file_values(candidate)
         if any(
             (values.get(key) or "").strip()
             for key in ("CAP_API_KEY", "ABEL_API_KEY")

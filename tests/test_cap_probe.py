@@ -121,6 +121,19 @@ def test_validate_connectivity_shortcut_is_not_registered() -> None:
         parser.parse_args(["validate-connectivity", "CPI", "NVDA"])
 
 
+def test_resolve_cap_endpoint_uses_cap_suffix_for_router_and_echo_bases() -> None:
+    cap_probe = _load_cap_probe_module()
+
+    assert (
+        cap_probe.resolve_cap_endpoint("https://api.abel.ai/router")
+        == "https://api.abel.ai/router/cap"
+    )
+    assert (
+        cap_probe.resolve_cap_endpoint("https://api.abel.ai/echo")
+        == "https://api.abel.ai/echo/cap"
+    )
+
+
 @pytest.mark.parametrize(
     ("argv", "command_name", "handler_name"),
     [

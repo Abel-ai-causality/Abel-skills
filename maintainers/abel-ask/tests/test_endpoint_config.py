@@ -46,6 +46,19 @@ def test_get_profiles_preserves_optional_narrative_fields() -> None:
     )
 
 
+def test_resolve_cap_endpoint_uses_cap_suffix_for_router_and_echo_bases() -> None:
+    endpoint_config = _load_endpoint_config_module()
+
+    assert (
+        endpoint_config.resolve_cap_endpoint("https://api.abel.ai/router")
+        == "https://api.abel.ai/router/cap"
+    )
+    assert (
+        endpoint_config.resolve_cap_endpoint("https://api.abel.ai/echo")
+        == "https://api.abel.ai/echo/cap"
+    )
+
+
 def test_get_template_values_exposes_active_narrative_base_url() -> None:
     endpoint_config = _load_endpoint_config_module()
 

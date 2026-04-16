@@ -17,8 +17,7 @@ from typing import Any
 from abel_common.cap.auth import candidate_env_files, read_env_file_values
 
 
-DEFAULT_BASE_URL = ""
-DEFAULT_API_KEY_ENV = ""
+DEFAULT_BASE_URL = "https://cap.abel.ai/narrative"
 CAP_VERSION = "0.3.0"
 TEXT_TRUNCATE_EXACT_KEYS = {
     "description",
@@ -30,6 +29,7 @@ TEXT_TRUNCATE_EXACT_KEYS = {
     "headline",
 }
 COMMANDS = {
+    "auth-status",
     "card",
     "methods",
     "narrate",
@@ -55,12 +55,7 @@ def _load_env_file(path: str) -> None:
 
 
 def _resolve_base_url(value: str | None) -> str:
-    base_url = (value or os.getenv("NARRATIVE_CAP_BASE_URL") or DEFAULT_BASE_URL).strip()
-    if not base_url:
-        raise ValueError(
-            "Narrative CAP base URL is missing. Pass --base-url or set NARRATIVE_CAP_BASE_URL."
-        )
-    return base_url
+    return (value or DEFAULT_BASE_URL).strip()
 
 
 def resolve_cap_endpoint(base_url: str) -> str:
@@ -68,12 +63,10 @@ def resolve_cap_endpoint(base_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid base URL: {base_url!r}")
     path = parsed.path.rstrip("/")
-    if path.endswith("/api/v1/cap"):
+    if path.endswith("/cap"):
         endpoint_path = path
-    elif path.endswith("/api/v1"):
-        endpoint_path = f"{path}/cap"
     else:
-        endpoint_path = f"{path}/api/v1/cap"
+        endpoint_path = f"{path}/cap"
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, endpoint_path, "", "")
     )
@@ -89,20 +82,47 @@ def resolve_card_endpoint(base_url: str) -> str:
 
 
 def _resolve_api_token(api_key: str | None) -> str:
-    configured_env = (
-        os.getenv("ACTIVE_NARRATIVE_CAP_API_KEY_ENV")
-        or os.getenv("NARRATIVE_CAP_API_KEY_ENV")
-        or DEFAULT_API_KEY_ENV
-    ).strip()
-    configured_value = os.getenv(configured_env, "") if configured_env else ""
     return (
         api_key
-        or configured_value
-        or os.getenv("NARRATIVE_CAP_API_KEY")
         or os.getenv("CAP_API_KEY")
         or os.getenv("ABEL_API_KEY")
         or ""
     ).strip()
+
+
+def _resolve_auth_status(api_key: str | None, env_file: str) -> dict[str, Any]:
+    if (api_key or "").strip():
+        return {
+            "auth_ready": True,
+            "auth_source": "--api-key",
+            "oauth_required": False,
+        }
+
+    for env_var in ("CAP_API_KEY", "ABEL_API_KEY"):
+        if (os.getenv(env_var) or "").strip():
+            return {
+                "auth_ready": True,
+                "auth_source": "session",
+                "oauth_required": False,
+            }
+
+    for candidate in candidate_env_files(env_file):
+        values = read_env_file_values(candidate)
+        if any(
+            (values.get(key) or "").strip()
+            for key in ("CAP_API_KEY", "ABEL_API_KEY")
+        ):
+            return {
+                "auth_ready": True,
+                "auth_source": candidate.name,
+                "oauth_required": False,
+            }
+
+    return {
+        "auth_ready": False,
+        "auth_source": "missing",
+        "oauth_required": True,
+    }
 
 
 def _resolve_headers(api_key: str | None) -> dict[str, str]:
@@ -113,7 +133,6 @@ def _resolve_headers(api_key: str | None) -> dict[str, str]:
     token = _resolve_api_token(api_key)
     if not token:
         return headers
-    headers["X-API-Key"] = token
     if token.lower().startswith("bearer "):
         headers["Authorization"] = token
     else:
@@ -238,7 +257,7 @@ def _get_card(base_url: str, headers: dict[str, str]) -> dict[str, Any]:
     req = urllib.request.Request(
         resolve_card_endpoint(base_url),
         method="GET",
-        headers={"Accept": headers.get("Accept", "application/json")},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=20.0) as response:
@@ -323,6 +342,12 @@ def _cmd_card(args: argparse.Namespace) -> dict[str, Any]:
     base_url = _resolve_base_url(args.base_url)
     headers = _resolve_headers(args.api_key)
     result = _get_card(base_url, headers)
+    result["verb"] = "meta.capabilities"
+    return result
+
+
+def _cmd_auth_status(args: argparse.Namespace) -> dict[str, Any]:
+    result = _resolve_auth_status(args.api_key, args.env_file)
     result["verb"] = "meta.capabilities"
     return result
 
@@ -506,6 +531,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    auth_parser = subparsers.add_parser(
+        "auth-status",
+        help="Report whether auth is ready and which source would be used.",
+    )
+    auth_parser.set_defaults(func=_cmd_auth_status)
+
     card_parser = subparsers.add_parser("card", help="Fetch the provider capability card.")
     card_parser.set_defaults(func=_cmd_card)
 
@@ -640,7 +671,8 @@ def _finalize_result(args: argparse.Namespace, result: dict[str, Any]) -> dict[s
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    _load_env_file(args.env_file)
+    if args.command != "auth-status":
+        _load_env_file(args.env_file)
     result = _finalize_result(args, args.func(args))
     dump = json.dumps(result, ensure_ascii=False, separators=(",", ":")) if args.compact else json.dumps(result, ensure_ascii=False, indent=2)
     print(dump)

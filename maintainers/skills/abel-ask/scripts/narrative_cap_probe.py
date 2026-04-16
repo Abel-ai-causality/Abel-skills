@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-DEFAULT_BASE_URL = ""
+DEFAULT_BASE_URL = "https://cap.abel.ai/narrative"
 DEFAULT_API_KEY_ENV = ""
 
 

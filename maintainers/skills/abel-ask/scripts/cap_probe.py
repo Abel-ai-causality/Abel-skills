@@ -127,7 +127,6 @@ def _read_env_file_values(path: Path) -> dict[str, str]:
             values[key] = value
     return values
 
-
 def _load_env_file(path: str) -> None:
     for candidate in _candidate_env_files(path):
         if not candidate.exists():
@@ -147,10 +146,7 @@ def resolve_cap_endpoint(base_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid base URL: {base_url!r}")
     path = parsed.path.rstrip("/")
-    if path.endswith("/echo"):
-        endpoint_path = f"{path}/api/v1/cap"
-    else:
-        endpoint_path = f"{path}/cap"
+    endpoint_path = f"{path}/cap"
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, endpoint_path, "", "")
     )
