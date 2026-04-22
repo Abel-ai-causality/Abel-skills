@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble a ClawHub-ready skill artifact from the source skill."""
+"""Assemble a ClawHub-ready release artifact from the main Abel entry skill."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 
 
-SKILL_NAME = "causal-abel"
+SKILL_NAME = "abel"
 SOURCE_ROOT = Path(__file__).resolve().parents[1] / "skills" / SKILL_NAME
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "dist" / "clawhub"
 REMOVE_FRONTMATTER_KEYS = {
@@ -20,24 +20,17 @@ REMOVE_FRONTMATTER_KEYS = {
 
 NEW_INSTALL_SECTION = """## Install And Authorization
 
-If the user installs this skill, asks to connect Abel, or the workflow is missing an Abel API key, follow `references/setup-guide.md` exactly.
+If the user installs Abel, asks to connect Abel, or the workflow is missing live Abel access, use `abel-auth`.
 
-- Start the Abel agent OAuth handoff immediately instead of asking for manual credentials.
-- Return `data.authUrl` to the user, not the `/authorize/agent` API URL.
-- Store `data.resultUrl` or `data.pollToken`, ask the user to reply once Google authorization is complete, and only then poll until the result is `authorized`, `failed`, or expired.
-- Persist the resulting `data.apiKey` in session state and `.env.skill` when local storage is available.
-- Do not continue to live CAP probing until that key is present.
-- Never ask the user to paste an email address or Google OAuth code.
+- Reuse existing auth if available.
+- If auth is missing or invalid, hand off to `abel-auth`.
+- Do not continue to live Abel work until auth is ready.
 """
 
-UPDATE_REFERENCE_LINE = (
-    "- First-use soft update detection and changelog summary flow: `references/update-flow.md`\n"
-)
-
 CLAWHUB_OPENAI_YAML = """interface:
-  display_name: "Causal Abel"
-  short_description: "Abel causal reads for graph and proxy decisions."
-  default_prompt: "Use $causal-abel for an Abel causal read on this market, business, crypto, macro, technology, lifestyle, investing, or other dollar-value decision question."
+  display_name: "Abel"
+  short_description: "Main Abel entrypoint for causal reads, auth, and strategy discovery."
+  default_prompt: "Use $abel to route this request to the right Abel skill."
 """
 
 
@@ -61,7 +54,7 @@ def ignore_copy_patterns(_directory: str, names: list[str]) -> set[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build a ClawHub-ready release artifact for causal-abel."
+        description="Build a ClawHub-ready release artifact for the main Abel skill."
     )
     parser.add_argument(
         "--source",
@@ -199,16 +192,11 @@ def transform_skill_md(source_text: str, version_override: str) -> str:
     frontmatter_lines, body = split_frontmatter(source_text)
     frontmatter = build_frontmatter(frontmatter_lines, version_override)
     body = remove_section_if_present(body, "First-Use Update Check")
-    body = remove_line_if_present(
-        body,
-        "- On first session use, attempt the soft update check from `references/update-flow.md`.",
-    )
     body = replace_or_insert_section(
         body,
         ("Install And Authorization", "Authorization Gate"),
         NEW_INSTALL_SECTION,
     )
-    body = remove_line_if_present(body, UPDATE_REFERENCE_LINE)
     return frontmatter + body.rstrip() + "\n"
 
 
@@ -248,9 +236,6 @@ def main() -> int:
     remove_if_exists(output_dir / ".env.skill.example")
     remove_if_exists(output_dir / ".env.skills")
     remove_if_exists(output_dir / ".env.skills.example")
-    remove_if_exists(output_dir / "scripts" / "check_skill_update.py")
-    remove_if_exists(output_dir / "references" / "update-flow.md")
-
     print(f"Built ClawHub artifact at {output_dir}")
     return 0
 

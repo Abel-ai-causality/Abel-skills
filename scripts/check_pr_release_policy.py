@@ -5,10 +5,14 @@ import sys
 from collections.abc import Iterable
 
 
-SOURCE_SKILL_PREFIX = "skills/causal-abel/"
-SOURCE_VERSION_FILE = "skills/causal-abel/SKILL.md"
+SOURCE_SKILL_PREFIX = "skills/"
+SOURCE_VERSION_FILES = {
+    "skills/abel/SKILL.md",
+    "skills/abel-ask/SKILL.md",
+    "skills/abel-auth/SKILL.md",
+    "skills/abel-strategy-discovery/SKILL.md",
+}
 CHANGELOG_FILE = "CHANGELOG.md"
-CLAWHUB_PREFIX = "clawhub/causal-abel/"
 
 
 def _normalize_changed_files(changed_files: Iterable[str]) -> list[str]:
@@ -30,9 +34,8 @@ def evaluate_policy(*, base_branch: str, changed_files: Iterable[str]) -> list[s
     violations: list[str] = []
 
     changed_source_skill = any(path.startswith(SOURCE_SKILL_PREFIX) for path in files)
-    changed_source_version = SOURCE_VERSION_FILE in file_set
+    changed_source_version = any(path in file_set for path in SOURCE_VERSION_FILES)
     changed_changelog = CHANGELOG_FILE in file_set
-    changed_clawhub = any(path.startswith(CLAWHUB_PREFIX) for path in files)
 
     if base == "develop":
         if changed_source_version:
@@ -43,24 +46,16 @@ def evaluate_policy(*, base_branch: str, changed_files: Iterable[str]) -> list[s
             violations.append(
                 "Feature PRs to develop must not add release changelog bookkeeping."
             )
-        if changed_clawhub:
-            violations.append(
-                "Feature PRs to develop must not commit the generated ClawHub artifact."
-            )
         return violations
 
     if base == "main" and changed_source_skill:
         if not changed_source_version:
             violations.append(
-                "Release PRs to main that change skills/causal-abel must include a source version bump."
+                "Release PRs to main that change collection skills must include a source version bump."
             )
         if not changed_changelog:
             violations.append(
-                "Release PRs to main that change skills/causal-abel must include a matching CHANGELOG.md update."
-            )
-        if not changed_clawhub:
-            violations.append(
-                "Release PRs to main that change skills/causal-abel must include the committed ClawHub artifact refresh."
+                "Release PRs to main that change collection skills must include a matching CHANGELOG.md update."
             )
 
     return violations
