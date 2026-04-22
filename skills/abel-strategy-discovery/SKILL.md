@@ -2,7 +2,7 @@
 name: abel-strategy-discovery
 description: >
   Use when the user wants Abel strategy discovery, candidate screening, or
-  workspace-first research rather than a one-off causal read.
+  workspace-first research.
 ---
 
 Use this skill for:
