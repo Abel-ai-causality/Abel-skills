@@ -14,7 +14,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from shared.cap.auth import candidate_env_files
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+COMMON_PYTHON_ROOT = SKILL_ROOT.parent / "abel-common" / "python"
+
+if str(COMMON_PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(COMMON_PYTHON_ROOT))
+
+from abel_common.cap.auth import candidate_env_files
 
 DEFAULT_BASE_URL = "https://cap.abel.ai/api"
 CAP_VERSION = "0.2.2"

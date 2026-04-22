@@ -191,6 +191,26 @@ def test_load_env_file_prefers_skill_env_over_dot_env(monkeypatch, tmp_path) -> 
     assert os.getenv("ABEL_API_KEY") == "abel-from-dot-env-skill"
 
 
+def test_load_env_file_falls_back_to_collection_auth_file(monkeypatch, tmp_path) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+
+    skill_root = tmp_path / "skills" / "abel-ask"
+    skill_root.mkdir(parents=True)
+    auth_root = tmp_path / "skills" / "abel-auth"
+    auth_root.mkdir(parents=True)
+    (auth_root / ".env.skill").write_text(
+        "ABEL_API_KEY=abel-from-collection-auth\n",
+        encoding="utf-8",
+    )
+
+    cap_probe._load_env_file(str(skill_root / ".env.skill"))
+
+    assert os.getenv("ABEL_API_KEY") == "abel-from-collection-auth"
+
+
 def test_auth_status_reports_skill_env_source(monkeypatch, tmp_path) -> None:
     cap_probe = _load_cap_probe_module()
 
@@ -203,6 +223,37 @@ def test_auth_status_reports_skill_env_source(monkeypatch, tmp_path) -> None:
     args = argparse.Namespace(
         api_key="",
         env_file=str(env_file),
+    )
+
+    result = cap_probe._cmd_auth_status(args)
+
+    assert result == {
+        "ok": True,
+        "status_code": 0,
+        "auth_ready": True,
+        "auth_source": ".env.skill",
+        "oauth_required": False,
+    }
+
+
+def test_auth_status_reports_collection_auth_source(monkeypatch, tmp_path) -> None:
+    cap_probe = _load_cap_probe_module()
+
+    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+
+    skill_root = tmp_path / "skills" / "abel-ask"
+    skill_root.mkdir(parents=True)
+    auth_root = tmp_path / "skills" / "abel-auth"
+    auth_root.mkdir(parents=True)
+    (auth_root / ".env.skill").write_text(
+        "ABEL_API_KEY=abel-from-collection-auth\n",
+        encoding="utf-8",
+    )
+
+    args = argparse.Namespace(
+        api_key="",
+        env_file=str(skill_root / ".env.skill"),
     )
 
     result = cap_probe._cmd_auth_status(args)
