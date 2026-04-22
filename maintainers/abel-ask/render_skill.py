@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the public or local causal-abel skill artifact from maintainer config."""
+"""Render the public or local abel-ask skill artifact from maintainer config."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 from endpoint_config import get_template_values
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE_DIR = REPO_ROOT / "skills" / "causal-abel"
+DEFAULT_SOURCE_DIR = REPO_ROOT / "skills" / "abel-ask"
 DEFAULT_OUTPUT_DIR = DEFAULT_SOURCE_DIR
 IGNORE_NAMES = {
     "__pycache__",
@@ -175,7 +175,7 @@ def _copy_source_tree(source_dir: Path, output_dir: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render the causal-abel skill with a selected endpoint profile."
+        description="Render the abel-ask skill with a selected endpoint profile."
     )
     parser.add_argument(
         "--source-dir",

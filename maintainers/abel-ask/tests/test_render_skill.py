@@ -8,14 +8,14 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_render_skill_renders_current_public_skill(tmp_path) -> None:
-    output_dir = tmp_path / "rendered-causal-abel"
+    output_dir = tmp_path / "rendered-abel-ask"
     command = [
         "python3",
-        "maintainers/causal-abel/render_skill.py",
+        "maintainers/abel-ask/render_skill.py",
         "--profile",
         "prod",
         "--source-dir",
-        "skills/causal-abel",
+        "skills/abel-ask",
         "--output-dir",
         str(output_dir),
     ]

@@ -5,12 +5,12 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SMOKE_CAP_PROBE_PATH = REPO_ROOT / "maintainers" / "causal-abel" / "smoke_cap_probe.py"
+SMOKE_CAP_PROBE_PATH = REPO_ROOT / "maintainers" / "abel-ask" / "smoke_cap_probe.py"
 
 
 def _load_smoke_cap_probe_module():
     spec = importlib.util.spec_from_file_location(
-        "causal_abel_smoke_cap_probe",
+        "abel_ask_smoke_cap_probe",
         SMOKE_CAP_PROBE_PATH,
     )
     assert spec is not None
@@ -23,13 +23,13 @@ def _load_smoke_cap_probe_module():
 def test_default_skill_root_points_to_local_dist() -> None:
     smoke_cap_probe = _load_smoke_cap_probe_module()
 
-    assert smoke_cap_probe.DEFAULT_SKILL_ROOT == REPO_ROOT / "dist" / "local" / "causal-abel"
+    assert smoke_cap_probe.DEFAULT_SKILL_ROOT == REPO_ROOT / "dist" / "local" / "abel-ask"
 
 
 def test_build_cap_probe_command_targets_dist_local_script() -> None:
     smoke_cap_probe = _load_smoke_cap_probe_module()
 
-    skill_root = Path("/tmp/causal-abel")
+    skill_root = Path("/tmp/abel-ask")
 
     command = smoke_cap_probe.build_cap_probe_command(
         skill_root,
@@ -38,7 +38,7 @@ def test_build_cap_probe_command_targets_dist_local_script() -> None:
 
     assert command == [
         "python3",
-        "/tmp/causal-abel/scripts/cap_probe.py",
+        "/tmp/abel-ask/scripts/cap_probe.py",
         "--compact",
         "observe-dual",
         "BTCM",

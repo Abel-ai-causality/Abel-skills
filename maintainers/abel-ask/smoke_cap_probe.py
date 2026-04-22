@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Maintainer smoke runner for the rendered causal-abel CAP probe."""
+"""Maintainer smoke runner for the rendered abel-ask CAP probe."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SKILL_ROOT = REPO_ROOT / "dist" / "local" / "causal-abel"
+DEFAULT_SKILL_ROOT = REPO_ROOT / "dist" / "local" / "abel-ask"
 DEFAULT_ASSETS = (
     "BTCM",
     "RIOT",
@@ -457,12 +457,12 @@ def _print_human_report(report: dict[str, Any]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run maintainer smoke checks against the rendered causal-abel cap_probe.py."
+        description="Run maintainer smoke checks against the rendered abel-ask cap_probe.py."
     )
     parser.add_argument(
         "--skill-root",
         default=str(DEFAULT_SKILL_ROOT),
-        help="Rendered skill root to probe. Defaults to dist/local/causal-abel.",
+        help="Rendered skill root to probe. Defaults to dist/local/abel-ask.",
     )
     parser.add_argument(
         "--asset",
