@@ -9,7 +9,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CAP_PROBE_PATH = REPO_ROOT / "skills" / "causal-abel" / "scripts" / "cap_probe.py"
+CAP_PROBE_PATH = REPO_ROOT / "skills" / "abel-ask" / "scripts" / "cap_probe.py"
 
 
 def _load_cap_probe_module():

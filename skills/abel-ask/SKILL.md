@@ -1,16 +1,11 @@
 ---
-name: causal-abel
+name: abel-ask
 version: 1.1.6
-update_repo: Abel-ai-causality/Abel-skills
-update_branch: main
-update_skill_path: skills/causal-abel
-update_changelog_path: /CHANGELOG.md
 description: >
   Use when the user wants an Abel causal read on what drives a market, company,
   asset, sector, or macro node, how two nodes connect, what changes under
-  intervention, or how a career, education, housing, lifestyle, or investment
-  decision with meaningful money, time, career-capital, or downside tradeoff
-  should be evaluated through Abel proxy signals.
+  intervention, or how a real-world decision should be evaluated through Abel
+  proxy signals.
 metadata:
   openclaw:
     requires:

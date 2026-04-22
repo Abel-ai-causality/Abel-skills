@@ -2,6 +2,8 @@
 
 Base URL: `https://api.abel.ai/echo/`
 
+`abel-auth` is the canonical skill owner for this flow. Use this guide to implement the OAuth handoff and persistence behavior, but route install-time and recovery-time auth through `abel-auth`.
+
 This is the required entrypoint whenever `python scripts/cap_probe.py auth-status` returns `auth_source=missing` and the user agrees to start OAuth.
 
 ## Rules

@@ -14,6 +14,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from shared.cap.auth import candidate_env_files
+
 DEFAULT_BASE_URL = "https://cap.abel.ai/api"
 CAP_VERSION = "0.2.2"
 TEXT_TRUNCATE_EXACT_KEYS = {
@@ -88,22 +90,8 @@ KNOWN_MACRO_NODE_IDS = {
     "unemploymentRate",
 }
 KNOWN_MACRO_NODE_ID_MAP = {node_id.lower(): node_id for node_id in KNOWN_MACRO_NODE_IDS}
-ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
-ENV_FALLBACK_BASENAME = ".env"
-
-
 def _candidate_env_files(path: str) -> list[Path]:
-    env_path = Path(path).expanduser()
-    candidates = [env_path]
-    if env_path.name in ENV_FILE_BASENAMES:
-        for basename in ENV_FILE_BASENAMES:
-            candidate = env_path.with_name(basename)
-            if candidate not in candidates:
-                candidates.append(candidate)
-        fallback_candidate = env_path.with_name(ENV_FALLBACK_BASENAME)
-        if fallback_candidate not in candidates:
-            candidates.append(fallback_candidate)
-    return candidates
+    return candidate_env_files(path)
 
 
 def _read_env_file_values(path: Path) -> dict[str, str]:
