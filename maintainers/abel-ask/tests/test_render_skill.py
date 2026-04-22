@@ -14,8 +14,6 @@ def test_render_skill_renders_current_public_skill(tmp_path) -> None:
         "maintainers/abel-ask/render_skill.py",
         "--profile",
         "prod",
-        "--source-dir",
-        "skills/abel-ask",
         "--output-dir",
         str(output_dir),
     ]
@@ -31,6 +29,7 @@ def test_render_skill_renders_current_public_skill(tmp_path) -> None:
     assert (output_dir / "SKILL.md").exists()
     assert (output_dir / "references" / "routes" / "proxy-routed.md").exists()
     assert (output_dir / "references" / "probe-usage.md").exists()
+    assert (output_dir / "scripts" / "cap_probe.py").exists()
 
     rendered_route = (output_dir / "references" / "routes" / "proxy-routed.md").read_text(encoding="utf-8")
     rendered_probe_usage = (output_dir / "references" / "probe-usage.md").read_text(encoding="utf-8")

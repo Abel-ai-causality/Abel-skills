@@ -11,8 +11,8 @@ from pathlib import Path
 from endpoint_config import get_template_values
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE_DIR = REPO_ROOT / "skills" / "abel-ask"
-DEFAULT_OUTPUT_DIR = DEFAULT_SOURCE_DIR
+DEFAULT_SOURCE_DIR = REPO_ROOT / "maintainers" / "skills" / "abel-ask"
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "skills" / "abel-ask"
 IGNORE_NAMES = {
     "__pycache__",
     ".env.skill",
@@ -148,12 +148,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source-dir",
         default=str(DEFAULT_SOURCE_DIR),
-        help="Source skill directory to render from.",
+        help="Maintainer-owned source skill template directory to render from.",
     )
     parser.add_argument(
         "--output-dir",
         default=str(DEFAULT_OUTPUT_DIR),
-        help="Output skill directory. Defaults to rendering in place.",
+        help="Output skill directory. Defaults to the public rendered skill root.",
     )
     parser.add_argument(
         "--profile",

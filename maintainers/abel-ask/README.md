@@ -1,8 +1,9 @@
 # Abel Ask Maintainer Guide
 
-This directory owns maintainer-only rendering inputs for the public ask-skill line now published as `abel-ask`.
+This directory owns ask-specific rendering inputs for the public ask-skill line now published as `abel-ask`.
 
-Treat `../../skills/abel-ask` as the public source skill, not as the place to keep local-only endpoint state.
+Treat `../skills/` as the maintainer-owned source tree for the whole skills collection.
+Treat `../../skills/abel-ask` as the rendered public install tree.
 
 ## Files
 
@@ -10,14 +11,16 @@ Treat `../../skills/abel-ask` as the public source skill, not as the place to ke
 - `endpoints.local.json`: gitignored local override file for SIT or other private environments
 - `endpoints.local.example.json`: example local override shape
 - `endpoint_config.py`: endpoint loading and profile resolution for maintainer renders
-- `render_skill.py`: renders a public or local skill artifact from the current endpoint profile to `dist/`
+- `../skills/`: complete maintainer-owned copy of the full skills collection before endpoint-specific rendering
+- `render_skill.py`: copies the full maintainer-owned ask skill, then applies endpoint-specific replacements into the rendered output
 
 ## Rules
 
+- Keep `../skills/` as the canonical maintainer-owned source tree for skills.
 - Keep `endpoints.json` public-safe. Anything rendered from it can end up in `skills/abel-ask/` or a published artifact.
 - Keep private or test endpoints only in `endpoints.local.json`.
 - Do not rely on `.env.skill` or `.env.skills` for endpoint injection. Those files are only for API keys.
-- Treat `skills/abel-ask/` as a rendered public install root.
+- Treat `skills/abel-ask/` as a rendered public install root, not as the maintainer source tree.
 - Local auth files already present in `dist/local/abel-ask/` are preserved across re-renders. They are not copied from `skills/abel-ask/`, so prod and SIT keys can stay separate.
 
 ## Development Flow
@@ -37,10 +40,10 @@ cp maintainers/abel-ask/endpoints.local.example.json maintainers/abel-ask/endpoi
 $EDITOR maintainers/abel-ask/endpoints.local.json
 ```
 
-2. Re-render the public ask skill.
+2. Re-render the public ask skill from the maintainer template.
 
 ```bash
-python3 maintainers/abel-ask/render_skill.py --profile prod --output-dir skills/abel-ask
+python3 maintainers/abel-ask/render_skill.py --profile prod
 ```
 
 3. Render a local SIT-flavored skill for testing.
@@ -86,12 +89,13 @@ python3 maintainers/abel-ask/smoke_cap_probe.py --skill-root skills/abel-ask
 ## Build Outputs
 
 - `skills/abel-ask/`: public source ask skill
+- `maintainers/skills/`: maintainer-owned source tree for the full skills collection
 - `dist/local/abel-ask/`: local-only rendered skill for private endpoint testing
 - `dist/clawhub/abel/`: throwaway local ClawHub build output for the main entry skill
 
 ## Release Notes
 
-- The publish flow reads from collection source, so render `skills/abel-ask/` first if endpoint-facing text changed.
+- The publish flow reads from collection source, so render `skills/abel-ask/` from `template/` first if endpoint-facing text changed.
 - Dry-run the publish command before a release:
 
 ```bash

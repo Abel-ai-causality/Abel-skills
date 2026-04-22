@@ -4,7 +4,7 @@ This page is for maintainers who need to build local Abel skill artifacts from r
 
 ## Build A Local Ask-Skill Version
 
-Use this when you want a local rendered `abel-ask` tree for testing endpoint config, smoke probes, or prompt changes without touching the published release path.
+Use this when you want a local rendered `abel-ask` tree for testing endpoint config, smoke probes, or prompt changes without touching the published release path. The maintainer-owned source tree lives under `maintainers/skills/`, and the public install tree under `skills/` is rendered from it.
 
 Public-safe render:
 
