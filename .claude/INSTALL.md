@@ -1,13 +1,18 @@
 # Installing Abel Skills for Claude Code
 
-Enable Abel Skills in Claude Code via personal skills symlinks.
+Enable Abel Skills in Claude Code via skill symlinks.
+
+Choose one install scope:
+
+- Global: available in every Claude Code session on this machine
+- Project-level: available only inside the current repo via `.claude/skills/`
 
 ## Prerequisites
 
 - Git
 - Claude Code with skills enabled
 
-## Installation
+## Global Install
 
 1. Clone the repository:
 
@@ -25,7 +30,7 @@ ln -s ~/.claude/abel-skills/skills/abel-auth ~/.claude/skills/abel-auth
 ln -s ~/.claude/abel-skills/skills/abel-strategy-discovery ~/.claude/skills/abel-strategy-discovery
 ```
 
-3. Recommended before starting a new Claude Code session: persist Abel auth now if you already have a key.
+3. Optional before restart: persist Abel auth now if you already have a key.
 
 Canonical shared auth file:
 
@@ -39,13 +44,32 @@ Example:
 ABEL_API_KEY=abel_xxx
 ```
 
-If you do not have a key yet, start a new session first, then make `abel-auth` your first action.
+## Project-Level Install
 
-4. Start a new Claude Code session. If Claude Code was already open when you created `~/.claude/skills`, restart it once.
+Run these commands from the project root:
 
-5. If you skipped step 3, run `abel-auth` before the first live Abel request.
+```bash
+mkdir -p .claude
+git clone https://github.com/Abel-ai-causality/Abel-skills.git .claude/abel-skills
+mkdir -p .claude/skills
+ln -s ../abel-skills/skills/abel .claude/skills/abel
+ln -s ../abel-skills/skills/abel-ask .claude/skills/abel-ask
+ln -s ../abel-skills/skills/abel-auth .claude/skills/abel-auth
+ln -s ../abel-skills/skills/abel-strategy-discovery .claude/skills/abel-strategy-discovery
+```
 
-6. Bootstrap the default strategy workspace before normal strategy use:
+Optional project-local auth file:
+
+```text
+.claude/skills/abel-auth/.env.skill
+```
+
+## After Either Install
+
+1. Start a new Claude Code session. If Claude Code was already open when you created the skills directory, restart it once.
+2. Ask Claude Code to initialize Abel.
+3. If auth is not already configured, run `abel-auth`.
+4. Bootstrap the default strategy workspace before normal strategy use:
 
 ```bash
 abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace

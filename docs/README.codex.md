@@ -17,7 +17,12 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-cau
 - OpenAI Codex
 - Git
 
-### Steps
+Choose one install scope:
+
+- Global install: available in every Codex session on this machine
+- Project-level install: available only inside the current repo via `.agents/skills/`
+
+### Global Install
 
 1. Clone the repo:
 
@@ -42,11 +47,36 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-cau
    ABEL_API_KEY=abel_xxx
    ```
 
-4. Restart Codex.
+### Project-Level Install
 
-5. Run `abel-auth` if auth is not already configured.
+Run these commands from the project root:
 
-6. Bootstrap the default strategy workspace:
+1. Clone the repo into the project:
+
+   ```bash
+   mkdir -p .agents
+   git clone https://github.com/Abel-ai-causality/Abel-skills.git .agents/abel-skills
+   ```
+
+2. Create the project-local skills symlink:
+
+   ```bash
+   mkdir -p .agents/skills
+   ln -s ../abel-skills/skills .agents/skills/abel
+   ```
+
+3. Optional project-local auth file:
+
+   ```text
+   .agents/abel-skills/skills/abel-auth/.env.skill
+   ```
+
+### After Either Install
+
+1. Restart Codex.
+2. Ask Codex to initialize Abel.
+3. Run `abel-auth` if auth is not already configured.
+4. Bootstrap the default strategy workspace:
 
    ```bash
    abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace
@@ -54,11 +84,17 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-cau
 
 ## How Auth Resolution Works
 
-`abel-auth` is the canonical auth owner. Its local `.env.skill` file is the main
-shared auth location for the collection:
+`abel-auth` is the canonical auth owner. In the global install, its local
+`.env.skill` file is the main shared auth location for the collection:
 
 ```text
 ~/.codex/abel-skills/skills/abel-auth/.env.skill
+```
+
+In the project-level install, the corresponding path is:
+
+```text
+.agents/abel-skills/skills/abel-auth/.env.skill
 ```
 
 `abel-ask` and `abel-strategy-discovery` also look for collection-level shared

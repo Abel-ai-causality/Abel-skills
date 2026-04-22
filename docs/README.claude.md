@@ -17,7 +17,12 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-cau
 - Claude Code
 - Git
 
-### Steps
+Choose one install scope:
+
+- Global install: available in every Claude Code session on this machine
+- Project-level install: available only inside the current repo via `.claude/skills/`
+
+### Global Install
 
 1. Clone the repo:
 
@@ -45,11 +50,39 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-cau
    ABEL_API_KEY=abel_xxx
    ```
 
-4. Start a new Claude Code session. If you created `~/.claude/skills` while Claude Code was already open, restart once so the new personal skills root is discovered cleanly.
+### Project-Level Install
 
-5. Run `abel-auth` if auth is not already configured.
+Run these commands from the project root:
 
-6. Bootstrap the default strategy workspace:
+1. Clone the repo into the project:
+
+   ```bash
+   mkdir -p .claude
+   git clone https://github.com/Abel-ai-causality/Abel-skills.git .claude/abel-skills
+   ```
+
+2. Create project-local skill symlinks:
+
+   ```bash
+   mkdir -p .claude/skills
+   ln -s ../abel-skills/skills/abel .claude/skills/abel
+   ln -s ../abel-skills/skills/abel-ask .claude/skills/abel-ask
+   ln -s ../abel-skills/skills/abel-auth .claude/skills/abel-auth
+   ln -s ../abel-skills/skills/abel-strategy-discovery .claude/skills/abel-strategy-discovery
+   ```
+
+3. Optional project-local auth file:
+
+   ```text
+   .claude/skills/abel-auth/.env.skill
+   ```
+
+### After Either Install
+
+1. Start a new Claude Code session. If you created the relevant skills directory while Claude Code was already open, restart once so the new skills root is discovered cleanly.
+2. Ask Claude Code to initialize Abel.
+3. Run `abel-auth` if auth is not already configured.
+4. Bootstrap the default strategy workspace:
 
    ```bash
    abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace
@@ -57,11 +90,17 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-cau
 
 ## How Auth Resolution Works
 
-`abel-auth` is the canonical auth owner. Its local `.env.skill` file is the main
-shared auth location for the collection:
+`abel-auth` is the canonical auth owner. In the global install, its local
+`.env.skill` file is the main shared auth location for the collection:
 
 ```text
 ~/.claude/skills/abel-auth/.env.skill
+```
+
+In the project-level install, the corresponding path is:
+
+```text
+.claude/skills/abel-auth/.env.skill
 ```
 
 `abel-ask` and `abel-strategy-discovery` also look for collection-level shared
@@ -70,9 +109,9 @@ for normal live use.
 
 ## Why This Uses Per-Skill Symlinks
 
-Claude Code personal skills live under `~/.claude/skills/<skill-name>/`.
-Using one symlink per skill matches that layout directly and keeps discovery
-predictable.
+Claude Code skill discovery is directory-based. Using one symlink per skill
+matches both the global `~/.claude/skills/<skill-name>/` layout and the
+project-level `.claude/skills/<skill-name>/` layout directly.
 
 ## Usage
 

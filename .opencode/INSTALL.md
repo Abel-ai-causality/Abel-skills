@@ -1,6 +1,13 @@
 # Installing Abel Skills for OpenCode
 
-Add Abel to the `plugin` array in your `opencode.json`:
+Choose one install scope:
+
+- Global: add Abel to the global OpenCode config
+- Project-level: add Abel to the current project's `opencode.json`
+
+## Global Install
+
+Add Abel to your global OpenCode config:
 
 ```json
 {
@@ -8,15 +15,15 @@ Add Abel to the `plugin` array in your `opencode.json`:
 }
 ```
 
-If you already have an Abel API key, store it before restart in the installed
-plugin checkout's canonical shared auth file:
+## Project-Level Install
 
-```text
-skills/abel-auth/.env.skill
+Add Abel to the `plugin` array in the current project's `opencode.json`:
+
+```json
+{
+  "plugin": ["abel@git+https://github.com/Abel-ai-causality/Abel-skills.git"]
+}
 ```
-
-If you do not have a key yet, restart OpenCode first, then make `abel-auth`
-your first action.
 
 To pin a specific release tag, branch, or ref, add it after `#`:
 
@@ -26,12 +33,14 @@ To pin a specific release tag, branch, or ref, add it after `#`:
 }
 ```
 
-Restart OpenCode after editing `opencode.json`.
+Release tags are the recommended stable pin target.
 
-After restart:
+## After Either Install
 
-1. Run `abel-auth` if auth is not already configured.
-2. Bootstrap the default strategy workspace:
+1. Restart OpenCode after editing the config.
+2. Ask OpenCode to initialize Abel.
+3. If auth is not already configured, run `abel-auth`.
+4. Bootstrap the default strategy workspace:
 
 ```bash
 abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace
