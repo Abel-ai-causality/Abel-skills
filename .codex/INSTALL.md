@@ -1,6 +1,10 @@
 # Installing Abel Skills for Codex
 
-Install the full Abel skills collection, not a single sub-skill.
+Enable Abel Skills in Codex via native skill discovery.
+
+## Prerequisites
+
+- Git
 
 ## Installation
 
@@ -17,11 +21,35 @@ mkdir -p ~/.agents/skills
 ln -s ~/.codex/abel-skills/skills ~/.agents/skills/abel
 ```
 
-3. Prepare the shared runtime and default strategy workspace base from the repo instructions.
+3. Recommended before restart: persist Abel auth now if you already have a key.
+
+Canonical shared auth file:
+
+```text
+~/.codex/abel-skills/skills/abel-auth/.env.skill
+```
+
+Example:
+
+```dotenv
+ABEL_API_KEY=abel_xxx
+```
+
+If you do not have a key yet, restart first, then make `abel-auth` your first action.
 
 4. Restart Codex.
 
-5. Start a new session and run `abel-auth` to connect Abel before the first live request.
+5. Start a new session.
+
+6. If you skipped step 3, run `abel-auth` before the first live Abel request.
+
+7. Bootstrap the default strategy workspace before normal strategy use:
+
+```bash
+abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace
+```
+
+This creates or reuses the default workspace, prepares its runtime, and runs doctor.
 
 ## First Questions
 

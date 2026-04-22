@@ -14,13 +14,18 @@ metadata:
 
 Use `Abel` as the main entrypoint.
 
+Before routing, run the bundled Abel auth preflight (`auth-status`) instead of
+guessing from shell environment alone.
+
 Route in this order:
 
-1. If live Abel auth is missing or invalid, use `abel-auth`.
-2. If the user wants strategy search, candidate discovery, a research workspace,
+1. Run the auth preflight from the bundled CAP probe.
+2. If the preflight reports missing or invalid live auth, use `abel-auth`
+   first, then continue routing the user's original request.
+3. If the user wants strategy search, candidate discovery, a research workspace,
    session continuation, branch preparation, branch debugging, or branch runs,
    use `abel-strategy-discovery`.
-3. For other graph-native or decision-oriented Abel reads, use `abel-ask`.
+4. For other graph-native or decision-oriented Abel reads, use `abel-ask`.
 
 Keep this skill thin. Choose the destination skill and hand off. Do not repeat
 the downstream workflow here.

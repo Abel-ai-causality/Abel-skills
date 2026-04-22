@@ -2,9 +2,10 @@
 
 Base URL: `https://api.abel.ai/echo/`
 
-`abel-auth` is the canonical skill owner for this flow. Use this guide to implement the OAuth handoff and persistence behavior, but route install-time and recovery-time auth through `abel-auth`.
+`abel-auth` is the canonical skill owner for this flow.
 
-This is the required entrypoint whenever `python scripts/cap_probe.py auth-status` returns `auth_source=missing` and the user agrees to start OAuth.
+Use `preflight.md` first. Only continue into this guide after the auth
+preflight shows that live Abel auth is missing or needs repair.
 
 ## Rules
 
@@ -24,21 +25,23 @@ This is the required entrypoint whenever `python scripts/cap_probe.py auth-statu
 4. Wait for that confirmation before polling `GET /web/credentials/oauth/google/result?pollToken=...` or `data.resultUrl`.
 5. Keep polling while the result is `pending`.
 6. If the result is `authorized`, read `data.apiKey`, `data.ratePerMinute`, and `data.expireTime`, then continue with live usage.
-7. Persist the key to `<skill-root>/.env.skill` when local storage is available.
+7. Persist the key to `skills/abel-auth/.env.skill` when local storage is available.
 8. If the result is `failed`, surface the failure message.
 
 The callback page is only a confirmation page. The API key comes from the result endpoint, not the browser HTML.
 
 ## Local Env File
 
-Preferred local auth file:
+Preferred shared auth file for the installed collection:
 
 ```dotenv
-<skill-root>/.env.skill
+skills/abel-auth/.env.skill
 ABEL_API_KEY=abel_xxx
 ```
 
-Use `.env.skill` as the local auth file for this skill. The bundled probe also checks a same-directory `.env` as a fallback when `.env.skill` or `.env.skills` is missing.
+`abel-auth` owns the canonical shared auth file. The bundled probe also checks
+collection-level and sibling-skill `.env.skill` / `.env.skills` files when the
+current skill-local file is missing.
 
 ## Endpoint: Get Agent OAuth Authorization URL
 

@@ -8,7 +8,15 @@ Install the whole Abel collection through the OpenCode plugin config:
 }
 ```
 
-Restart OpenCode and run `abel-auth` before the first live Abel request.
+If you already have an Abel API key, persist it into the installed plugin's
+`skills/abel-auth/.env.skill` before normal live use. Otherwise restart
+OpenCode and make `abel-auth` your first action.
+
+After auth is ready, bootstrap the default strategy workspace:
+
+```bash
+abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace
+```
 
 To pin a specific version, branch, or tag, append it after `#`:
 

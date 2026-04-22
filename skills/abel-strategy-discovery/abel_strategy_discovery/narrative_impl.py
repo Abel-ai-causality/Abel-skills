@@ -26,7 +26,10 @@ from abel_strategy_discovery.doctor import (
     render_doctor_report,
     run_doctor,
 )
-from abel_strategy_discovery.edge_runtime import build_workspace_runtime_env
+from abel_strategy_discovery.edge_runtime import (
+    build_workspace_runtime_env,
+    resolve_runtime_auth_env_file,
+)
 from abel_strategy_discovery.env import init_workspace_env
 from abel_strategy_discovery.workspace import (
     DEFAULT_WORKSPACE_NAME,
@@ -1040,10 +1043,9 @@ def fetch_live_discovery(ticker: str, *, limit: int) -> dict:
         ) from exc
     workspace_root, _ = resolve_workspace_entry()
     if workspace_root is not None:
-        os.environ.setdefault(
-            "ABEL_AUTH_ENV_FILE",
-            str(resolve_workspace_env_file(workspace_root).resolve()),
-        )
+        auth_env = resolve_runtime_auth_env_file(workspace_root)
+        if auth_env is not None:
+            os.environ.setdefault("ABEL_AUTH_ENV_FILE", str(auth_env))
 
     try:
         require_api_key()

@@ -80,37 +80,6 @@ def _sync_skill_md(skill_root: Path, values: dict[str, str]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def _sync_setup_guide(skill_root: Path, values: dict[str, str]) -> None:
-    path = skill_root / "references" / "setup-guide.md"
-    text = path.read_text(encoding="utf-8")
-    text = _replace(
-        text,
-        r"^Base URL: `[^`]+`$",
-        f"Base URL: `{values['ACTIVE_OAUTH_BASE_URL']}`",
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/authorize/agent",
-        values["ACTIVE_AUTHORIZE_AGENT_URL"],
-        text,
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/result\?pollToken=POLL_TOKEN",
-        values["ACTIVE_RESULT_URL_TEMPLATE"],
-        text,
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/callback\?code=GOOGLE_CODE&format=json",
-        values["ACTIVE_CALLBACK_EXAMPLE_URL"],
-        text,
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/echo/web/credentials/oauth/google/callback",
-        values["ACTIVE_CALLBACK_URL"],
-        text,
-    )
-    path.write_text(text, encoding="utf-8")
-
-
 def _sync_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "references" / "probe-usage.md"
     text = path.read_text(encoding="utf-8")
@@ -136,7 +105,7 @@ def _sync_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
         f"- The probe accepts base URLs such as `{values['ACTIVE_CAP_BASE_URL']}` and resolves them to `/cap`."
     )
     endpoint_notes.append(
-        f"- `{values['ACTIVE_OAUTH_BASE_URL']}` is used for OAuth and business API flows in `setup-guide.md`; it is not the default CAP probe base."
+        f"- `{values['ACTIVE_OAUTH_BASE_URL']}` is used for Abel OAuth and business API flows owned by `abel-auth`; it is not the default CAP probe base."
     )
     text = _replace(
         text,
@@ -159,7 +128,6 @@ def _sync_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
 
 def _render_into(skill_root: Path, values: dict[str, str]) -> None:
     _sync_skill_md(skill_root, values)
-    _sync_setup_guide(skill_root, values)
     _sync_probe_usage(skill_root, values)
     _sync_cap_probe(skill_root, values)
 

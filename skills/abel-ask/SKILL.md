@@ -23,7 +23,9 @@ Any dollar-value decision, just Abel it. Finance and crypto nodes are the signal
 
 ## Step 1: Preflight + Classify
 
-Confirm auth via `python scripts/cap_probe.py auth-status` and `references/probe-usage.md`. Do not infer missing auth from shell env alone. If `auth_source` is `missing`, stop and ask the user whether to start the OAuth handoff from `references/setup-guide.md`; do not substitute web search just because auth is missing.
+Assume `Abel` or `abel-auth` owns auth preflight and repair. If you are invoked
+directly and live auth is still missing, stop and hand off to `abel-auth`
+instead of running the setup flow here.
 
 Classify the request as:
 
@@ -117,7 +119,6 @@ Keep claim-strength honesty explicit: life decisions are graph-grounded advice, 
 
 - `references/routes/direct-graph.md` — ticker question routing
 - `references/routes/proxy-routed.md` — proxy-routed graph workflow
-- `references/setup-guide.md` — OAuth install (only if key missing)
 - `references/probe-usage.md` — exact `cap_probe.py` command shapes
 - `references/rendering.md` — label-pass rules, visible/internal split, guard usage
 - `assets/report-guide.md` — full output contract with archetypes, rendering rules, coverage areas

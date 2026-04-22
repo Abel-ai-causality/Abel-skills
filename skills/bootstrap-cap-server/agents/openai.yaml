@@ -1,4 +1,0 @@
-interface:
-  display_name: "Bootstrap CAP Server"
-  short_description: "Scaffold a CAP server from an existing graph or runtime."
-  default_prompt: "Use $bootstrap-cap-server to bootstrap a CAP-compatible server from my existing graph, runtime, or internal causal API. Follow the skill's intake and honesty rules."

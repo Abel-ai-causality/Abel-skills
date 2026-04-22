@@ -10,6 +10,57 @@ from pathlib import Path
 
 from abel_strategy_discovery.workspace import load_workspace_manifest, resolve_workspace_paths
 
+
+ENV_KEY_NAMES = ("ABEL_API_KEY", "CAP_API_KEY")
+ENV_FILE_CANDIDATES = (".env.skill", ".env.skills", ".env")
+COLLECTION_SHARED_SKILLS = ("abel-auth", "abel", "abel-ask")
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+def _has_auth_token(path: Path) -> bool:
+    values = _read_env_file(path)
+    return any((values.get(name) or "").strip() for name in ENV_KEY_NAMES)
+
+
+def _shared_collection_auth_files() -> list[Path]:
+    skill_root = Path(__file__).resolve().parents[1]
+    skills_root = skill_root.parent
+    files: list[Path] = []
+    for basename in ENV_FILE_CANDIDATES:
+        files.append(skills_root / basename)
+    for sibling_name in COLLECTION_SHARED_SKILLS:
+        sibling_root = skills_root / sibling_name
+        for basename in ENV_FILE_CANDIDATES:
+            files.append(sibling_root / basename)
+    return files
+
+
+def resolve_runtime_auth_env_file(workspace_root: Path) -> Path | None:
+    workspace_env = (workspace_root / ".env").resolve()
+    if _has_auth_token(workspace_env):
+        return workspace_env
+    for candidate in _shared_collection_auth_files():
+        if _has_auth_token(candidate):
+            return candidate.resolve()
+    if workspace_env.exists():
+        return workspace_env
+    return None
+
 def run_python_json(
     python_path: Path | str,
     cwd: Path,
@@ -129,9 +180,9 @@ def build_workspace_runtime_env(
 ) -> dict[str, str]:
     """Build a deterministic runtime environment for Abel-edge subprocesses."""
     env = dict(os.environ if base is None else base)
-    workspace_env = (workspace_root / ".env").resolve()
-    if not env.get("ABEL_AUTH_ENV_FILE") and workspace_env.exists():
-        env["ABEL_AUTH_ENV_FILE"] = str(workspace_env)
+    auth_env = resolve_runtime_auth_env_file(workspace_root)
+    if not env.get("ABEL_AUTH_ENV_FILE") and auth_env is not None:
+        env["ABEL_AUTH_ENV_FILE"] = str(auth_env)
     manifest = load_workspace_manifest(workspace_root)
     cache_root = resolve_workspace_paths(workspace_root, manifest)["cache_root"].resolve()
     env.setdefault("CAUSAL_EDGE_CACHE_ROOT", str(cache_root))

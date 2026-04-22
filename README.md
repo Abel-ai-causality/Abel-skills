@@ -8,17 +8,49 @@ Abel Skills is the collection repository for Abel agent skills. Users should ins
 - `abel-ask`: graph-native and proxy-routed causal reads
 - `abel-auth`: connect or repair Abel auth
 - `abel-strategy-discovery`: workspace-first strategy discovery
-- `bootstrap-cap-server`: CAP server bootstrap helper
 
 ## Installation
 
-GitHub direct install and ClawHub install are separate paths.
+Installation differs by platform.
 
-- Codex: follow [.codex/INSTALL.md](.codex/INSTALL.md)
-- OpenCode: follow [docs/README.opencode.md](docs/README.opencode.md)
-- ClawHub / OpenClaw: install from the published ClawHub package after release publication
+### Codex
 
-After installation, run `abel-auth` before the first live Abel request.
+Tell Codex:
+
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-causality/Abel-skills/refs/heads/main/.codex/INSTALL.md
+```
+
+**Detailed docs:** [docs/README.codex.md](docs/README.codex.md)
+
+### Claude Code
+
+Tell Claude Code:
+
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-causality/Abel-skills/refs/heads/main/.claude/INSTALL.md
+```
+
+**Detailed docs:** [docs/README.claude.md](docs/README.claude.md)
+
+### OpenCode
+
+Tell OpenCode:
+
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-causality/Abel-skills/refs/heads/main/.opencode/INSTALL.md
+```
+
+**Detailed docs:** [docs/README.opencode.md](docs/README.opencode.md)
+
+### ClawHub / OpenClaw
+
+Install from the published ClawHub package after release publication.
+
+Install-time auth note:
+- If you already have an Abel API key, write it to the canonical shared auth file before restart: `skills/abel-auth/.env.skill`
+- If you do not, make `abel-auth` your first action after restart so the key is persisted before normal live use
+- After auth is ready, bootstrap the default strategy workspace before normal strategy use: `abel-strategy-discovery workspace bootstrap --path ./abel-strategy-discovery-workspace`
 
 ## Try These Questions
 

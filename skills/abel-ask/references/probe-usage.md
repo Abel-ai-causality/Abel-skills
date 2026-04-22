@@ -8,13 +8,11 @@ Use this file only after `SKILL.md` and the chosen route file have already fixed
 
 This file is a command manual, not the main workflow.
 
-## Authorization First
+## Auth Ownership
 
-- Start every live Abel session with `python scripts/cap_probe.py auth-status`.
-- Do not infer missing auth from a blank shell env alone.
-- If `auth_ready` is true, continue to the chosen route.
-- If `auth_source` is `missing`, stop and ask the user whether to start the OAuth handoff from `setup-guide.md`. Do not run probes or substitute web search just because auth is missing.
-- By default, use `<skill-root>/.env.skill` as the local auth file. If an agent accidentally stored `ABEL_API_KEY` in the same-directory `.env`, the bundled probe also falls back to that file.
+`abel-auth` owns auth preflight and OAuth repair. This file assumes auth is
+already ready by the time you use these command shapes. If live auth is still
+missing, hand off to `abel-auth` instead of continuing here.
 
 ## Bundled Script
 
@@ -28,7 +26,6 @@ Run these from the skill root:
 BASE_URL="https://cap.abel.ai/api"
 
 python scripts/cap_probe.py --base-url "$BASE_URL" capabilities
-python scripts/cap_probe.py auth-status
 python scripts/cap_probe.py normalize-node NVDA
 python scripts/cap_probe.py --base-url "$BASE_URL" methods extensions.abel.query_node extensions.abel.node_description
 python scripts/cap_probe.py observe-dual NVDA
@@ -114,7 +111,7 @@ Bridge-node rule:
 
 ## See Also
 
-- `../SKILL.md` for the dispatcher and read order
+- `../../abel-auth/references/preflight.md` for auth preflight ownership
 - `routes/direct-graph.md` for direct graph flow
 - `../SKILL.md` Step 2-4 for proxy-routed flow, screening, and validation
 - `../SKILL.md` Step 5-6 for web grounding and report writing
