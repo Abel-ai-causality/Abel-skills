@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from abel_strategy_discovery import narrative_impl
+from abel_strategy_discovery.env import resolve_alpha_source
 from abel_strategy_discovery.workspace import (
     build_default_manifest,
     render_workspace_status,
@@ -70,3 +71,10 @@ def test_render_workspace_status_reports_alpha_managed_mode(tmp_path: Path) -> N
 
     assert "Workspace mode: alpha-managed branch research" in status
     assert f"Research root: {root / 'research'}" in status
+
+
+def test_resolve_alpha_source_defaults_to_skill_root() -> None:
+    resolved = resolve_alpha_source()
+
+    assert resolved == Path("skills/abel-strategy-discovery").resolve()
+    assert (resolved / "pyproject.toml").exists()
