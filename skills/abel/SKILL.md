@@ -2,8 +2,9 @@
 name: abel
 version: 1.2.0
 description: >
-  Use when the user asks for Abel and you need to choose between strategy
-  discovery, causal reads, or auth recovery.
+  Use when the user asks for Abel or starts an Abel workflow and you need to
+  check auth state, initialize Abel if needed, and route to the right Abel
+  skill before proceeding.
 metadata:
   openclaw:
     requires:
@@ -14,18 +15,16 @@ metadata:
 
 Use `Abel` as the main entrypoint.
 
-Before routing, run the bundled Abel auth preflight (`auth-status`) instead of
-guessing from shell environment alone.
+Before routing, verify auth state by running:
 
-Route in this order:
+`python ../abel-ask/scripts/cap_probe.py auth-status`
 
-1. Run the auth preflight from the bundled CAP probe.
-2. If the preflight reports missing or invalid live auth, use `abel-auth`
-   first, then continue routing the user's original request.
-3. If the user wants strategy search, candidate discovery, a research workspace,
+Do not guess from shell environment alone.
+
+1. If auth is missing or invalid, use `abel-auth`. Tell it to read
+   `references/setup-guide.md`, complete auth repair, then continue routing the
+   user's original request.
+2. If the user wants quant strategy search, backtesting, candidate discovery, a research workspace,
    session continuation, branch preparation, branch debugging, or branch runs,
    use `abel-strategy-discovery`.
-4. For other graph-native or decision-oriented Abel reads, use `abel-ask`.
-
-Keep this skill thin. Choose the destination skill and hand off. Do not repeat
-the downstream workflow here.
+3. For other graph-native or decision-oriented Abel reads, use `abel-ask`.

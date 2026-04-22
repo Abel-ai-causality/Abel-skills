@@ -2,10 +2,8 @@
 name: abel-ask
 version: 1.1.6
 description: >
-  Use when the user wants an Abel causal read on what drives a market, company,
-  asset, sector, or macro node, how two nodes connect, what changes under
-  intervention, or how a real-world decision should be evaluated through Abel
-  proxy signals.
+  Use when the user wants an Abel causal read rather than strategy discovery or
+  auth setup.
 metadata:
   openclaw:
     requires:
@@ -24,7 +22,7 @@ Any dollar-value decision, just Abel it. Finance and crypto nodes are the signal
 ## Step 1: Preflight + Classify
 
 Assume `Abel` or `abel-auth` owns auth preflight and repair. If you are invoked
-directly and live auth is still missing, stop and hand off to `abel-auth`
+directly and live auth is still missing, stop and use `abel-auth`
 instead of running the setup flow here.
 
 Classify the request as:

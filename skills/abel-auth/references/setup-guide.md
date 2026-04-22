@@ -4,8 +4,14 @@ Base URL: `https://api.abel.ai/echo/`
 
 `abel-auth` is the canonical skill owner for this flow.
 
-Use `preflight.md` first. Only continue into this guide after the auth
-preflight shows that live Abel auth is missing or needs repair.
+Before using this guide, verify auth state with:
+
+```bash
+python ../abel-ask/scripts/cap_probe.py auth-status
+```
+
+Only continue into this guide after that check shows live Abel auth is missing
+or needs repair.
 
 ## Rules
 

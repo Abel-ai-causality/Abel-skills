@@ -111,7 +111,7 @@ Bridge-node rule:
 
 ## See Also
 
-- `../../abel-auth/references/preflight.md` for auth preflight ownership
+- `../../abel-auth/SKILL.md` for auth ownership and the required `auth-status` command
 - `routes/direct-graph.md` for direct graph flow
 - `../SKILL.md` Step 2-4 for proxy-routed flow, screening, and validation
 - `../SKILL.md` Step 5-6 for web grounding and report writing
