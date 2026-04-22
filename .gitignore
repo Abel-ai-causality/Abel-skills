@@ -1,9 +1,12 @@
 __pycache__/
+*.egg-info/
 dist/
 causal-abel/.env.skills
 causal-abel/.env.skill
 skills/causal-abel/.env.skills
 skills/causal-abel/.env.skill
+skills/*/.env.skill
+skills/*/.env.skills
 maintainers/causal-abel/endpoints.local.json
 causal-abel/.local-dev.md
 causal-abel/scripts/sync-local-codex-skill.ps1

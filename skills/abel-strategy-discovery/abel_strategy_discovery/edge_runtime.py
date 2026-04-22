@@ -5,58 +5,32 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
 from abel_strategy_discovery.workspace import load_workspace_manifest, resolve_workspace_paths
 
 
-ENV_KEY_NAMES = ("ABEL_API_KEY", "CAP_API_KEY")
-ENV_FILE_CANDIDATES = (".env.skill", ".env.skills", ".env")
-COLLECTION_SHARED_SKILLS = ("abel-auth", "abel", "abel-ask")
+def common_python_root() -> Path:
+    return Path(__file__).resolve().parents[2] / "abel-common" / "python"
 
 
-def _read_env_file(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            values[key] = value
-    return values
+resolved_common_python_root = common_python_root()
+if str(resolved_common_python_root) not in sys.path:
+    sys.path.insert(0, str(resolved_common_python_root))
 
-
-def _has_auth_token(path: Path) -> bool:
-    values = _read_env_file(path)
-    return any((values.get(name) or "").strip() for name in ENV_KEY_NAMES)
-
-
-def _shared_collection_auth_files() -> list[Path]:
-    skill_root = Path(__file__).resolve().parents[1]
-    skills_root = skill_root.parent
-    files: list[Path] = []
-    for basename in ENV_FILE_CANDIDATES:
-        files.append(skills_root / basename)
-    for sibling_name in COLLECTION_SHARED_SKILLS:
-        sibling_root = skills_root / sibling_name
-        for basename in ENV_FILE_CANDIDATES:
-            files.append(sibling_root / basename)
-    return files
+from abel_common.cap.auth import has_auth_token, resolve_auth_env_file
 
 
 def resolve_runtime_auth_env_file(workspace_root: Path) -> Path | None:
     workspace_env = (workspace_root / ".env").resolve()
-    if _has_auth_token(workspace_env):
+    if has_auth_token(workspace_env):
         return workspace_env
-    for candidate in _shared_collection_auth_files():
-        if _has_auth_token(candidate):
-            return candidate.resolve()
+    common_root = common_python_root()
+    shared_auth = resolve_auth_env_file(common_root.parent.parent / "abel-ask" / ".env.skill")
+    if shared_auth is not None:
+        return shared_auth
     if workspace_env.exists():
         return workspace_env
     return None
@@ -65,6 +39,8 @@ def run_python_json(
     python_path: Path | str,
     cwd: Path,
     script: str,
+    *,
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     """Run an inline Python script and parse a JSON payload from stdout."""
     completed = subprocess.run(
@@ -73,6 +49,7 @@ def run_python_json(
         check=False,
         capture_output=True,
         text=True,
+        env=None if env is None else dict(env),
     )
     if completed.returncode != 0:
         return {
@@ -191,6 +168,17 @@ def build_workspace_runtime_env(
 
 def probe_abel_auth(python_path: Path | str, cwd: Path) -> dict[str, object]:
     """Probe whether Abel auth is available to the installed runtime."""
+    runtime_env = build_workspace_runtime_env(cwd, base={})
+    auth_env_file = runtime_env.get("ABEL_AUTH_ENV_FILE")
+    if auth_env_file and has_auth_token(auth_env_file):
+        auth_path = Path(auth_env_file).expanduser().resolve()
+        source = "workspace_env" if auth_path == (cwd / ".env").resolve() else "shared_auth_file"
+        return {
+            "ok": True,
+            "source": source,
+            "path": str(auth_path),
+        }
+
     return run_python_json(
         python_path,
         cwd,
@@ -250,5 +238,6 @@ print(json.dumps({
     "source": "missing",
     "path": None,
 }))
-""",
+        """,
+        env=runtime_env,
     )
