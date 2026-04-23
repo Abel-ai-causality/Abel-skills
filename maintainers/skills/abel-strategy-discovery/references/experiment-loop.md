@@ -6,30 +6,33 @@ Before following the loop below, determine where the workspace root actually
 is:
 
 - if `./alpha.workspace.yaml` exists, the current directory is already the workspace root
-- else if `./abel-alpha-workspace/alpha.workspace.yaml` exists, reuse that child workspace
+- else if `./abel-strategy-discovery-workspace/alpha.workspace.yaml` exists, reuse that child workspace
 - only if neither manifest exists should you bootstrap a new workspace
 
 Do not decide that "the workspace does not exist" by checking only whether
-`./abel-alpha-workspace/` is present.
+`./abel-strategy-discovery-workspace/` is present.
 
 ## Standard Path
 
 ```bash
-abel-alpha init-session --ticker <TICKER> --exp-id <exp-id> --discover
-abel-alpha init-branch --session research/<ticker>/<exp_id> --branch-id graph-v1
+abel-strategy-discovery init-session --ticker <TICKER> --exp-id <exp-id> --discover
+abel-strategy-discovery frontier-status --session research/<ticker>/<exp_id>
+abel-strategy-discovery probe-nodes --session research/<ticker>/<exp_id> --node <node_id>
+abel-strategy-discovery expand-frontier --session research/<ticker>/<exp_id> --from-node <node_id>
+abel-strategy-discovery init-branch --session research/<ticker>/<exp_id> --branch-id graph-v1
 
 # first make the branch explicit
-edit research/<ticker>/<exp_id>/branches/graph-v1/branch.yaml
+abel-strategy-discovery select-inputs --branch research/<ticker>/<exp_id>/branches/graph-v1 --node <node_id> --replace
 edit research/<ticker>/<exp_id>/branches/graph-v1/engine.py
 
-abel-alpha prepare-branch --branch research/<ticker>/<exp_id>/branches/graph-v1
-abel-alpha debug-branch --branch research/<ticker>/<exp_id>/branches/graph-v1
-abel-alpha run-branch --branch research/<ticker>/<exp_id>/branches/graph-v1 -d "baseline"
+abel-strategy-discovery prepare-branch --branch research/<ticker>/<exp_id>/branches/graph-v1
+abel-strategy-discovery debug-branch --branch research/<ticker>/<exp_id>/branches/graph-v1
+abel-strategy-discovery run-branch --branch research/<ticker>/<exp_id>/branches/graph-v1 -d "baseline"
 ```
 
-Before this loop, the workspace should already exist and `abel-alpha doctor`
+Before this loop, the workspace should already exist and `abel-strategy-discovery doctor`
 should already be acceptable.
-Inside an Abel-alpha workspace, keep the research on this session/branch path
+Inside an Abel strategy discovery workspace, keep the research on this session/branch path
 under `research/` rather than creating a standalone `causal-edge init`
 sidecar project.
 This is a compounding search loop, not a checklist of unrelated backtests.
@@ -37,7 +40,7 @@ Each round should answer a question about mechanism, not just consume compute.
 
 ## What Each Layer Owns
 
-- session: discovery and readiness
+- session: discovery, frontier expansion, and readiness
 - branch: branch spec and `compute_decisions(self, ctx)` implementation
 - edge cache: market data reuse
 - prepare step: branch input resolution and runtime contract materialization
@@ -58,6 +61,7 @@ Before a recorded round, the branch should already have:
 - `inputs/runtime_profile.json`
 - `inputs/execution_constraints.json`
 - `inputs/data_manifest.json`
+- `inputs/window_availability.json`
 - `inputs/context_guide.md`
 - `inputs/probe_samples.json`
 

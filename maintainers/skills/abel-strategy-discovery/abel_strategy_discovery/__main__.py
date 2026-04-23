@@ -1,4 +1,4 @@
-"""Allow `python -m abel_alpha`."""
+"""Allow `python -m abel_strategy_discovery`."""
 
 from __future__ import annotations
 
