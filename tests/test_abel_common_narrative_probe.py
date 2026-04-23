@@ -8,13 +8,13 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NARRATIVE_CAP_PROBE_PATH = (
-    REPO_ROOT / "skills" / "causal-abel" / "scripts" / "narrative_cap_probe.py"
+    REPO_ROOT / "skills" / "abel-common" / "python" / "abel_common" / "cap" / "narrative_probe.py"
 )
 
 
 def _load_narrative_cap_probe_module():
     spec = importlib.util.spec_from_file_location(
-        "causal_abel_narrative_cap_probe",
+        "abel_common_narrative_cap_probe",
         NARRATIVE_CAP_PROBE_PATH,
     )
     assert spec is not None
