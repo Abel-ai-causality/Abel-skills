@@ -34,7 +34,10 @@ from abel_strategy_discovery.doctor import (
     render_doctor_report,
     run_doctor,
 )
-from abel_strategy_discovery.edge_runtime import build_workspace_runtime_env
+from abel_strategy_discovery.edge_runtime import (
+    build_workspace_runtime_env,
+    resolve_runtime_auth_env_file,
+)
 from abel_strategy_discovery.env import init_workspace_env
 from abel_strategy_discovery.workspace import (
     DEFAULT_WORKSPACE_NAME,
@@ -1283,10 +1286,9 @@ def fetch_live_graph_payload(node_id: str, *, limit: int) -> dict:
         ) from exc
     workspace_root, _ = resolve_workspace_entry()
     if workspace_root is not None:
-        os.environ.setdefault(
-            "ABEL_AUTH_ENV_FILE",
-            str(resolve_workspace_env_file(workspace_root).resolve()),
-        )
+        auth_env_file = resolve_runtime_auth_env_file(workspace_root)
+        if auth_env_file is not None:
+            os.environ.setdefault("ABEL_AUTH_ENV_FILE", str(auth_env_file.resolve()))
 
     try:
         require_api_key()
@@ -1294,10 +1296,9 @@ def fetch_live_graph_payload(node_id: str, *, limit: int) -> dict:
         python_bin = resolve_default_python_bin(workspace_root or Path.cwd())
         raise RuntimeError(
             "Graph discovery is blocked on Abel auth. "
-            "No reusable auth was found, so start explicit auth handoff now with:\n"
+            "No reusable auth was found, so use the collection-owned auth flow now:\n"
             f"{build_auth_handoff_command(python_bin)}\n\n"
-            "Surface the URL immediately when it appears, complete authorization, "
-            "then retry the discovery command."
+            "Complete `abel-auth`, then retry the discovery command."
         ) from exc
 
     payload = discover_graph_payload(node_id, mode="all", limit=limit)
@@ -2198,7 +2199,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         if "Abel API key not found" in runtime_error_text:
             raise RuntimeError(
                 "Branch preparation is blocked on Abel auth. "
-                "Start explicit auth handoff now with:\n"
+                "Use the collection-owned auth flow now:\n"
                 f"{build_auth_handoff_command(python_bin)}"
             )
         raise RuntimeError(
@@ -2538,9 +2539,15 @@ def run_branch_round(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         if workspace_root is not None:
+            auth_env_file = resolve_runtime_auth_env_file(workspace_root)
             print(
-                f"Alpha expected workspace auth at {resolve_workspace_env_file(workspace_root)} "
-                "and exported it through ABEL_AUTH_ENV_FILE for this run.",
+                "Strategy discovery resolved shared collection auth first"
+                + (
+                    f" at {auth_env_file}"
+                    if auth_env_file is not None
+                    else ""
+                )
+                + " and exported it through ABEL_AUTH_ENV_FILE for this run.",
                 file=sys.stderr,
             )
         return completed.returncode or 1
@@ -4472,7 +4479,7 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
     if failure_signature == "auth_missing" or "api key not found" in failures_lower:
         return (
             "workflow_boundary",
-            "The branch is still blocked on auth for a data path; complete the auth handoff before treating this as an engine or strategy issue.",
+            "The branch is still blocked on auth for a data path; use `abel-auth` to restore shared collection auth before treating this as an engine or strategy issue.",
         )
 
     if verdict == "ERROR":

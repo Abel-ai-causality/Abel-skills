@@ -188,7 +188,7 @@ def build_default_manifest(name: str) -> dict:
             "python": default_python_path(),
             "edge_package": "causal-edge",
             "edge_spec": DEFAULT_EDGE_SPEC,
-            "auth_strategy": "reuse_causal_abel_first",
+            "auth_strategy": "reuse_skill_collection_auth_first",
         },
         "defaults": {
             "backtest_start": "2020-01-01",
@@ -311,7 +311,7 @@ Run `abel-strategy-discovery doctor` before opening a session.
 
 - `ready`: you can start research
 - `ready` means continue with `init-session -> init-branch -> branch.yaml -> prepare-branch`
-- `auth_missing`: no reusable auth was found; start the explicit workspace-runtime auth handoff immediately and surface the URL as soon as it appears
+- `auth_missing`: no reusable auth was found; use `abel-auth` to initialize or repair shared collection auth before continuing
 - `env_missing`, `edge_missing`, or `edge_contract_missing`: rerun `abel-strategy-discovery env init`
 """
 
@@ -349,9 +349,9 @@ abel-strategy-discovery debug-branch --branch research/tsla/tsla-v1/branches/gra
 abel-strategy-discovery run-branch --branch research/tsla/tsla-v1/branches/graph-v1 -d "baseline"
 ```
 
-Run `doctor` before `init-session`. If it reports `auth_missing`, move
-immediately into the workspace runtime's explicit auth handoff and surface the
-URL as soon as it appears.
+Run `doctor` before `init-session`. If it reports `auth_missing`, use
+`abel-auth` immediately so the shared collection auth is repaired before the
+session continues.
 Treat the session frontier as the default search surface. Use
 `frontier-status`, `probe-nodes`, and `select-inputs` before widening the
 branch universe free-form. Treat `branch.yaml` as the place where target,

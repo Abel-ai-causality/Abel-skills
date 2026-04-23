@@ -26,10 +26,12 @@ def test_scaffold_workspace_writes_alpha_owned_boundary_guidance(tmp_path: Path)
     assert "abel-strategy-discovery frontier-status" in readme
     assert "abel-strategy-discovery select-inputs" in readme
     assert "window_availability.json" in readme
+    assert "abel-auth" in readme
     assert "standalone `causal-edge init` project inside it" in agents
     assert "Do not create `./abel-strategy-discovery-workspace` inside it." in agents
     assert "probe-nodes" in agents
     assert "selected inputs" in agents
+    assert "abel-auth" in agents
 
 
 def test_scaffold_workspace_rejects_nested_workspace_under_existing_root(tmp_path: Path) -> None:
