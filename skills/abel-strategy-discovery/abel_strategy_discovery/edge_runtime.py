@@ -11,9 +11,12 @@ from pathlib import Path
 
 from abel_strategy_discovery.workspace import load_workspace_manifest, resolve_workspace_paths
 
+ABEL_COMMON_PYTHON_ROOT = Path(__file__).resolve().parents[2] / "abel-common" / "python"
+SHARED_AUTH_ENV_FILE = ABEL_COMMON_PYTHON_ROOT.parent.parent / "abel-ask" / ".env.skill"
+
 
 def common_python_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "abel-common" / "python"
+    return ABEL_COMMON_PYTHON_ROOT
 
 
 resolved_common_python_root = common_python_root()
@@ -24,11 +27,11 @@ from abel_common.cap.auth import has_auth_token, resolve_auth_env_file
 
 
 def resolve_runtime_auth_env_file(workspace_root: Path) -> Path | None:
+    """Prefer workspace auth, then shared skill auth, then the workspace env file."""
     workspace_env = (workspace_root / ".env").resolve()
     if has_auth_token(workspace_env):
         return workspace_env
-    common_root = common_python_root()
-    shared_auth = resolve_auth_env_file(common_root.parent.parent / "abel-ask" / ".env.skill")
+    shared_auth = resolve_auth_env_file(SHARED_AUTH_ENV_FILE)
     if shared_auth is not None:
         return shared_auth
     if workspace_env.exists():
