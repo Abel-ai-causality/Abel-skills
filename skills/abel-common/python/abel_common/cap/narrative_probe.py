@@ -266,7 +266,7 @@ def _get_card(base_url: str, headers: dict[str, str]) -> dict[str, Any]:
         headers=headers,
     )
     try:
-        with urllib.request.urlopen(req, timeout=20.0) as response:
+        with urllib.request.urlopen(req, timeout=240.0) as response:
             parsed = _json_or_text(response.read())
             if isinstance(parsed, dict):
                 return {"ok": True, "status_code": response.status, **parsed}
