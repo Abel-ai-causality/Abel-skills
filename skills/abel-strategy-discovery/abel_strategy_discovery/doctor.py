@@ -147,7 +147,8 @@ def run_doctor(start: Path | None = None) -> dict[str, object]:
                 "status": "edge_contract_missing",
                 "summary": (
                     "Workspace Python can import Abel-edge, but the installed runtime is missing "
-                    "required alpha contracts such as structured discovery or `--context-json`."
+                    "required strategy-discovery contracts such as structured discovery "
+                    "or `--context-json`."
                 ),
                 "next_step": "abel-strategy-discovery env init  # or install a newer Abel-edge into the workspace runtime",
             }
