@@ -2,18 +2,22 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from argparse import Namespace
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from abel_strategy_discovery import narrative_impl as ni
+
+
+def _sample_selected_inputs() -> list[dict]:
+    return [
+        {"node_id": "AAPL.price", "asset": "AAPL", "field": "price", "roles": ["selected"]},
+    ]
 
 
 def test_memory_scaffold_and_views(tmp_path: Path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
     branch = ni.init_branch_dir(session, "graph-v1")
+    branch_spec = ni.load_branch_spec(branch)
 
     required_session_files = [
         ni.MEMORY_MANIFEST_FILENAME,
@@ -36,6 +40,9 @@ def test_memory_scaffold_and_views(tmp_path: Path) -> None:
     assert len(branch_rows) == 1
     assert branch_rows[0]["branch_id"] == "graph-v1"
     assert branch_rows[0]["source_type"] == "causal"
+    assert branch_spec["target_asset"] == "TSLA"
+    assert branch_spec["target_node"] == "TSLA.price"
+    assert "selected_inputs" in branch_spec
 
 
 def test_manual_insight_and_link_survive_render(tmp_path: Path) -> None:
@@ -113,10 +120,11 @@ def test_run_branch_round_updates_memory_and_status(
         deps_path = ni.dependencies_path(branch)
         deps_path.parent.mkdir(parents=True, exist_ok=True)
         dependencies = {
-            "version": 1,
+            "version": 2,
             "branch_id": branch.name,
-            "target": "TSLA",
-            "selected_drivers": ["AAPL"],
+            "target_asset": "TSLA",
+            "target_node": "TSLA.price",
+            "selected_inputs": _sample_selected_inputs(),
             "requested_start": "2020-01-01",
             "cache": {
                 "adapter": "abel",
@@ -139,18 +147,30 @@ def test_run_branch_round_updates_memory_and_status(
             },
         }
         deps_path.write_text(json.dumps(dependencies), encoding="utf-8")
-        runtime_profile = ni.build_runtime_profile_payload(target="TSLA")
+        runtime_profile = ni.build_runtime_profile_payload(
+            target_asset="TSLA",
+            target_node="TSLA.price",
+        )
         execution_constraints = ni.build_execution_constraints_payload(ni.load_branch_spec(branch))
         data_manifest = ni.build_data_manifest_payload(
-            target="TSLA",
-            selected_drivers=["AAPL"],
+            target_asset="TSLA",
+            target_node="TSLA.price",
+            selected_inputs=ni.branch_selected_inputs(
+                {"selected_inputs": _sample_selected_inputs()}
+            ),
             cache_payload=dependencies["cache"],
             readiness={},
         )
-        probe_samples = ni.build_probe_samples_payload(
-            target="TSLA",
+        window_report = ni.build_window_availability_report(
             requested_start="2020-01-01",
             data_manifest=data_manifest,
+            overlap_mode="target_only",
+        )
+        probe_samples = ni.build_probe_samples_payload(
+            target_asset="TSLA",
+            requested_start="2020-01-01",
+            data_manifest=data_manifest,
+            window_report=window_report,
         )
         ni.runtime_profile_path(branch).write_text(
             json.dumps(runtime_profile),
@@ -164,19 +184,26 @@ def test_run_branch_round_updates_memory_and_status(
             json.dumps(data_manifest),
             encoding="utf-8",
         )
+        ni.window_availability_path(branch).write_text(
+            json.dumps(window_report),
+            encoding="utf-8",
+        )
         ni.probe_samples_path(branch).write_text(
             json.dumps(probe_samples),
             encoding="utf-8",
         )
         ni.context_guide_path(branch).write_text(
             ni.build_context_guide_markdown(
-                target="TSLA",
+                target_asset="TSLA",
+                target_node="TSLA.price",
                 runtime_profile=runtime_profile,
                 execution_constraints=execution_constraints,
                 data_manifest=data_manifest,
+                window_report=window_report,
             ),
             encoding="utf-8",
         )
+        ni.persist_prepared_branch_contract(branch, ni.load_discovery(session))
 
     def fake_subprocess_run(command, cwd=None, capture_output=None, text=None, env=None, check=False, input=None):
         if "evaluate" in command:

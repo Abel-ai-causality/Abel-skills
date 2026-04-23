@@ -23,8 +23,13 @@ def test_scaffold_workspace_writes_alpha_owned_boundary_guidance(tmp_path: Path)
     assert "This workspace is for alpha-managed branch research." in readme
     assert "Do not run `causal-edge init` inside this workspace." in readme
     assert "Do not bootstrap `./abel-strategy-discovery-workspace` inside it." in readme
+    assert "abel-strategy-discovery frontier-status" in readme
+    assert "abel-strategy-discovery select-inputs" in readme
+    assert "window_availability.json" in readme
     assert "standalone `causal-edge init` project inside it" in agents
     assert "Do not create `./abel-strategy-discovery-workspace` inside it." in agents
+    assert "probe-nodes" in agents
+    assert "selected inputs" in agents
 
 
 def test_scaffold_workspace_rejects_nested_workspace_under_existing_root(tmp_path: Path) -> None:
@@ -75,6 +80,7 @@ def test_render_workspace_status_reports_alpha_managed_mode(tmp_path: Path) -> N
 
 def test_resolve_alpha_source_defaults_to_skill_root() -> None:
     resolved = resolve_alpha_source()
+    expected = Path(__file__).resolve().parents[1] / "skills" / "abel-strategy-discovery"
 
-    assert resolved == Path("skills/abel-strategy-discovery").resolve()
+    assert resolved == expected.resolve()
     assert (resolved / "pyproject.toml").exists()
