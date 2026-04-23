@@ -1,8 +1,5 @@
-# ClawHub Import Paths
+# ClawHub Artifacts
 
-This directory contains repository-committed artifacts intended for direct GitHub import into ClawHub.
+ClawHub release artifacts should be built from collection source into `dist/clawhub/`.
 
-- Source skill: `skills/causal-abel/`
-- ClawHub import path: `clawhub/causal-abel/`
-
-The `main` branch keeps `clawhub/causal-abel/` in sync automatically through `.github/workflows/sync-clawhub-artifact.yml`.
+Do not treat this directory as the source of truth. Build and publish from source instead.

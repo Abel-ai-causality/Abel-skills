@@ -26,7 +26,7 @@ class CheckPrReleasePolicyTests(unittest.TestCase):
     def test_develop_pr_rejects_version_bump(self) -> None:
         violations = self.module.evaluate_policy(
             base_branch="develop",
-            changed_files=["skills/causal-abel/SKILL.md"],
+            changed_files=["skills/abel/SKILL.md"],
         )
         self.assertTrue(any("version" in violation.lower() for violation in violations))
 
@@ -42,7 +42,7 @@ class CheckPrReleasePolicyTests(unittest.TestCase):
             base_branch="develop",
             changed_files=["clawhub/causal-abel/SKILL.md"],
         )
-        self.assertTrue(any("clawhub" in violation.lower() for violation in violations))
+        self.assertEqual([], violations)
 
     def test_develop_pr_allows_docs_only_change(self) -> None:
         violations = self.module.evaluate_policy(
@@ -54,20 +54,29 @@ class CheckPrReleasePolicyTests(unittest.TestCase):
     def test_main_pr_requires_version_and_changelog_for_skill_release(self) -> None:
         violations = self.module.evaluate_policy(
             base_branch="main",
-            changed_files=["skills/causal-abel/references/probe-usage.md"],
+            changed_files=["skills/abel-ask/references/probe-usage.md"],
         )
         self.assertTrue(any("version" in violation.lower() for violation in violations))
         self.assertTrue(any("changelog" in violation.lower() for violation in violations))
-        self.assertTrue(any("clawhub" in violation.lower() for violation in violations))
+
+    def test_main_pr_no_longer_requires_checked_in_clawhub_artifact(self) -> None:
+        violations = self.module.evaluate_policy(
+            base_branch="main",
+            changed_files=[
+                "skills/abel/SKILL.md",
+                "skills/abel/references/routing.md",
+                "CHANGELOG.md",
+            ],
+        )
+        self.assertEqual([], violations)
 
     def test_main_pr_allows_release_bundle(self) -> None:
         violations = self.module.evaluate_policy(
             base_branch="main",
             changed_files=[
-                "skills/causal-abel/references/probe-usage.md",
-                "skills/causal-abel/SKILL.md",
+                "skills/abel-ask/references/probe-usage.md",
+                "skills/abel/SKILL.md",
                 "CHANGELOG.md",
-                "clawhub/causal-abel/SKILL.md",
             ],
         )
         self.assertEqual([], violations)
