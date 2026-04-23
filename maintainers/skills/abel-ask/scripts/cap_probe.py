@@ -127,6 +127,7 @@ def _read_env_file_values(path: Path) -> dict[str, str]:
             values[key] = value
     return values
 
+
 def _load_env_file(path: str) -> None:
     for candidate in _candidate_env_files(path):
         if not candidate.exists():
@@ -293,8 +294,8 @@ def _build_payload(
     verb: str,
     params: dict[str, Any] | None = None,
     *,
-    context: dict[str, Any] | None = None,
     graph_version: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "cap_version": CAP_VERSION,
@@ -303,76 +304,34 @@ def _build_payload(
     }
     if params is not None:
         payload["params"] = params
-    resolved_context = _resolve_payload_context(
-        verb,
-        context=context,
-        graph_version=graph_version,
-    )
-    if resolved_context is not None:
-        payload["context"] = resolved_context
+    if not verb.startswith("meta."):
+        merged_context = dict(context or {})
+        context_graph_ref = merged_context.get("graph_ref")
+        if context_graph_ref is not None and not isinstance(context_graph_ref, dict):
+            raise ValueError("context.graph_ref must be a JSON object when provided.")
+
+        effective_graph_version = graph_version or DEFAULT_GRAPH_VERSION
+        if graph_version and graph_version not in SUPPORTED_GRAPH_VERSIONS:
+            raise ValueError(
+                f"Unsupported graph_version {graph_version!r}; expected one of {SUPPORTED_GRAPH_VERSIONS}."
+            )
+
+        existing_graph_ref = dict(context_graph_ref or {})
+        existing_graph_version = existing_graph_ref.get("graph_version")
+        if (
+            graph_version
+            and existing_graph_version
+            and existing_graph_version != graph_version
+        ):
+            raise ValueError("Conflicting graph_version values between flag and context.")
+
+        existing_graph_ref.setdefault("graph_id", DEFAULT_GRAPH_ID)
+        existing_graph_ref["graph_version"] = (
+            existing_graph_version or effective_graph_version
+        )
+        merged_context["graph_ref"] = existing_graph_ref
+        payload["context"] = merged_context
     return payload
-
-
-def _parse_json_object(raw: str, *, flag_name: str) -> dict[str, Any]:
-    if not raw:
-        return {}
-    parsed = json.loads(raw)
-    if not isinstance(parsed, dict):
-        raise ValueError(f"{flag_name} must decode to a JSON object.")
-    return dict(parsed)
-
-
-def _merge_graph_ref(
-    context: dict[str, Any],
-    *,
-    graph_version: str | None,
-    graph_id: str = DEFAULT_GRAPH_ID,
-) -> dict[str, Any]:
-    merged = dict(context)
-    graph_ref_raw = merged.get("graph_ref")
-    graph_ref = dict(graph_ref_raw) if isinstance(graph_ref_raw, dict) else {}
-
-    existing_graph_id = graph_ref.get("graph_id")
-    if existing_graph_id is not None and existing_graph_id != graph_id:
-        raise ValueError(
-            f"Conflicting graph_id values: context-json has {existing_graph_id!r}, expected {graph_id!r}."
-        )
-
-    existing_graph_version = graph_ref.get("graph_version")
-    if (
-        graph_version is not None
-        and existing_graph_version is not None
-        and existing_graph_version != graph_version
-    ):
-        raise ValueError(
-            "Conflicting graph_version values between --graph-version and --context-json."
-        )
-
-    resolved_graph_version = existing_graph_version or graph_version
-    if resolved_graph_version is None:
-        return merged
-
-    graph_ref["graph_id"] = graph_id
-    graph_ref["graph_version"] = resolved_graph_version
-    merged["graph_ref"] = graph_ref
-    return merged
-
-
-def _resolve_payload_context(
-    verb: str,
-    *,
-    context: dict[str, Any] | None = None,
-    graph_version: str | None = None,
-) -> dict[str, Any] | None:
-    if verb.startswith("meta.") and graph_version is None:
-        return context or None
-
-    resolved_graph_version = graph_version or DEFAULT_GRAPH_VERSION
-    merged = _merge_graph_ref(
-        context or {},
-        graph_version=resolved_graph_version,
-    )
-    return merged or None
 
 
 def _looks_like_ticker(value: str) -> bool:
@@ -489,10 +448,15 @@ def _post_cap(
     params: dict[str, Any] | None,
     headers: dict[str, str],
     *,
-    context: dict[str, Any] | None = None,
     graph_version: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    payload = _build_payload(verb, params, context=context, graph_version=graph_version)
+    payload = _build_payload(
+        verb,
+        params,
+        graph_version=graph_version,
+        context=context,
+    )
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         _cap_endpoint(base_url),
@@ -501,7 +465,7 @@ def _post_cap(
         headers=headers,
     )
     try:
-        with urllib.request.urlopen(req, timeout=360) as response:
+        with urllib.request.urlopen(req, timeout=20.0) as response:
             parsed = _json_or_text(response.read())
             if isinstance(parsed, dict):
                 return {"ok": True, "status_code": response.status, **parsed}
@@ -537,17 +501,18 @@ def _post_cap(
 def _call_verb(
     args: argparse.Namespace, verb: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    context = _parse_json_object(
-        getattr(args, "context_json", ""),
-        flag_name="--context-json",
-    )
+    context = None
+    if getattr(args, "context_json", ""):
+        context = json.loads(args.context_json)
+        if not isinstance(context, dict):
+            raise ValueError("--context-json must decode to a JSON object.")
     return _post_cap(
         _resolve_base_url(args.base_url),
         verb,
         params,
         _resolve_headers(args.api_key),
+        graph_version=getattr(args, "graph_version", None),
         context=context,
-        graph_version=getattr(args, "graph_version", "") or None,
     )
 
 
@@ -945,38 +910,49 @@ def _cmd_intervene_time_lag(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _cmd_verb(args: argparse.Namespace) -> dict[str, Any]:
-    params = _parse_json_object(args.params_json, flag_name="--params-json") if args.params_json else None
+    params = json.loads(args.params_json) if args.params_json else None
+    if params is not None and not isinstance(params, dict):
+        raise ValueError("--params-json must decode to a JSON object.")
     return _call_verb(args, args.verb_name, params)
 
 
 def _cmd_route(args: argparse.Namespace) -> dict[str, Any]:
-    params = _parse_json_object(args.params_json, flag_name="--params-json") if args.params_json else None
+    params = json.loads(args.params_json) if args.params_json else None
+    if params is not None and not isinstance(params, dict):
+        raise ValueError("--params-json must decode to a JSON object.")
     return _call_verb(args, _route_to_verb(args.route_name), params)
 
 
-def _configure_neighbors_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("node_id")
-    parser.add_argument("--scope", choices=("parents", "children"), default="parents")
-    parser.add_argument("--max-neighbors", type=int, default=5)
-    parser.set_defaults(func=_cmd_neighbors)
+def _maybe_add_graph_version_retry_hint(result: dict[str, Any]) -> dict[str, Any]:
+    if result.get("ok") is not False:
+        return result
 
+    error = result.get("error")
+    if not isinstance(error, dict):
+        return result
+    details = error.get("details")
+    if not isinstance(details, dict):
+        return result
+    if details.get("reason") != "prediction_temporarily_unavailable":
+        return result
+    if details.get("graph_version") != "CausalNodeV3":
+        return result
 
-def _configure_paths_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("source_node_id")
-    parser.add_argument("target_node_id")
-    parser.add_argument("--max-paths", type=int, default=3)
-    parser.add_argument(
-        "--include-edge-signs",
-        action="store_true",
-        help="Request signed edges in returned path details when supported.",
+    verb = result.get("verb")
+    if not verb:
+        response_payload = result.get("response_payload")
+        if isinstance(response_payload, dict):
+            verb = response_payload.get("verb")
+    if verb != "observe.predict":
+        return result
+
+    target_node = details.get("target_node", "<target_node>")
+    enriched = dict(result)
+    enriched["hint"] = (
+        "Retry this observational read on the V2 graph surface: "
+        f"python scripts/cap_probe.py observe {target_node} --graph-version CausalNodeV2"
     )
-    parser.set_defaults(func=_cmd_paths)
-
-
-def _configure_markov_blanket_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("node_id")
-    parser.add_argument("--max-neighbors", type=int, default=10)
-    parser.set_defaults(func=_cmd_markov_blanket)
+    return enriched
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1012,19 +988,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--graph-version",
         choices=SUPPORTED_GRAPH_VERSIONS,
-        default="",
-        help=(
-            "Preferred graph version for graph-aware verbs "
-            f"(default: {DEFAULT_GRAPH_VERSION})."
-        ),
+        default=None,
+        help="Override context.graph_ref.graph_version for non-meta verbs.",
     )
     parser.add_argument(
         "--context-json",
         default="",
-        help=(
-            "JSON object merged into the CAP request context. "
-            "Use as an escape hatch for envelope-level fields."
-        ),
+        help="Extra JSON object merged into the request context envelope.",
     )
     parser.add_argument(
         "--default-suffix",
@@ -1087,57 +1057,82 @@ def _build_parser() -> argparse.ArgumentParser:
             "Probe both <ticker>.price and <ticker>.volume with "
             "extensions.abel.observe_predict_resolved_time and recommend the first-pass anchor."
         ),
-        epilog=GLOBAL_ENVELOPE_HELP,
     )
     observe_dual.add_argument("target_node")
     observe_dual.set_defaults(func=_cmd_observe_dual)
 
     neighbors = sub.add_parser(
         "neighbors",
-        help="Call graph.neighbors. Alias: graph.neighbors.",
+        help="Call graph.neighbors.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    _configure_neighbors_parser(neighbors)
-
+    neighbors.add_argument("node_id")
+    neighbors.add_argument(
+        "--scope", choices=("parents", "children"), default="parents"
+    )
+    neighbors.add_argument("--max-neighbors", type=int, default=5)
+    neighbors.set_defaults(func=_cmd_neighbors)
     graph_neighbors = sub.add_parser(
         "graph.neighbors",
-        help="Call graph.neighbors. Alias: neighbors.",
+        help="Alias for neighbors.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    _configure_neighbors_parser(graph_neighbors)
+    graph_neighbors.add_argument("node_id")
+    graph_neighbors.add_argument(
+        "--scope", choices=("parents", "children"), default="parents"
+    )
+    graph_neighbors.add_argument("--max-neighbors", type=int, default=5)
+    graph_neighbors.set_defaults(func=_cmd_neighbors)
 
     paths = sub.add_parser(
         "paths",
-        help="Call graph.paths. Alias: graph.paths.",
+        help="Call graph.paths.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    _configure_paths_parser(paths)
-
+    paths.add_argument("source_node_id")
+    paths.add_argument("target_node_id")
+    paths.add_argument("--max-paths", type=int, default=3)
+    paths.add_argument(
+        "--include-edge-signs",
+        action="store_true",
+        help="Request signed edges in returned path details when supported.",
+    )
+    paths.set_defaults(func=_cmd_paths)
     graph_paths = sub.add_parser(
         "graph.paths",
-        help="Call graph.paths. Alias: paths.",
+        help="Alias for paths.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    _configure_paths_parser(graph_paths)
+    graph_paths.add_argument("source_node_id")
+    graph_paths.add_argument("target_node_id")
+    graph_paths.add_argument("--max-paths", type=int, default=3)
+    graph_paths.add_argument(
+        "--include-edge-signs",
+        action="store_true",
+        help="Request signed edges in returned path details when supported.",
+    )
+    graph_paths.set_defaults(func=_cmd_paths)
 
     blanket = sub.add_parser(
         "markov-blanket",
-        help="Call graph.markov_blanket. Alias: graph.markov_blanket.",
+        help="Call graph.markov_blanket.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    _configure_markov_blanket_parser(blanket)
-
-    graph_markov_blanket = sub.add_parser(
+    blanket.add_argument("node_id")
+    blanket.add_argument("--max-neighbors", type=int, default=10)
+    blanket.set_defaults(func=_cmd_markov_blanket)
+    graph_blanket = sub.add_parser(
         "graph.markov_blanket",
-        help="Call graph.markov_blanket. Alias: markov-blanket.",
+        help="Alias for markov-blanket.",
         epilog=GLOBAL_ENVELOPE_HELP,
     )
-    _configure_markov_blanket_parser(graph_markov_blanket)
+    graph_blanket.add_argument("node_id")
+    graph_blanket.add_argument("--max-neighbors", type=int, default=10)
+    graph_blanket.set_defaults(func=_cmd_markov_blanket)
 
     intervene_do = sub.add_parser(
         "intervene-do",
         help="Check graph.paths, then call intervene.do when supported.",
-        epilog=GLOBAL_ENVELOPE_HELP,
     )
     intervene_do.add_argument("treatment_node")
     intervene_do.add_argument("treatment_value", type=float)
@@ -1150,36 +1145,26 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     intervene_do.set_defaults(func=_cmd_intervene_do)
 
-    traverse_parents = sub.add_parser(
-        "traverse-parents",
-        help="Call traverse.parents.",
-        epilog=GLOBAL_ENVELOPE_HELP,
-    )
+    traverse_parents = sub.add_parser("traverse-parents", help="Call traverse.parents.")
     traverse_parents.add_argument("node_id")
     traverse_parents.add_argument("--top-k", type=int, default=10)
     traverse_parents.set_defaults(func=_cmd_traverse_parents)
 
     traverse_children = sub.add_parser(
-        "traverse-children",
-        help="Call traverse.children.",
-        epilog=GLOBAL_ENVELOPE_HELP,
+        "traverse-children", help="Call traverse.children."
     )
     traverse_children.add_argument("node_id")
     traverse_children.add_argument("--top-k", type=int, default=10)
     traverse_children.set_defaults(func=_cmd_traverse_children)
 
     abel_blanket = sub.add_parser(
-        "abel-markov-blanket",
-        help="Call extensions.abel.markov_blanket.",
-        epilog=GLOBAL_ENVELOPE_HELP,
+        "abel-markov-blanket", help="Call extensions.abel.markov_blanket."
     )
     abel_blanket.add_argument("target_node")
     abel_blanket.set_defaults(func=_cmd_abel_markov_blanket)
 
     cf_preview = sub.add_parser(
         "counterfactual-preview", help="Call extensions.abel.counterfactual_preview."
-        ,
-        epilog=GLOBAL_ENVELOPE_HELP,
     )
     cf_preview.add_argument("--intervene-node", required=True)
     cf_preview.add_argument("--intervene-time", required=True)
@@ -1194,7 +1179,6 @@ def _build_parser() -> argparse.ArgumentParser:
             "Call extensions.abel.intervene_time_lag. Accepts the outcome "
             "node as either the third positional argument or --outcome-node."
         ),
-        epilog=GLOBAL_ENVELOPE_HELP,
     )
     time_lag.add_argument("treatment_node")
     time_lag.add_argument("treatment_value", type=float)
@@ -1208,9 +1192,7 @@ def _build_parser() -> argparse.ArgumentParser:
     time_lag.set_defaults(func=_cmd_intervene_time_lag)
 
     generic_verb = sub.add_parser(
-        "verb",
-        help="Call an arbitrary CAP verb with optional JSON params.",
-        epilog=GLOBAL_ENVELOPE_HELP,
+        "verb", help="Call an arbitrary CAP verb with optional JSON params."
     )
     generic_verb.add_argument("verb_name")
     generic_verb.add_argument(
@@ -1219,9 +1201,7 @@ def _build_parser() -> argparse.ArgumentParser:
     generic_verb.set_defaults(func=_cmd_verb)
 
     generic_route = sub.add_parser(
-        "route",
-        help="Call an arbitrary Abel route alias with optional JSON params.",
-        epilog=GLOBAL_ENVELOPE_HELP,
+        "route", help="Call an arbitrary Abel route alias with optional JSON params."
     )
     generic_route.add_argument("route_name")
     generic_route.add_argument(
@@ -1266,48 +1246,6 @@ def _normalize_argv(argv: list[str]) -> list[str]:
         i += 1
 
     return prefix + suffix
-
-
-def _maybe_add_graph_version_retry_hint(result: dict[str, Any]) -> dict[str, Any]:
-    if result.get("ok") is not False:
-        return result
-
-    verb = result.get("verb")
-    if not isinstance(verb, str):
-        response_payload = result.get("response_payload")
-        if isinstance(response_payload, dict):
-            response_verb = response_payload.get("verb")
-            if isinstance(response_verb, str):
-                verb = response_verb
-    if not isinstance(verb, str) or verb.startswith("meta."):
-        return result
-
-    error = result.get("error")
-    if not isinstance(error, dict):
-        return result
-
-    details = error.get("details")
-    if not isinstance(details, dict):
-        return result
-
-    if details.get("graph_version") != "CausalNodeV3":
-        return result
-
-    if details.get("reason") != "prediction_temporarily_unavailable":
-        return result
-
-    target_node = details.get("target_node")
-    target_arg = target_node if isinstance(target_node, str) and target_node else "<target_node>"
-    hint = (
-        "Hint: this node may materialize only on CausalNodeV2. "
-        f"Retry with `--graph-version CausalNodeV2`, for example: "
-        f"`python scripts/cap_probe.py --graph-version CausalNodeV2 observe {target_arg}`"
-    )
-
-    return {
-        **result,
-        "hint": hint,
-    }
 
 
 def main() -> int:
