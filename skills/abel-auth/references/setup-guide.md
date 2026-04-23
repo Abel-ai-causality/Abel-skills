@@ -7,7 +7,7 @@ Base URL: `https://api.abel.ai/router/`
 Before using this guide, verify auth state with:
 
 ```bash
-python ../abel-ask/scripts/cap_probe.py auth-status
+python ../abel-common/python/abel_common/cap/graph_probe.py auth-status
 ```
 
 Only continue into this guide after that check shows live Abel auth is missing

@@ -5,7 +5,7 @@ from pathlib import Path
 
 ENV_FILE_BASENAMES = (".env.skill", ".env.skills")
 ENV_FALLBACK_BASENAME = ".env"
-COLLECTION_SHARED_SKILLS = ("abel-auth", "abel", "abel-ask")
+COLLECTION_SHARED_SKILLS = ("abel-auth", "abel", "abel-ask", "causal-abel")
 AUTH_ENV_KEYS = ("ABEL_API_KEY", "CAP_API_KEY")
 
 

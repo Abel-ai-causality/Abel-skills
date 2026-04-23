@@ -14,11 +14,17 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+COMMON_PYTHON_ROOT = Path(__file__).resolve().parents[2]
+
+if str(COMMON_PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(COMMON_PYTHON_ROOT))
+
 from abel_common.cap.auth import candidate_env_files, read_env_file_values
 
 
 DEFAULT_BASE_URL = "https://cap.abel.ai/narrative"
 CAP_VERSION = "0.3.0"
+DEFAULT_ENV_FILE = Path(__file__).resolve().parents[4] / "abel-auth" / ".env.skill"
 TEXT_TRUNCATE_EXACT_KEYS = {
     "description",
     "summary",
@@ -498,7 +504,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-key", default="", help="Optional API key.")
     parser.add_argument(
         "--env-file",
-        default=".env.skill",
+        default=str(DEFAULT_ENV_FILE),
         help="Local env file to load before resolving credentials.",
     )
     parser.add_argument(

@@ -10,11 +10,22 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CAP_PROBE_PATH = REPO_ROOT / "skills" / "abel-ask" / "scripts" / "cap_probe.py"
+GRAPH_PROBE_PATH = (
+    REPO_ROOT
+    / "skills"
+    / "abel-common"
+    / "python"
+    / "abel_common"
+    / "cap"
+    / "graph_probe.py"
+)
 
 
-def _load_cap_probe_module():
-    spec = importlib.util.spec_from_file_location("causal_abel_cap_probe", CAP_PROBE_PATH)
+def _load_graph_probe_module():
+    spec = importlib.util.spec_from_file_location(
+        "abel_common_graph_probe",
+        GRAPH_PROBE_PATH,
+    )
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -23,7 +34,7 @@ def _load_cap_probe_module():
 
 
 def test_paths_command_preserves_macro_canonical_node_ids(monkeypatch) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     captured: dict[str, object] = {}
 
@@ -32,7 +43,7 @@ def test_paths_command_preserves_macro_canonical_node_ids(monkeypatch) -> None:
         captured["params"] = params or {}
         return {"ok": True}
 
-    monkeypatch.setattr(cap_probe, "_call_verb", _fake_call_verb)
+    monkeypatch.setattr(graph_probe, "_call_verb", _fake_call_verb)
 
     args = argparse.Namespace(
         source_node_id="CPI",
@@ -42,7 +53,7 @@ def test_paths_command_preserves_macro_canonical_node_ids(monkeypatch) -> None:
         default_suffix="price",
     )
 
-    result = cap_probe._cmd_paths(args)
+    result = graph_probe._cmd_paths(args)
 
     assert result == {"ok": True}
     assert captured["verb"] == "graph.paths"
@@ -54,7 +65,7 @@ def test_paths_command_preserves_macro_canonical_node_ids(monkeypatch) -> None:
 
 
 def test_paths_command_accepts_lowercase_macro_alias_as_canonical(monkeypatch) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     captured: dict[str, object] = {}
 
@@ -62,7 +73,7 @@ def test_paths_command_accepts_lowercase_macro_alias_as_canonical(monkeypatch) -
         captured["params"] = params or {}
         return {"ok": True}
 
-    monkeypatch.setattr(cap_probe, "_call_verb", _fake_call_verb)
+    monkeypatch.setattr(graph_probe, "_call_verb", _fake_call_verb)
 
     args = argparse.Namespace(
         source_node_id="cpi",
@@ -72,7 +83,7 @@ def test_paths_command_accepts_lowercase_macro_alias_as_canonical(monkeypatch) -
         default_suffix="price",
     )
 
-    cap_probe._cmd_paths(args)
+    graph_probe._cmd_paths(args)
 
     assert captured["params"] == {
         "source_node_id": "CPI",
@@ -82,7 +93,7 @@ def test_paths_command_accepts_lowercase_macro_alias_as_canonical(monkeypatch) -
 
 
 def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     captured: dict[str, object] = {}
 
@@ -90,7 +101,7 @@ def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> Non
         captured["params"] = params or {}
         return {"ok": True}
 
-    monkeypatch.setattr(cap_probe, "_call_verb", _fake_call_verb)
+    monkeypatch.setattr(graph_probe, "_call_verb", _fake_call_verb)
 
     args = argparse.Namespace(
         source_node_id="NVDA",
@@ -100,7 +111,7 @@ def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> Non
         default_suffix="price",
     )
 
-    cap_probe._cmd_paths(args)
+    graph_probe._cmd_paths(args)
 
     assert captured["params"] == {
         "source_node_id": "NVDA.price",
@@ -111,25 +122,25 @@ def test_paths_command_keeps_asset_normalization_for_tickers(monkeypatch) -> Non
 
 
 def test_validate_connectivity_shortcut_is_not_registered() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    assert "validate-connectivity" not in cap_probe.COMMANDS
-    assert not hasattr(cap_probe, "_cmd_validate_connectivity")
+    assert "validate-connectivity" not in graph_probe.COMMANDS
+    assert not hasattr(graph_probe, "_cmd_validate_connectivity")
 
-    parser = cap_probe._build_parser()
+    parser = graph_probe._build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["validate-connectivity", "CPI", "NVDA"])
 
 
 def test_resolve_cap_endpoint_uses_cap_suffix_for_router_and_echo_bases() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     assert (
-        cap_probe.resolve_cap_endpoint("https://api.abel.ai/router")
+        graph_probe.resolve_cap_endpoint("https://api.abel.ai/router")
         == "https://api.abel.ai/router/cap"
     )
     assert (
-        cap_probe.resolve_cap_endpoint("https://api.abel.ai/echo")
+        graph_probe.resolve_cap_endpoint("https://api.abel.ai/echo")
         == "https://api.abel.ai/echo/cap"
     )
 
@@ -145,25 +156,25 @@ def test_resolve_cap_endpoint_uses_cap_suffix_for_router_and_echo_bases() -> Non
 def test_graph_command_aliases_dispatch_to_existing_handlers(
     argv: list[str], command_name: str, handler_name: str
 ) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    parser = cap_probe._build_parser()
-    args = parser.parse_args(cap_probe._normalize_argv(argv))
+    parser = graph_probe._build_parser()
+    args = parser.parse_args(graph_probe._normalize_argv(argv))
 
-    assert command_name in cap_probe.COMMANDS
+    assert command_name in graph_probe.COMMANDS
     assert args.command == command_name
-    assert args.func is getattr(cap_probe, handler_name)
+    assert args.func is getattr(graph_probe, handler_name)
 
 
 def test_normalize_node_command_preserves_macro_canonical_node_id() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     args = argparse.Namespace(
         input_value="CPI",
         default_suffix="price",
     )
 
-    result = cap_probe._cmd_normalize_node(args)
+    result = graph_probe._cmd_normalize_node(args)
 
     assert result == {
         "ok": True,
@@ -175,14 +186,14 @@ def test_normalize_node_command_preserves_macro_canonical_node_id() -> None:
 
 
 def test_normalize_node_command_accepts_lowercase_macro_alias() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     args = argparse.Namespace(
         input_value="cpi",
         default_suffix="price",
     )
 
-    result = cap_probe._cmd_normalize_node(args)
+    result = graph_probe._cmd_normalize_node(args)
 
     assert result == {
         "ok": True,
@@ -196,7 +207,7 @@ def test_normalize_node_command_accepts_lowercase_macro_alias() -> None:
 def test_load_env_file_falls_back_to_dot_env_when_skill_env_missing(
     monkeypatch, tmp_path
 ) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     monkeypatch.delenv("ABEL_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
@@ -204,13 +215,13 @@ def test_load_env_file_falls_back_to_dot_env_when_skill_env_missing(
     env_path = tmp_path / ".env"
     env_path.write_text("ABEL_API_KEY=abel-from-dot-env\n", encoding="utf-8")
 
-    cap_probe._load_env_file(str(tmp_path / ".env.skill"))
+    graph_probe._load_env_file(str(tmp_path / ".env.skill"))
 
     assert os.getenv("ABEL_API_KEY") == "abel-from-dot-env"
 
 
 def test_load_env_file_prefers_skill_env_over_dot_env(monkeypatch, tmp_path) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     monkeypatch.delenv("ABEL_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
@@ -221,13 +232,13 @@ def test_load_env_file_prefers_skill_env_over_dot_env(monkeypatch, tmp_path) -> 
     )
     (tmp_path / ".env").write_text("ABEL_API_KEY=abel-from-dot-env\n", encoding="utf-8")
 
-    cap_probe._load_env_file(str(tmp_path / ".env.skill"))
+    graph_probe._load_env_file(str(tmp_path / ".env.skill"))
 
     assert os.getenv("ABEL_API_KEY") == "abel-from-dot-env-skill"
 
 
 def test_load_env_file_falls_back_to_collection_auth_file(monkeypatch, tmp_path) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     monkeypatch.delenv("ABEL_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
@@ -241,13 +252,13 @@ def test_load_env_file_falls_back_to_collection_auth_file(monkeypatch, tmp_path)
         encoding="utf-8",
     )
 
-    cap_probe._load_env_file(str(skill_root / ".env.skill"))
+    graph_probe._load_env_file(str(skill_root / ".env.skill"))
 
     assert os.getenv("ABEL_API_KEY") == "abel-from-collection-auth"
 
 
 def test_auth_status_reports_skill_env_source(monkeypatch, tmp_path) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     monkeypatch.delenv("ABEL_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
@@ -260,7 +271,7 @@ def test_auth_status_reports_skill_env_source(monkeypatch, tmp_path) -> None:
         env_file=str(env_file),
     )
 
-    result = cap_probe._cmd_auth_status(args)
+    result = graph_probe._cmd_auth_status(args)
 
     assert result == {
         "ok": True,
@@ -272,7 +283,7 @@ def test_auth_status_reports_skill_env_source(monkeypatch, tmp_path) -> None:
 
 
 def test_auth_status_reports_collection_auth_source(monkeypatch, tmp_path) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     monkeypatch.delenv("ABEL_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
@@ -291,7 +302,7 @@ def test_auth_status_reports_collection_auth_source(monkeypatch, tmp_path) -> No
         env_file=str(skill_root / ".env.skill"),
     )
 
-    result = cap_probe._cmd_auth_status(args)
+    result = graph_probe._cmd_auth_status(args)
 
     assert result == {
         "ok": True,
@@ -303,7 +314,7 @@ def test_auth_status_reports_collection_auth_source(monkeypatch, tmp_path) -> No
 
 
 def test_auth_status_reports_missing_and_requires_oauth(monkeypatch, tmp_path) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     monkeypatch.delenv("ABEL_API_KEY", raising=False)
     monkeypatch.delenv("CAP_API_KEY", raising=False)
@@ -313,7 +324,7 @@ def test_auth_status_reports_missing_and_requires_oauth(monkeypatch, tmp_path) -
         env_file=str(tmp_path / ".env.skill"),
     )
 
-    result = cap_probe._cmd_auth_status(args)
+    result = graph_probe._cmd_auth_status(args)
 
     assert result == {
         "ok": True,
@@ -325,9 +336,9 @@ def test_auth_status_reports_missing_and_requires_oauth(monkeypatch, tmp_path) -
 
 
 def test_build_payload_includes_default_v3_graph_context_for_non_meta_verbs() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    payload = cap_probe._build_payload(
+    payload = graph_probe._build_payload(
         "observe.predict",
         {"target_node": "BTCUSD.volume"},
     )
@@ -341,17 +352,17 @@ def test_build_payload_includes_default_v3_graph_context_for_non_meta_verbs() ->
 
 
 def test_build_payload_omits_default_graph_context_for_meta_verbs() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    payload = cap_probe._build_payload("meta.capabilities")
+    payload = graph_probe._build_payload("meta.capabilities")
 
     assert "context" not in payload
 
 
 def test_build_payload_merges_context_json_with_default_graph_context() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    payload = cap_probe._build_payload(
+    payload = graph_probe._build_payload(
         "graph.paths",
         {"source_node_id": "CPI", "target_node_id": "NVDA.price"},
         context={"trace": {"source": "pytest"}},
@@ -367,9 +378,9 @@ def test_build_payload_merges_context_json_with_default_graph_context() -> None:
 
 
 def test_build_payload_respects_explicit_graph_version_override() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    payload = cap_probe._build_payload(
+    payload = graph_probe._build_payload(
         "observe.predict",
         {"target_node": "BTCUSD.volume"},
         graph_version="CausalNodeV2",
@@ -384,10 +395,10 @@ def test_build_payload_respects_explicit_graph_version_override() -> None:
 
 
 def test_build_payload_rejects_conflicting_graph_version_between_flag_and_context() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     with pytest.raises(ValueError, match="Conflicting graph_version values"):
-        cap_probe._build_payload(
+        graph_probe._build_payload(
             "observe.predict",
             {"target_node": "BTCUSD.volume"},
             graph_version="CausalNodeV2",
@@ -396,11 +407,11 @@ def test_build_payload_rejects_conflicting_graph_version_between_flag_and_contex
 
 
 def test_parser_accepts_global_graph_version_after_command() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    parser = cap_probe._build_parser()
+    parser = graph_probe._build_parser()
     args = parser.parse_args(
-        cap_probe._normalize_argv(
+        graph_probe._normalize_argv(
             ["observe", "BTCUSD.volume", "--graph-version", "CausalNodeV2"]
         )
     )
@@ -410,11 +421,11 @@ def test_parser_accepts_global_graph_version_after_command() -> None:
 
 
 def test_parser_accepts_global_context_json_after_command() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    parser = cap_probe._build_parser()
+    parser = graph_probe._build_parser()
     args = parser.parse_args(
-        cap_probe._normalize_argv(
+        graph_probe._normalize_argv(
             [
                 "verb",
                 "observe.predict",
@@ -434,12 +445,12 @@ def test_parser_accepts_global_context_json_after_command() -> None:
 def test_common_subcommand_help_mentions_global_envelope_flags(
     monkeypatch, capsys, argv: list[str]
 ) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    monkeypatch.setattr(sys, "argv", ["cap_probe.py", *argv])
+    monkeypatch.setattr(sys, "argv", ["graph_probe.py", *argv])
 
     with pytest.raises(SystemExit) as exc_info:
-        cap_probe.main()
+        graph_probe.main()
 
     assert exc_info.value.code == 0
     help_text = capsys.readouterr().out
@@ -450,7 +461,7 @@ def test_common_subcommand_help_mentions_global_envelope_flags(
 def test_main_appends_v2_retry_hint_for_v3_prediction_unavailable(
     monkeypatch, capsys
 ) -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
     def _fake_observe(args):
         return {
@@ -470,10 +481,10 @@ def test_main_appends_v2_retry_hint_for_v3_prediction_unavailable(
             "response_payload": {},
         }
 
-    monkeypatch.setattr(cap_probe, "_cmd_observe", _fake_observe)
-    monkeypatch.setattr(sys, "argv", ["cap_probe.py", "observe", "NVDA.price"])
+    monkeypatch.setattr(graph_probe, "_cmd_observe", _fake_observe)
+    monkeypatch.setattr(sys, "argv", ["graph_probe.py", "observe", "NVDA.price"])
 
-    exit_code = cap_probe.main()
+    exit_code = graph_probe.main()
 
     assert exit_code == 1
     payload = capsys.readouterr().out
@@ -482,9 +493,9 @@ def test_main_appends_v2_retry_hint_for_v3_prediction_unavailable(
 
 
 def test_retry_hint_uses_response_payload_verb_when_top_level_verb_missing() -> None:
-    cap_probe = _load_cap_probe_module()
+    graph_probe = _load_graph_probe_module()
 
-    enriched = cap_probe._maybe_add_graph_version_retry_hint(
+    enriched = graph_probe._maybe_add_graph_version_retry_hint(
         {
             "ok": False,
             "status_code": 400,
