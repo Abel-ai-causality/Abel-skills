@@ -49,3 +49,48 @@ def test_run_doctor_ready_reports_alpha_managed_branch_research(
     report = doctor.render_doctor_report(result)
     assert "Workspace mode: alpha-managed branch research" in report
 
+
+def test_run_doctor_auth_missing_points_to_abel_auth(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+    python_path = root / ".venv" / "bin" / "python"
+    python_path.parent.mkdir(parents=True)
+    python_path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        doctor,
+        "resolve_workspace_entry",
+        lambda start=None: (root, "current_workspace_root"),
+    )
+    monkeypatch.setattr(doctor, "load_workspace_manifest", lambda _root: {"runtime": {}})
+    monkeypatch.setattr(doctor, "resolve_runtime_python", lambda _root, manifest=None: python_path)
+    monkeypatch.setattr(doctor, "resolve_workspace_env_file", lambda _root: root / ".env")
+    monkeypatch.setattr(doctor, "resolve_edge_spec", lambda _root, manifest=None: "causal-edge @ local")
+    monkeypatch.setattr(doctor, "probe_causal_edge_import", lambda *_args, **_kwargs: {"ok": True})
+    monkeypatch.setattr(doctor, "probe_causal_edge_cli", lambda *_args, **_kwargs: {"ok": True})
+    monkeypatch.setattr(doctor, "probe_edge_discovery_payload", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(doctor, "probe_edge_context_json", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        doctor,
+        "probe_abel_auth",
+        lambda *_args, **_kwargs: {
+            "ok": False,
+            "source": "missing",
+            "path": None,
+        },
+    )
+
+    result = doctor.run_doctor(root)
+
+    assert result["status"] == "auth_missing"
+    assert "abel-auth" in str(result["summary"])
+    assert "abel-auth" in str(result["next_step"])
+    assert "causal_edge.cli login" not in str(result["next_step"])
+
+    report = doctor.render_doctor_report(result)
+    assert "Auth handoff:" in report
+    assert "abel-auth" in report
+

@@ -18,7 +18,15 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 import yaml
+from causal_edge.graph_nodes import (
+    GraphNodeRef,
+    coerce_graph_node_refs,
+    graph_node_assets,
+    graph_node_label,
+    graph_node_runtime_field,
+)
 
 from abel_strategy_discovery.doctor import (
     build_auth_handoff_command,
@@ -62,6 +70,8 @@ EVENTS_HEADER = [
 
 DEFAULT_BACKTEST_START = "2020-01-01"
 SESSION_STATE_FILENAME = "session_state.json"
+DISCOVERY_STATE_SESSION_KEY = "discovery_state"
+FRONTIER_STATE_FILENAME = "frontier.json"
 BRANCH_STATE_FILENAME = "branch_state.json"
 READINESS_FILENAME = "readiness.json"
 BRANCH_SPEC_FILENAME = "branch.yaml"
@@ -69,6 +79,7 @@ DEPENDENCIES_FILENAME = "dependencies.json"
 RUNTIME_PROFILE_FILENAME = "runtime_profile.json"
 EXECUTION_CONSTRAINTS_FILENAME = "execution_constraints.json"
 DATA_MANIFEST_FILENAME = "data_manifest.json"
+WINDOW_AVAILABILITY_FILENAME = "window_availability.json"
 CONTEXT_GUIDE_FILENAME = "context_guide.md"
 PROBE_SAMPLES_FILENAME = "probe_samples.json"
 MEMORY_MANIFEST_FILENAME = "manifest.json"
@@ -178,13 +189,16 @@ ENGINE_TEMPLATE = '''"""Research engine for {ticker}. Replace the starter baseli
 Default backtest behavior should follow branch.yaml first and the injected context second.
 If provided, self.context contains workspace/session/branch/discovery/readiness metadata from Abel strategy discovery.
 Use branch.yaml to make the critical research choices explicit:
-  - target
+  - target_asset
+  - target_node
   - requested_start
-  - selected_drivers
+  - selected_inputs
   - overlap_mode
 Write against DecisionContext instead of raw research helpers:
   - ctx.decision_index()
   - ctx.target.series("close")
+  - ctx.input(name).asof_series(...)
+  - ctx.inputs_frame(...)
   - ctx.feed(name).asof_series("close")
   - ctx.points()
   - ctx.decisions(next_position)
@@ -364,6 +378,59 @@ def main() -> int:
         help="Maximum Abel nodes to record per discovery call",
     )
 
+    frontier_status = sub.add_parser(
+        "frontier-status",
+        help="Show the current graph frontier for a session",
+    )
+    frontier_status.add_argument("--session", required=True)
+    frontier_status.add_argument(
+        "--node",
+        default=None,
+        help="Optional graph node id to inspect in detail",
+    )
+
+    expand_frontier = sub.add_parser(
+        "expand-frontier",
+        help="Expand the session frontier from one discovered graph node",
+    )
+    expand_frontier.add_argument("--session", required=True)
+    expand_frontier.add_argument("--from-node", required=True)
+    expand_frontier.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum Abel nodes to record from the expansion call",
+    )
+
+    probe_nodes = sub.add_parser(
+        "probe-nodes",
+        help="Probe discovered graph nodes before branch authoring",
+    )
+    probe_nodes.add_argument("--session", required=True)
+    probe_nodes.add_argument(
+        "--node",
+        dest="nodes",
+        action="append",
+        required=True,
+        help="Graph node id to probe (repeatable)",
+    )
+    probe_nodes.add_argument(
+        "--start",
+        default=None,
+        help="Optional start date override for the probe window",
+    )
+    probe_nodes.add_argument(
+        "--end",
+        default=None,
+        help="Optional end date override for the probe window",
+    )
+    probe_nodes.add_argument(
+        "--limit",
+        type=int,
+        default=500,
+        help="Rows requested per asset probe",
+    )
+
     set_backtest_start = sub.add_parser(
         "set-backtest-start",
         help="Update the session-level backtest start and refresh readiness",
@@ -446,6 +513,24 @@ def main() -> int:
     init_branch = sub.add_parser("init-branch", help="Create a branch under a session")
     init_branch.add_argument("--session", required=True)
     init_branch.add_argument("--branch-id", required=True)
+
+    select_inputs = sub.add_parser(
+        "select-inputs",
+        help="Update branch selected_inputs from the session frontier",
+    )
+    select_inputs.add_argument("--branch", required=True)
+    select_inputs.add_argument(
+        "--node",
+        dest="nodes",
+        action="append",
+        required=True,
+        help="Graph node id to select (repeatable)",
+    )
+    select_inputs.add_argument(
+        "--replace",
+        action="store_true",
+        help="Replace selected_inputs instead of appending to the current list",
+    )
 
     prepare_branch = sub.add_parser(
         "prepare-branch",
@@ -531,23 +616,49 @@ def main() -> int:
     if args.command == "doctor":
         return handle_doctor_command(args)
     if args.command == "init-session":
+        session_root = resolve_session_root(args.root)
+        session_preview = session_root / args.ticker.lower() / args.exp_id
+        if args.discover:
+            print(f"Initializing Abel strategy discovery session at {session_preview}")
+            print("  discovery_status: pending")
+            print("  discovery_note: running live Abel discovery now; this may take a little while")
+            print("")
+            sys.stdout.flush()
         session = init_session_dir(
             args.ticker,
             args.exp_id,
-            resolve_session_root(args.root),
+            session_root,
             discover=args.discover,
             discover_limit=args.discover_limit,
             backtest_start=args.backtest_start,
         )
         discovery = load_discovery(session)
         readiness = load_readiness(session)
+        frontier = load_frontier_state(session)
+        discovery_state = load_discovery_state(
+            session,
+            discovery=discovery,
+            frontier=frontier,
+        )
         print(f"Created Abel strategy discovery session at {session}")
         print(f"  ticker: {discovery.get('ticker', args.ticker.upper())}")
         print(f"  discovery: {session / 'discovery.json'}")
+        print(f"  frontier: {session / FRONTIER_STATE_FILENAME}")
         print(f"  events: {session / 'events.tsv'}")
         if readiness:
             print(f"  readiness: {session / READINESS_FILENAME}")
-        if args.discover:
+        print(f"  discovery_status: {discovery_state.get('status', 'unknown')}")
+        print(f"  frontier_mode: {discovery_state.get('frontier_mode', 'unknown')}")
+        print(
+            f"  discovery_note: "
+            f"{summarize_status_text(discovery_state.get('message', '')) or 'n/a'}"
+        )
+        if discovery_state.get("error"):
+            print(
+                f"  discovery_error: "
+                f"{summarize_status_text(discovery_state.get('error', ''))}"
+            )
+        if discovery_state.get("status") == "ready":
             print(
                 f"  discovery_source: {discovery.get('source', 'unknown')} "
                 f"(K={discovery.get('K_discovery', 0)})"
@@ -560,10 +671,13 @@ def main() -> int:
             warning = build_readiness_warning(readiness)
             if warning:
                 print(f"  warning: {warning}")
+        elif discovery_state.get("status") == "failed":
+            print("  discovery_source: pending (last live discovery attempt failed)")
         else:
             print("  discovery_source: pending (live discovery not run)")
         print("")
         print("From here:")
+        print(f"  abel-strategy-discovery frontier-status --session {session}")
         print(f"  abel-strategy-discovery init-branch --session {session} --branch-id graph-v1")
         return 0
     if args.command == "set-backtest-start":
@@ -594,6 +708,25 @@ def main() -> int:
         print("From here:")
         print(f"  abel-strategy-discovery status --session {session}")
         return 0
+    if args.command == "frontier-status":
+        return print_frontier_status(
+            session=resolve_workspace_arg_path(args.session),
+            node_id=args.node,
+        )
+    if args.command == "expand-frontier":
+        return expand_frontier_command(
+            session=resolve_workspace_arg_path(args.session),
+            from_node=args.from_node,
+            limit=args.limit,
+        )
+    if args.command == "probe-nodes":
+        return probe_nodes_command(
+            session=resolve_workspace_arg_path(args.session),
+            node_ids=list(args.nodes or []),
+            start=args.start,
+            end=args.end,
+            limit=args.limit,
+        )
     if args.command == "set-hypothesis":
         branch = resolve_workspace_arg_path(args.branch).resolve()
         session = branch.parent.parent
@@ -660,17 +793,26 @@ def main() -> int:
         )
         print("")
         print("What matters now:")
-        print("  branch.yaml is where target, start, drivers, and overlap become explicit.")
+        print("  use the session frontier and probe loop before you widen the branch thesis.")
+        print("  branch.yaml is where target, inputs, start, and overlap become explicit.")
         print("  The generated engine is only a starter path check; it helps you verify the branch wiring before you encode a branch-specific mechanism.")
         print("  If you fetch bars, keep `limit=...` explicit and avoid blanket `dropna()` before confirming the target column survives.")
         print("")
         print("From here:")
+        print(f"  abel-strategy-discovery probe-nodes --session {session} --node <node_id>")
+        print(f"  abel-strategy-discovery select-inputs --branch {branch} --node <node_id> --replace")
         print(f"  edit {branch / BRANCH_SPEC_FILENAME}")
         print(f"  abel-strategy-discovery prepare-branch --branch {branch}")
         print(f"  abel-strategy-discovery debug-branch --branch {branch}")
         print(f"  abel-strategy-discovery run-branch --branch {branch} -d \"baseline\"")
         print(f"  edit {branch / 'engine.py'}")
         return 0
+    if args.command == "select-inputs":
+        return select_branch_inputs_command(
+            branch=resolve_workspace_arg_path(args.branch),
+            node_ids=list(args.nodes or []),
+            replace=args.replace,
+        )
     if args.command == "prepare-branch":
         return prepare_branch_inputs(args)
     if args.command == "run-branch":
@@ -942,37 +1084,59 @@ def init_session_dir(
     session.mkdir(parents=True, exist_ok=True)
     discovery_data = None
     readiness_report = None
-    if discover:
-        discovery_data = fetch_live_discovery(ticker, limit=discover_limit)
-        discovery_data["backtest"] = {"start": backtest_start}
-        readiness_report = refresh_data_readiness(
-            session=session,
-            discovery_data=discovery_data,
-            backtest_start=backtest_start,
-        )
+    discovery_error: str | None = None
     with SessionLock(session):
         write_tsv_header(session / "events.tsv", EVENTS_HEADER)
         if not session_state_path(session).exists():
             write_session_state(session, {})
         discovery_path = session / "discovery.json"
-        if discovery_data is not None:
-            write_discovery(session, discovery_data)
-        elif not discovery_path.exists():
+        if not discovery_path.exists():
             write_discovery(
                 session,
+                build_pending_discovery_payload(
+                    ticker,
+                    backtest_start=backtest_start,
+                ),
+            )
+        if not frontier_state_path(session).exists():
+            frontier_state = frontier_state_from_discovery(load_discovery(session))
+            write_frontier_state(session, frontier_state)
+        discovery = load_discovery(session)
+        frontier = load_frontier_state(session)
+        if discover:
+            write_discovery_state(
+                session,
+                discovery=discovery,
+                frontier=frontier,
+                status="pending",
+                mode="live",
+                requested_live_discovery=True,
+                message="Running live Abel discovery now.",
+            )
+            append_tsv_row(
+                session / "events.tsv",
+                EVENTS_HEADER,
                 {
-                    "ticker": ticker.upper(),
-                    "source": "pending",
-                    "parents": [],
-                    "blanket_new": [],
-                    "children": [],
-                    "K_discovery": 0,
-                    "backtest": {"start": backtest_start},
-                    "created_at": _now(),
+                    "timestamp": _now(),
+                    "event": "discovery_requested",
+                    "branch_id": "",
+                    "round_id": "",
+                    "mode": "",
+                    "verdict": "",
+                    "decision": "",
+                    "description": "Requested live Abel discovery for this session",
+                    "artifact_path": SESSION_STATE_FILENAME,
                 },
             )
-        if readiness_report is not None:
-            write_readiness(session, readiness_report)
+        else:
+            write_discovery_state(
+                session,
+                discovery=discovery,
+                frontier=frontier,
+                status="seed_only",
+                mode="deferred",
+                requested_live_discovery=False,
+            )
         append_tsv_row(
             session / "events.tsv",
             EVENTS_HEADER,
@@ -988,7 +1152,61 @@ def init_session_dir(
                 "artifact_path": "",
             },
         )
+        append_tsv_row(
+            session / "events.tsv",
+            EVENTS_HEADER,
+            {
+                "timestamp": _now(),
+                "event": "frontier_seeded",
+                "branch_id": "",
+                "round_id": "",
+                "mode": "",
+                "verdict": "",
+                "decision": "",
+                "description": "Seeded graph frontier from the current discovery snapshot",
+                "artifact_path": FRONTIER_STATE_FILENAME,
+            },
+        )
+
+    if discover:
+        try:
+            discovery_data = fetch_live_discovery(ticker, limit=discover_limit)
+        except RuntimeError as exc:
+            discovery_error = str(exc)
+        else:
+            discovery_data["backtest"] = {"start": backtest_start}
+            readiness_report = refresh_data_readiness(
+                session=session,
+                discovery_data=discovery_data,
+                backtest_start=backtest_start,
+            )
+
+    with SessionLock(session):
+        discovery_path = session / "discovery.json"
         if discovery_data is not None:
+            write_discovery(session, discovery_data)
+            frontier_state = frontier_state_from_discovery(discovery_data)
+            write_frontier_state(session, frontier_state)
+        else:
+            frontier_state = load_frontier_state(session)
+        if readiness_report is not None:
+            write_readiness(session, readiness_report)
+        discovery = load_discovery(session)
+        frontier = load_frontier_state(session)
+        if discovery_data is not None:
+            write_discovery_state(
+                session,
+                discovery=discovery,
+                frontier=frontier,
+                status="ready",
+                mode="live",
+                requested_live_discovery=True,
+                message=(
+                    f"Recorded live Abel discovery via "
+                    f"{discovery.get('source', 'unknown')} "
+                    f"with K={discovery.get('K_discovery', 0)}."
+                ),
+            )
             append_tsv_row(
                 session / "events.tsv",
                 EVENTS_HEADER,
@@ -1006,30 +1224,55 @@ def init_session_dir(
                     "artifact_path": str(discovery_path.relative_to(session)),
                 },
             )
-            if readiness_report:
-                append_tsv_row(
-                    session / "events.tsv",
-                    EVENTS_HEADER,
-                    {
-                        "timestamp": _now(),
-                        "event": "data_readiness_recorded",
-                        "branch_id": "",
-                        "round_id": "",
-                        "mode": "",
-                        "verdict": "",
-                        "decision": "",
-                        "description": (
-                            "Recorded driver data readiness: "
-                            f"{format_data_readiness_summary(readiness_report)}"
-                        ),
-                        "artifact_path": READINESS_FILENAME,
-                    },
-                )
+        elif discovery_error:
+            write_discovery_state(
+                session,
+                discovery=discovery,
+                frontier=frontier,
+                status="failed",
+                mode="live",
+                requested_live_discovery=True,
+                error=discovery_error,
+            )
+            append_tsv_row(
+                session / "events.tsv",
+                EVENTS_HEADER,
+                {
+                    "timestamp": _now(),
+                    "event": "discovery_failed",
+                    "branch_id": "",
+                    "round_id": "",
+                    "mode": "",
+                    "verdict": "",
+                    "decision": "",
+                    "description": summarize_status_text(discovery_error),
+                    "artifact_path": SESSION_STATE_FILENAME,
+                },
+            )
+        if readiness_report:
+            append_tsv_row(
+                session / "events.tsv",
+                EVENTS_HEADER,
+                {
+                    "timestamp": _now(),
+                    "event": "data_readiness_recorded",
+                    "branch_id": "",
+                    "round_id": "",
+                    "mode": "",
+                    "verdict": "",
+                    "decision": "",
+                    "description": (
+                        "Recorded driver data readiness: "
+                        f"{format_data_readiness_summary(readiness_report)}"
+                    ),
+                    "artifact_path": READINESS_FILENAME,
+                },
+            )
         render_session(session)
     return session
 
 
-def fetch_live_discovery(ticker: str, *, limit: int) -> dict:
+def fetch_live_graph_payload(node_id: str, *, limit: int) -> dict:
     try:
         from causal_edge.plugins.abel.credentials import (
             MissingAbelApiKeyError,
@@ -1043,27 +1286,522 @@ def fetch_live_discovery(ticker: str, *, limit: int) -> dict:
         ) from exc
     workspace_root, _ = resolve_workspace_entry()
     if workspace_root is not None:
-        auth_env = resolve_runtime_auth_env_file(workspace_root)
-        if auth_env is not None:
-            os.environ.setdefault("ABEL_AUTH_ENV_FILE", str(auth_env))
+        auth_env_file = resolve_runtime_auth_env_file(workspace_root)
+        if auth_env_file is not None:
+            os.environ.setdefault("ABEL_AUTH_ENV_FILE", str(auth_env_file.resolve()))
 
     try:
         require_api_key()
     except MissingAbelApiKeyError as exc:
         python_bin = resolve_default_python_bin(workspace_root or Path.cwd())
         raise RuntimeError(
-            "init-session --discover is blocked on Abel auth. "
-            "No reusable auth was found, so start explicit auth handoff now with:\n"
+            "Graph discovery is blocked on Abel auth. "
+            "No reusable auth was found, so use the collection-owned auth flow now:\n"
             f"{build_auth_handoff_command(python_bin)}\n\n"
-            "Surface the URL immediately when it appears, complete authorization, "
-            "then retry `abel-strategy-discovery init-session --ticker "
-            f"{ticker.upper()} --exp-id <exp-id> --discover`."
+            "Complete `abel-auth`, then retry the discovery command."
         ) from exc
 
-    payload = discover_graph_payload(ticker.upper(), mode="all", limit=limit)
+    payload = discover_graph_payload(node_id, mode="all", limit=limit)
+    payload.setdefault("created_at", _now())
+    return payload
+
+
+def fetch_live_discovery(ticker: str, *, limit: int) -> dict:
+    payload = fetch_live_graph_payload(ticker.upper(), limit=limit)
     payload["backtest"] = {"start": DEFAULT_BACKTEST_START}
     payload.setdefault("created_at", _now())
     return payload
+
+
+def build_pending_discovery_payload(ticker: str, *, backtest_start: str) -> dict:
+    target_asset = str(ticker or "").strip().upper()
+    return {
+        "ticker": target_asset,
+        "target_asset": target_asset,
+        "target_node": f"{target_asset}.price" if target_asset else "",
+        "source": "pending",
+        "parents": [],
+        "blanket_new": [],
+        "children": [],
+        "K_discovery": 0,
+        "backtest": {"start": backtest_start},
+        "created_at": _now(),
+    }
+
+
+def frontier_state_path(session: Path) -> Path:
+    return session / FRONTIER_STATE_FILENAME
+
+
+def load_frontier_state(session: Path) -> dict:
+    path = frontier_state_path(session)
+    if not path.exists():
+        return frontier_state_from_discovery(load_discovery(session))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return frontier_state_from_discovery(load_discovery(session))
+    return normalize_frontier_state(payload)
+
+
+def write_frontier_state(session: Path, payload: dict) -> None:
+    frontier_state_path(session).write_text(
+        json.dumps(normalize_frontier_state(payload), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def normalize_frontier_state(payload: dict) -> dict:
+    target_asset = str(payload.get("target_asset") or "").strip().upper()
+    target_node = branch_target_node({"target_asset": target_asset, "target_node": payload.get("target_node")})
+    frontier = {
+        "version": int(payload.get("version", 1) or 1),
+        "target_asset": target_asset or target_node.split(".")[0],
+        "target_node": target_node,
+        "nodes": [],
+        "expansions": [],
+        "probe_history": list(payload.get("probe_history") or []),
+        "updated_at": str(payload.get("updated_at") or _now()),
+    }
+    for item in payload.get("nodes") or []:
+        ref = coerce_graph_node_refs([item])
+        if not ref:
+            continue
+        _merge_frontier_node(
+            frontier,
+            ref[0],
+            discovered_from=item.get("discovered_from") or [],
+            depth=int(item.get("depth", 1) or 1),
+            availability_summary=item.get("availability_summary"),
+        )
+    frontier["expansions"] = [item for item in (payload.get("expansions") or []) if isinstance(item, dict)]
+    return frontier
+
+
+def frontier_state_from_discovery(discovery: dict) -> dict:
+    target_asset = str(discovery.get("target_asset") or discovery.get("ticker") or "").strip().upper()
+    target_node = branch_target_node({"target_asset": target_asset}, discovery)
+    frontier = {
+        "version": 1,
+        "target_asset": target_asset,
+        "target_node": target_node,
+        "nodes": [],
+        "expansions": [],
+        "probe_history": [],
+        "updated_at": str(discovery.get("created_at") or _now()),
+    }
+    target_refs = coerce_graph_node_refs([target_node], extra_roles=["target"])
+    if target_refs:
+        _merge_frontier_node(frontier, target_refs[0], discovered_from=[], depth=0)
+    for ref in discovery_candidate_nodes(discovery):
+        _merge_frontier_node(
+            frontier,
+            ref,
+            discovered_from=[target_node] if target_node else [],
+            depth=1,
+        )
+    return frontier
+
+
+def _merge_frontier_node(
+    frontier: dict,
+    ref: GraphNodeRef,
+    *,
+    discovered_from: list[str] | tuple[str, ...],
+    depth: int,
+    availability_summary: dict | None = None,
+) -> bool:
+    nodes = frontier.setdefault("nodes", [])
+    node_id = ref.node_id
+    roles = _dedupe_strings(ref.roles)
+    from_nodes = _dedupe_strings(discovered_from)
+    for entry in nodes:
+        if str(entry.get("node_id") or "").strip() != node_id:
+            continue
+        entry["asset"] = ref.asset
+        entry["field"] = ref.field
+        entry["discovery_roles"] = _dedupe_strings((entry.get("discovery_roles") or []) + roles)
+        entry["discovered_from"] = _dedupe_strings((entry.get("discovered_from") or []) + from_nodes)
+        entry["depth"] = min(int(entry.get("depth", depth) or depth), int(depth))
+        if availability_summary:
+            entry["availability_summary"] = availability_summary
+        return False
+    entry = {
+        "node_id": node_id,
+        "asset": ref.asset,
+        "field": ref.field,
+        "discovery_roles": roles,
+        "discovered_from": from_nodes,
+        "depth": int(depth),
+    }
+    if availability_summary:
+        entry["availability_summary"] = availability_summary
+    nodes.append(entry)
+    frontier["updated_at"] = _now()
+    return True
+
+
+def frontier_candidate_nodes(frontier_state: dict, *, include_target: bool = False) -> list[GraphNodeRef]:
+    target_node = str(frontier_state.get("target_node") or "").strip()
+    ordered = sorted(
+        [item for item in (frontier_state.get("nodes") or []) if isinstance(item, dict)],
+        key=lambda item: (
+            _frontier_availability_rank((item.get("availability_summary") or {}).get("status")),
+            int(item.get("depth", 999) or 999),
+            item.get("asset") != frontier_state.get("target_asset"),
+            _frontier_role_rank(item.get("discovery_roles") or []),
+            str(item.get("node_id") or ""),
+        ),
+    )
+    refs: list[GraphNodeRef] = []
+    for item in ordered:
+        ref = coerce_graph_node_refs(
+            [item],
+            extra_roles=item.get("discovery_roles") or [],
+        )
+        if not ref:
+            continue
+        if not include_target and ref[0].node_id == target_node:
+            continue
+        refs.append(ref[0])
+    return refs
+
+
+def find_frontier_entry(frontier_state: dict, node_id: str) -> dict | None:
+    refs = coerce_graph_node_refs([node_id])
+    if not refs:
+        return None
+    normalized = refs[0].node_id
+    for item in frontier_state.get("nodes") or []:
+        if str(item.get("node_id") or "").strip() == normalized:
+            return item
+    return None
+
+
+def frontier_summary_lines(frontier_state: dict, *, limit: int = 8) -> list[str]:
+    nodes = frontier_candidate_nodes(frontier_state, include_target=True)
+    total_nodes = len(frontier_state.get("nodes") or [])
+    expansions = len(frontier_state.get("expansions") or [])
+    lines = [
+        f"target_node={frontier_state.get('target_node', 'unknown')}",
+        f"node_count={total_nodes}",
+        f"expansion_count={expansions}",
+    ]
+    visible = []
+    for ref in nodes[:limit]:
+        entry = find_frontier_entry(frontier_state, ref.node_id) or {}
+        depth = int(entry.get("depth", 0) or 0)
+        visible.append(f"{ref.node_id} [depth={depth}]")
+    lines.append(f"visible_nodes={', '.join(visible) or 'none recorded'}")
+    return lines
+
+
+def suggest_frontier_inputs(frontier_state: dict, *, limit: int = 5) -> list[GraphNodeRef]:
+    return frontier_candidate_nodes(frontier_state)[:limit]
+
+
+def _frontier_role_rank(values: list[str] | tuple[str, ...]) -> int:
+    rank = {"target": 0, "sibling": 1, "parent": 2, "blanket": 3, "neighbor": 4, "child": 5}
+    if not values:
+        return 99
+    return min(rank.get(str(value).strip(), 99) for value in values)
+
+
+def _frontier_availability_rank(status: str | None) -> int:
+    rank = {
+        "full_target_overlap": 0,
+        "partial_target_overlap": 1,
+        "target_unavailable": 2,
+        "no_target_overlap": 3,
+        "no_data": 4,
+        "error": 5,
+    }
+    return rank.get(str(status or "").strip(), 2)
+
+
+def record_frontier_expansion(
+    frontier_state: dict,
+    *,
+    from_node: str,
+    expansion_payload: dict,
+    added_nodes: list[str],
+) -> dict:
+    frontier_state.setdefault("expansions", []).append(
+        {
+            "expanded_at": _now(),
+            "from_node": from_node,
+            "limit": int(expansion_payload.get("K_discovery", 0) or len(added_nodes)),
+            "added_nodes": added_nodes,
+            "returned_count": len(discovery_candidate_nodes(expansion_payload)),
+        }
+    )
+    frontier_state["updated_at"] = _now()
+    return frontier_state
+
+
+def print_frontier_status(*, session: Path, node_id: str | None = None) -> int:
+    discovery = load_discovery(session)
+    frontier = load_frontier_state(session)
+    discovery_state = load_discovery_state(
+        session,
+        discovery=discovery,
+        frontier=frontier,
+    )
+    print(f"Session frontier: {session}")
+    print(f"  discovery_status: {discovery_state.get('status', 'unknown')}")
+    print(f"  frontier_mode: {discovery_state.get('frontier_mode', 'unknown')}")
+    note = summarize_status_text(discovery_state.get("message", ""))
+    if note:
+        print(f"  discovery_note: {note}")
+    if discovery_state.get("error"):
+        print(f"  discovery_error: {summarize_status_text(discovery_state.get('error', ''))}")
+    for line in frontier_summary_lines(frontier):
+        key, _, value = line.partition("=")
+        print(f"  {key}: {value}")
+    if node_id:
+        entry = find_frontier_entry(frontier, node_id)
+        if entry is None:
+            raise RuntimeError(f"Node `{node_id}` is not currently in the session frontier.")
+        print("")
+        print("Node detail:")
+        print(f"  node_id: {entry.get('node_id', '')}")
+        print(f"  asset: {entry.get('asset', '')}")
+        print(f"  field: {entry.get('field', '')}")
+        print(f"  depth: {entry.get('depth', '')}")
+        print(f"  roles: {', '.join(entry.get('discovery_roles') or []) or 'unknown'}")
+        print(f"  discovered_from: {', '.join(entry.get('discovered_from') or []) or 'seed'}")
+        availability = entry.get("availability_summary") or {}
+        if availability:
+            print(f"  availability_status: {availability.get('status', 'unknown')}")
+            print(f"  native_window: {availability.get('start', 'n/a')} -> {availability.get('end', 'n/a')}")
+            print(f"  target_overlap_days: {availability.get('target_overlap_days', 0)}")
+    return 0
+
+
+def expand_frontier_command(*, session: Path, from_node: str, limit: int) -> int:
+    frontier = load_frontier_state(session)
+    entry = find_frontier_entry(frontier, from_node)
+    if entry is None:
+        raise RuntimeError(
+            f"Node `{from_node}` is not in the current frontier. "
+            "Use `abel-strategy-discovery frontier-status --session ...` to inspect available nodes."
+        )
+    payload = fetch_live_graph_payload(str(entry.get("node_id") or from_node), limit=limit)
+    new_refs = discovery_candidate_nodes(payload)
+    added_nodes: list[str] = []
+    next_depth = int(entry.get("depth", 0) or 0) + 1
+    for ref in new_refs:
+        added = _merge_frontier_node(
+            frontier,
+            ref,
+            discovered_from=[str(entry.get("node_id") or from_node)],
+            depth=next_depth,
+        )
+        if added:
+            added_nodes.append(ref.node_id)
+    record_frontier_expansion(
+        frontier,
+        from_node=str(entry.get("node_id") or from_node),
+        expansion_payload=payload,
+        added_nodes=added_nodes,
+    )
+    with SessionLock(session):
+        write_frontier_state(session, frontier)
+        append_tsv_row(
+            session / "events.tsv",
+            EVENTS_HEADER,
+            {
+                "timestamp": _now(),
+                "event": "frontier_expanded",
+                "branch_id": "",
+                "round_id": "",
+                "mode": "",
+                "verdict": "",
+                "decision": "",
+                "description": (
+                    f"Expanded frontier from {entry.get('node_id', from_node)}; "
+                    f"added {len(added_nodes)} node(s)"
+                ),
+                "artifact_path": FRONTIER_STATE_FILENAME,
+            },
+        )
+        render_session(session)
+    print(f"Expanded frontier from {entry.get('node_id', from_node)}")
+    print(f"  returned_nodes: {len(new_refs)}")
+    print(f"  added_nodes: {len(added_nodes)}")
+    if added_nodes:
+        print(f"  new_frontier_nodes: {', '.join(added_nodes[:8])}")
+    print("")
+    print("From here:")
+    print(f"  abel-strategy-discovery frontier-status --session {session}")
+    return 0
+
+
+def probe_nodes_command(
+    *,
+    session: Path,
+    node_ids: list[str],
+    start: str | None,
+    end: str | None,
+    limit: int,
+) -> int:
+    frontier = load_frontier_state(session)
+    discovery = load_discovery(session)
+    requested_refs = coerce_graph_node_refs(node_ids)
+    if not requested_refs:
+        raise RuntimeError("At least one valid graph node id is required.")
+    missing = [
+        ref.node_id
+        for ref in requested_refs
+        if find_frontier_entry(frontier, ref.node_id) is None
+    ]
+    if missing:
+        raise RuntimeError(
+            "probe-nodes only accepts nodes already discovered in the session frontier. "
+            f"Missing: {', '.join(missing)}"
+        )
+    target_node = str(frontier.get("target_node") or branch_target_node({}, discovery)).strip()
+    requested_start = start or _get_backtest_start(discovery)
+    report = run_edge_probe_data(
+        session=session,
+        node_ids=[ref.node_id for ref in requested_refs],
+        target_node=target_node,
+        start=requested_start,
+        end=end,
+        limit=limit,
+    )
+    summary_items = []
+    for item in report.get("results") or []:
+        entry = find_frontier_entry(frontier, str(item.get("node_id") or ""))
+        if entry is None:
+            continue
+        native_window = item.get("native_window") or {}
+        entry["availability_summary"] = {
+            "status": item.get("status"),
+            "rows": int(item.get("row_count", 0) or 0),
+            "start": native_window.get("start"),
+            "end": native_window.get("end"),
+            "target_overlap_days": int(item.get("target_overlap_days", 0) or 0),
+            "target_decision_days": int(item.get("target_decision_days", 0) or 0),
+            "first_usable_target_time": item.get("first_usable_target_time"),
+        }
+        summary_items.append(
+            f"{item.get('node_id')}: {item.get('status')} "
+            f"({item.get('target_overlap_days', 0)}/{item.get('target_decision_days', 0)} target days)"
+        )
+    frontier.setdefault("probe_history", []).append(
+        {
+            "probed_at": _now(),
+            "target_node": target_node,
+            "node_ids": [ref.node_id for ref in requested_refs],
+            "requested_window": report.get("requested_window") or {},
+            "basket": report.get("basket") or {},
+        }
+    )
+    frontier["updated_at"] = _now()
+    with SessionLock(session):
+        write_frontier_state(session, frontier)
+        append_tsv_row(
+            session / "events.tsv",
+            EVENTS_HEADER,
+            {
+                "timestamp": _now(),
+                "event": "frontier_probed",
+                "branch_id": "",
+                "round_id": "",
+                "mode": "",
+                "verdict": "",
+                "decision": "",
+                "description": (
+                    f"Probed {len(requested_refs)} frontier node(s): "
+                    f"{', '.join(ref.node_id for ref in requested_refs)}"
+                ),
+                "artifact_path": FRONTIER_STATE_FILENAME,
+            },
+        )
+        render_session(session)
+    print(f"Probed frontier nodes for {session}")
+    print(f"  target_node: {target_node}")
+    for item in summary_items:
+        print(f"  {item}")
+    basket = report.get("basket") or {}
+    if basket:
+        print(f"  dense_overlap_start: {basket.get('dense_overlap_start') or 'n/a'}")
+        limiting = ", ".join(basket.get("limiting_inputs") or []) or "none"
+        print(f"  limiting_inputs: {limiting}")
+    print("")
+    print("From here:")
+    print(f"  abel-strategy-discovery frontier-status --session {session}")
+    return 0
+
+
+def select_branch_inputs_command(
+    *,
+    branch: Path,
+    node_ids: list[str],
+    replace: bool,
+) -> int:
+    session = branch.parent.parent
+    discovery = load_discovery(session)
+    frontier = load_frontier_state(session)
+    requested_refs = coerce_graph_node_refs(node_ids)
+    if not requested_refs:
+        raise RuntimeError("At least one valid graph node id is required.")
+    missing = [
+        ref.node_id
+        for ref in requested_refs
+        if find_frontier_entry(frontier, ref.node_id) is None
+    ]
+    if missing:
+        raise RuntimeError(
+            "select-inputs only accepts nodes already discovered in the session frontier. "
+            f"Missing: {', '.join(missing)}"
+        )
+    branch_spec = load_branch_spec(branch)
+    current = [] if replace else branch_selected_inputs(branch_spec)
+    merged = coerce_graph_node_refs([*current, *requested_refs])
+    branch_spec["selected_inputs"] = [ref.to_payload() for ref in merged]
+    with SessionLock(session):
+        write_branch_spec(branch, branch_spec)
+        append_tsv_row(
+            session / "events.tsv",
+            EVENTS_HEADER,
+            {
+                "timestamp": _now(),
+                "event": "branch_inputs_selected",
+                "branch_id": branch.name,
+                "round_id": "",
+                "mode": "",
+                "verdict": "",
+                "decision": "",
+                "description": (
+                    f"Updated selected_inputs for {branch.name}: "
+                    f"{', '.join(ref.node_id for ref in requested_refs)}"
+                ),
+                "artifact_path": str(branch_spec_path(branch).relative_to(session)),
+            },
+        )
+        render_session(session)
+    prepare_status = branch_prepare_status(branch, discovery)
+    print(f"Updated branch inputs for {branch}")
+    print(f"  selected_inputs: {', '.join(ref.node_id for ref in merged)}")
+    if not prepare_status.get("ready", False):
+        print(f"  prepare_status: {format_branch_prepare_status(prepare_status)}")
+    print("")
+    print("From here:")
+    print(f"  abel-strategy-discovery prepare-branch --branch {branch}")
+    return 0
+
+
+def _dedupe_strings(values) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for value in values or []:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        ordered.append(text)
+        seen.add(text)
+    return ordered
 
 
 def write_discovery(session: Path, discovery_data: dict) -> None:
@@ -1157,10 +1895,67 @@ def run_edge_verify_data(
         output_path.unlink(missing_ok=True)
 
 
+def run_edge_probe_data(
+    *,
+    session: Path,
+    node_ids: list[str],
+    target_node: str,
+    start: str | None,
+    end: str | None,
+    limit: int,
+) -> dict:
+    python_bin = resolve_default_python_bin(session)
+    workspace_root = find_workspace_root(session)
+    runtime_env = (
+        build_workspace_runtime_env(workspace_root)
+        if workspace_root is not None
+        else None
+    )
+    fd, temp_name = tempfile.mkstemp(suffix="-probe-data.json")
+    os.close(fd)
+    output_path = Path(temp_name)
+    output_path.unlink(missing_ok=True)
+    command = [
+        python_bin,
+        "-m",
+        "causal_edge.cli",
+        "probe-data",
+        "--target-node",
+        target_node,
+        "--limit",
+        str(limit),
+        "--output-json",
+        str(output_path),
+    ]
+    if start:
+        command.extend(["--start", start])
+    if end:
+        command.extend(["--end", end])
+    for node_id in node_ids:
+        command.extend(["--node-id", node_id])
+    completed = subprocess.run(
+        command,
+        cwd=session,
+        capture_output=True,
+        text=True,
+        env=runtime_env,
+    )
+    if not output_path.exists():
+        raise RuntimeError(
+            "Abel-edge probe-data did not produce a probe report. "
+            f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}"
+        )
+    try:
+        return json.loads(output_path.read_text(encoding="utf-8"))
+    finally:
+        output_path.unlink(missing_ok=True)
+
+
 def init_branch_dir(session: Path, branch_id: str) -> Path:
     with SessionLock(session):
         discovery = load_discovery(session)
         readiness = load_readiness(session)
+        frontier_state = load_frontier_state(session)
         branch = session / "branches" / branch_id
         branch.mkdir(parents=True, exist_ok=True)
         (branch / "rounds").mkdir(parents=True, exist_ok=True)
@@ -1179,6 +1974,7 @@ def init_branch_dir(session: Path, branch_id: str) -> Path:
                     branch=branch,
                     discovery=discovery,
                     readiness=readiness,
+                    frontier_state=frontier_state,
                 ),
             )
         engine = branch / "engine.py"
@@ -1333,18 +2129,16 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     if not branch_spec:
         raise RuntimeError(f"Missing {BRANCH_SPEC_FILENAME} under {branch}")
 
-    target = str(branch_spec.get("target") or discovery.get("ticker") or "").strip().upper()
-    if not target:
+    target_asset = branch_target_asset(branch_spec, discovery)
+    target_node = branch_target_node(branch_spec, discovery)
+    if not target_asset or not target_node:
         raise RuntimeError("Branch spec is missing a target ticker.")
-    selected_drivers = [
-        str(item).strip().upper()
-        for item in (branch_spec.get("selected_drivers") or [])
-        if str(item).strip()
-    ]
-    symbols = [target]
-    for ticker in selected_drivers:
-        if ticker not in symbols:
-            symbols.append(ticker)
+    selected_inputs = branch_selected_inputs(branch_spec)
+    frontier_state = load_frontier_state(session)
+    symbols = [target_asset]
+    for asset in graph_node_assets(selected_inputs):
+        if asset not in symbols:
+            symbols.append(asset)
 
     requested_start = str(
         branch_spec.get("requested_start") or _get_backtest_start(discovery)
@@ -1357,8 +2151,9 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     dependencies = branch_dependencies_payload(
         branch=branch,
         branch_spec=branch_spec,
-        target=target,
-        selected_drivers=selected_drivers,
+        target_asset=target_asset,
+        target_node=target_node,
+        selected_inputs=selected_inputs,
         requested_start=requested_start,
     )
 
@@ -1404,7 +2199,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         if "Abel API key not found" in runtime_error_text:
             raise RuntimeError(
                 "Branch preparation is blocked on Abel auth. "
-                "Start explicit auth handoff now with:\n"
+                "Use the collection-owned auth flow now:\n"
                 f"{build_auth_handoff_command(python_bin)}"
             )
         raise RuntimeError(
@@ -1414,18 +2209,30 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     cache_payload = json.loads(output_path.read_text(encoding="utf-8"))
     dependencies["cache"] = cache_payload
     output_path.write_text(json.dumps(dependencies, indent=2), encoding="utf-8")
-    runtime_profile = build_runtime_profile_payload(target=target)
+    runtime_profile = build_runtime_profile_payload(
+        target_asset=target_asset,
+        target_node=target_node,
+    )
     execution_constraints = build_execution_constraints_payload(branch_spec)
     data_manifest = build_data_manifest_payload(
-        target=target,
-        selected_drivers=selected_drivers,
+        target_asset=target_asset,
+        target_node=target_node,
+        selected_inputs=selected_inputs,
         cache_payload=cache_payload,
         readiness=readiness,
     )
-    probe_samples = build_probe_samples_payload(
-        target=target,
+    window_report = build_window_availability_report(
         requested_start=requested_start,
         data_manifest=data_manifest,
+        overlap_mode=str(branch_spec.get("overlap_mode") or "target_only"),
+        frontier_state=frontier_state,
+        readiness=readiness,
+    )
+    probe_samples = build_probe_samples_payload(
+        target_asset=target_asset,
+        requested_start=requested_start,
+        data_manifest=data_manifest,
+        window_report=window_report,
     )
     runtime_profile_path(branch).write_text(
         json.dumps(runtime_profile, indent=2),
@@ -1439,19 +2246,26 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         json.dumps(data_manifest, indent=2),
         encoding="utf-8",
     )
+    window_availability_path(branch).write_text(
+        json.dumps(window_report, indent=2),
+        encoding="utf-8",
+    )
     probe_samples_path(branch).write_text(
         json.dumps(probe_samples, indent=2),
         encoding="utf-8",
     )
     context_guide_path(branch).write_text(
         build_context_guide_markdown(
-            target=target,
+            target_asset=target_asset,
+            target_node=target_node,
             runtime_profile=runtime_profile,
             execution_constraints=execution_constraints,
             data_manifest=data_manifest,
+            window_report=window_report,
         ),
         encoding="utf-8",
     )
+    persist_prepared_branch_contract(branch, discovery)
 
     with SessionLock(session):
         append_tsv_row(
@@ -1485,11 +2299,20 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     print(f"  runtime_profile: {runtime_profile_path(branch).relative_to(session)}")
     print(f"  execution_constraints: {execution_constraints_path(branch).relative_to(session)}")
     print(f"  data_manifest: {data_manifest_path(branch).relative_to(session)}")
+    print(f"  window_availability: {window_availability_path(branch).relative_to(session)}")
     print(f"  context_guide: {context_guide_path(branch).relative_to(session)}")
     print(f"  probe_samples: {probe_samples_path(branch).relative_to(session)}")
-    print(f"  target: {target}")
-    print(f"  selected_drivers: {len(selected_drivers)}")
+    print(f"  target_asset: {target_asset}")
+    print(f"  target_node: {target_node}")
+    print(f"  selected_inputs: {len(selected_inputs)}")
     print(f"  symbols: {', '.join(symbols)}")
+    effective_window = window_report.get("effective_window") or {}
+    print(
+        "  effective_window: "
+        f"{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}"
+    )
+    for line in window_availability_advisory_lines(window_report):
+        print(f"  {line}")
     print(f"  cache_results: ok={len(warm_ok)} fail={len(warm_fail)}")
     for line in advisory_lines:
         print(f"  {line}")
@@ -1548,6 +2371,7 @@ def promote_branch_bundle(args: argparse.Namespace) -> int:
         shutil.copy2(runtime_profile_path(branch), destination / RUNTIME_PROFILE_FILENAME)
         shutil.copy2(execution_constraints_path(branch), destination / EXECUTION_CONSTRAINTS_FILENAME)
         shutil.copy2(data_manifest_path(branch), destination / DATA_MANIFEST_FILENAME)
+        shutil.copy2(window_availability_path(branch), destination / WINDOW_AVAILABILITY_FILENAME)
         shutil.copy2(context_guide_path(branch), destination / CONTEXT_GUIDE_FILENAME)
         shutil.copy2(probe_samples_path(branch), destination / PROBE_SAMPLES_FILENAME)
 
@@ -1585,6 +2409,7 @@ def promote_branch_bundle(args: argparse.Namespace) -> int:
         print(f"  {destination / RUNTIME_PROFILE_FILENAME}")
         print(f"  {destination / EXECUTION_CONSTRAINTS_FILENAME}")
         print(f"  {destination / DATA_MANIFEST_FILENAME}")
+        print(f"  {destination / WINDOW_AVAILABILITY_FILENAME}")
         print(f"  {destination / CONTEXT_GUIDE_FILENAME}")
         print(f"  {destination / PROBE_SAMPLES_FILENAME}")
     print(f"  {destination / 'PROMOTION.md'}")
@@ -1597,12 +2422,9 @@ def run_branch_round(args: argparse.Namespace) -> int:
     workspace_root = find_workspace_root(branch)
     discovery = load_discovery(session)
     readiness = load_readiness(session)
-    if not branch_inputs_ready(branch):
-        print(
-            "Branch inputs have not been prepared yet. "
-            "Run `abel-strategy-discovery prepare-branch --branch ...` before recording a round.",
-            file=sys.stderr,
-        )
+    prepare_status = branch_prepare_status(branch, discovery)
+    if not prepare_status.get("ready", False):
+        print_branch_prepare_required(branch, prepare_status, stream=sys.stderr)
         return 2
     backtest_start = branch_requested_start(branch, discovery)
     advisory_lines = branch_runtime_advisory_lines(
@@ -1667,6 +2489,8 @@ def run_branch_round(args: argparse.Namespace) -> int:
             emit_readiness_warning = should_emit_readiness_warning(session, readiness)
     for line in advisory_lines:
         print(f"Runtime context: {line}", file=sys.stderr)
+    for line in branch_window_runtime_lines(branch):
+        print(f"Runtime context: {line}", file=sys.stderr)
     if warning and emit_readiness_warning:
         print(
             f"Warning: {warning}",
@@ -1715,9 +2539,15 @@ def run_branch_round(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         if workspace_root is not None:
+            auth_env_file = resolve_runtime_auth_env_file(workspace_root)
             print(
-                f"Alpha expected workspace auth at {resolve_workspace_env_file(workspace_root)} "
-                "and exported it through ABEL_AUTH_ENV_FILE for this run.",
+                "Strategy discovery resolved shared collection auth first"
+                + (
+                    f" at {auth_env_file}"
+                    if auth_env_file is not None
+                    else ""
+                )
+                + " and exported it through ABEL_AUTH_ENV_FILE for this run.",
                 file=sys.stderr,
             )
         return completed.returncode or 1
@@ -1835,6 +2665,7 @@ def run_branch_round(args: argparse.Namespace) -> int:
                 f"output_shape={((semantic.get('output_shape') or {}).get('label', 'unknown'))}",
             ],
         )
+        render_section("Prepared Inputs", semantic_prepared_input_lines(semantic))
     frame_key, frame_text = classify_result_frame(result)
     render_section(
         "Interpretation",
@@ -1851,6 +2682,10 @@ def debug_branch_run(args: argparse.Namespace) -> int:
     session = branch.parent.parent
     discovery = load_discovery(session)
     readiness = load_readiness(session)
+    prepare_status = branch_prepare_status(branch, discovery)
+    if not prepare_status.get("ready", False):
+        print_branch_prepare_required(branch, prepare_status, stream=sys.stderr)
+        return 2
     workspace_root = find_workspace_root(branch)
     backtest_start = branch_requested_start(branch, discovery)
     advisory_lines = branch_runtime_advisory_lines(
@@ -1916,6 +2751,8 @@ def debug_branch_run(args: argparse.Namespace) -> int:
     sys.stderr.write(completed.stderr)
     for line in advisory_lines:
         print(f"Runtime context: {line}")
+    for line in branch_window_runtime_lines(branch):
+        print(f"Runtime context: {line}")
     if debug_result_path.exists():
         try:
             debug_result = json.loads(debug_result_path.read_text(encoding="utf-8"))
@@ -1933,6 +2770,7 @@ def debug_branch_run(args: argparse.Namespace) -> int:
                         f"output_shape={((semantic.get('output_shape') or {}).get('label', 'unknown'))}",
                     ],
                 )
+                render_section("Prepared Inputs", semantic_prepared_input_lines(semantic))
             frame_key, frame_text = classify_result_frame(debug_result)
             render_section(
                 "Interpretation",
@@ -1951,11 +2789,12 @@ def debug_branch_run(args: argparse.Namespace) -> int:
 def render_session(session: Path) -> None:
     discovery = load_discovery(session)
     readiness = load_readiness(session)
+    frontier = load_frontier_state(session)
     branches = load_branches(session)
     memory_snapshot = render_memory_snapshot(session, discovery, readiness, branches)
     for branch in branches:
         render_branch(branch, discovery, readiness, session.name, memory_snapshot)
-    session_readme = build_session_readme(session, discovery, readiness, branches)
+    session_readme = build_session_readme(session, discovery, readiness, frontier, branches)
     (session / "README.md").write_text(session_readme, encoding="utf-8")
 
 
@@ -1974,7 +2813,7 @@ def render_branch(
     )
 
     (branch_dir / "README.md").write_text(
-        build_branch_readme(branch, latest_note, exp_id), encoding="utf-8"
+        build_branch_readme(branch, latest_note, exp_id, discovery), encoding="utf-8"
     )
     (branch_dir / "memory.md").write_text(
         build_memory(branch, discovery, memory_snapshot), encoding="utf-8"
@@ -1987,6 +2826,7 @@ def render_branch(
 def print_status(session: Path) -> None:
     discovery = load_discovery(session)
     readiness = load_readiness(session)
+    frontier = load_frontier_state(session)
     branches = load_branches(session)
     memory_branches = read_tsv_rows(session / MEMORY_BRANCHES_FILENAME)
     insights = read_tsv_rows(session / MEMORY_INSIGHTS_FILENAME)
@@ -2005,8 +2845,14 @@ def print_status(session: Path) -> None:
         warning = build_readiness_warning(readiness)
         if warning:
             print(f"Readiness warning: {warning}")
-        for line in readiness_recommendation_lines(readiness):
-            print(f"Coverage hint: {line}")
+    print(
+        "Frontier: "
+        f"{len(frontier.get('nodes') or [])} nodes, "
+        f"{len(frontier.get('expansions') or [])} expansions, "
+        f"target {frontier.get('target_node', 'unknown')}"
+    )
+    for line in readiness_recommendation_lines(readiness):
+        print(f"Coverage hint: {line}")
     leader = select_leader(branches)
     if leader and leader["rows"]:
         latest = leader["rows"][-1]
@@ -2221,8 +3067,14 @@ def build_session_readme(
     session: Path,
     discovery: dict,
     readiness: dict,
+    frontier: dict,
     branches: list[dict],
 ) -> str:
+    discovery_state = load_discovery_state(
+        session,
+        discovery=discovery,
+        frontier=frontier,
+    )
     keep_branches = [
         branch
         for branch in branches
@@ -2333,6 +3185,8 @@ generated by Abel strategy discovery narrative layer
 - exp_id: `{session.name}`
 - started_at: `{discovery.get("created_at", "unknown")}`
 - discovery_source: `{discovery.get("source", "unknown")}`
+- discovery_status: `{discovery_state.get("status", "unknown")}`
+- frontier_mode: `{discovery_state.get("frontier_mode", "unknown")}`
 - backtest_start: `{_get_backtest_start(discovery)}`
 - current_status: `{"has_keep" if keep_branches else "active" if branches else "exploring"}`
 - branch_count: `{len(branches)}`
@@ -2341,9 +3195,20 @@ generated by Abel strategy discovery narrative layer
 
 Explore {discovery.get("ticker", session.parent.name.upper())} in session `{session.name}` using discovery source `{discovery.get("source", "unknown")}` and compare candidate branches through validated rounds.
 
+## Discovery State
+
+- status: `{discovery_state.get("status", "unknown")}`
+- frontier_mode: `{discovery_state.get("frontier_mode", "unknown")}`
+- note: `{summarize_status_text(discovery_state.get("message", "")) or "n/a"}`
+{"- last_error: `" + summarize_status_text(discovery_state.get("error", "")) + "`" if discovery_state.get("error") else ""}
+
 ## Discovery Readiness
 
 {render_discovery_readiness_section(readiness)}
+
+## Graph Frontier
+
+{render_frontier_markdown(frontier)}
 
 ## Selection Narrative
 
@@ -2365,11 +3230,16 @@ This session tracks {len(branches)} branch(es). Current outcomes: {len(keep_bran
 
 ## Next Step
 
-{session_next_step(session, branches, discovery, readiness)}
+{session_next_step(session, branches, discovery, readiness, frontier=frontier)}
 """
 
 
-def build_branch_readme(branch: dict, latest_note: dict[str, str], exp_id: str) -> str:
+def build_branch_readme(
+    branch: dict,
+    latest_note: dict[str, str],
+    exp_id: str,
+    discovery: dict,
+) -> str:
     rows = branch["rows"]
     latest = rows[-1] if rows else {}
     debug_note = latest_debug_snapshot(branch["branch_dir"])
@@ -2379,6 +3249,14 @@ def build_branch_readme(branch: dict, latest_note: dict[str, str], exp_id: str) 
     source_type = branch_source_type(branch["branch_dir"], {})
     method_family = branch_method_family(branch["branch_dir"])
     parent_branch_id = branch_parent_branch_id(branch["branch_dir"])
+    prepare_status = branch_prepare_status(branch["branch_dir"], discovery)
+    prepared_inputs_label = (
+        "inputs/ (current)"
+        if prepare_status.get("ready", False)
+        else "inputs/ (stale)"
+        if branch_inputs_ready(branch["branch_dir"])
+        else "not prepared"
+    )
     ledger = (
         "\n".join(
             f"1. `{row.get('round_id', '?')}` - {row.get('description', '?')} [{row.get('score', '?')}] {row.get('decision', '?')}"
@@ -2425,7 +3303,8 @@ See `branch.yaml` for the explicit branch inputs and `thesis.md` for the branch 
 - alpha_context_mode: `{diagnostics_note.get("context_mode", "not recorded")}`
 - alpha_context: `{diagnostics_note.get("context_path", "not recorded")}`
 - branch_spec: `{BRANCH_SPEC_FILENAME}`
-- prepared_inputs: `{"inputs/" if branch_inputs_ready(branch["branch_dir"]) else "not prepared"}`
+- prepared_inputs: `{prepared_inputs_label}`
+- prepare_status: `{format_branch_prepare_status(prepare_status)}`
 - runtime_profile: `{"inputs/" + RUNTIME_PROFILE_FILENAME if runtime_profile_path(branch["branch_dir"]).exists() else "not prepared"}`
 - execution_constraints: `{"inputs/" + EXECUTION_CONSTRAINTS_FILENAME if execution_constraints_path(branch["branch_dir"]).exists() else "not prepared"}`
 - data_manifest: `{"inputs/" + DATA_MANIFEST_FILENAME if data_manifest_path(branch["branch_dir"]).exists() else "not prepared"}`
@@ -2560,7 +3439,10 @@ def build_promotion_bundle_readme(
     branch_spec: dict,
     latest: dict[str, str],
 ) -> str:
-    selected = format_simple_nodes(branch_spec.get("selected_drivers") or [], limit=12)
+    selected = format_graph_nodes(
+        [ref.to_payload() for ref in branch_selected_inputs(branch_spec)],
+        limit=12,
+    )
     return f"""# {branch.name} Promotion Bundle
 
 generated by Abel strategy discovery narrative layer
@@ -2568,10 +3450,11 @@ generated by Abel strategy discovery narrative layer
 ## Summary
 
 - branch_id: `{branch.name}`
-- target: `{branch_spec.get("target", "unknown")}`
+- target_asset: `{branch_target_asset(branch_spec) or "unknown"}`
+- target_node: `{branch_target_node(branch_spec) or "unknown"}`
 - requested_start: `{branch_spec.get("requested_start", "unknown")}`
 - overlap_mode: `{branch_spec.get("overlap_mode", "target_only")}`
-- selected_drivers: `{selected}`
+- selected_inputs: `{selected}`
 - latest_round: `{latest.get("round_id", "none")}`
 - latest_decision: `{latest.get("decision", "n/a")}`
 - latest_verdict: `{latest.get("verdict", "n/a")}`
@@ -2603,7 +3486,10 @@ def build_thesis(branch: dict, discovery: dict, readiness: dict) -> str:
     blanket = format_discovery_nodes(discovery.get("blanket_new", []), limit=5)
     usable = format_simple_nodes(readiness_usable_tickers(readiness), limit=8)
     start_covered = format_simple_nodes(readiness_start_covered_tickers(readiness), limit=8)
-    selected = format_simple_nodes(branch_spec.get("selected_drivers") or [], limit=8)
+    selected = format_graph_nodes(
+        [ref.to_payload() for ref in branch_selected_inputs(branch_spec)],
+        limit=8,
+    )
     return f"""# {branch["branch_id"]} Thesis
 
 generated by Abel strategy discovery narrative layer
@@ -2622,10 +3508,11 @@ Latest decision is `{latest.get("decision", "pending")}` with verdict `{latest.g
 ## Input Universe
 
 - target: `{discovery.get("ticker", branch["ticker"])}`
+- target_node: `{branch_target_node(branch_spec, discovery)}`
 - discovery_source: `{discovery.get("source", "unknown")}`
 - direct_parents: `{parents}`
 - blanket_candidates: `{blanket}`
-- selected_drivers: `{selected}`
+- selected_inputs: `{selected}`
 - usable_tickers: `{usable}`
 - start_covered_tickers: `{start_covered}`
 
@@ -3159,8 +4046,11 @@ def branch_thesis_short(branch: dict) -> str:
     if latest.get("description"):
         return str(latest.get("description") or "").strip()
     branch_spec = load_branch_spec(branch["branch_dir"])
-    selected = format_simple_nodes(branch_spec.get("selected_drivers") or [], limit=5)
-    return f"target {branch['ticker']} with drivers {selected}"
+    selected = format_graph_nodes(
+        [ref.to_payload() for ref in branch_selected_inputs(branch_spec)],
+        limit=5,
+    )
+    return f"target {branch['ticker']} with inputs {selected}"
 
 
 def best_branch_row(rows: list[dict[str, str]]) -> dict[str, str] | None:
@@ -3462,11 +4352,10 @@ def branch_runtime_advisory_lines(
     return lines
 
 
-def _branch_driver_list(branch_spec: dict) -> list[str]:
+def _branch_input_list(branch_spec: dict) -> list[str]:
     return [
-        str(item).strip().upper()
-        for item in (branch_spec.get("selected_drivers") or [])
-        if str(item).strip()
+        ref.node_id
+        for ref in branch_selected_inputs(branch_spec)
     ]
 
 
@@ -3478,24 +4367,26 @@ def branch_context_summary_lines(
     readiness: dict,
 ) -> list[str]:
     branch_spec = load_branch_spec(branch)
-    target = str(
-        branch_spec.get("target")
-        or discovery.get("ticker")
-        or session.parent.name.upper()
-    ).strip().upper()
+    target = branch_target_asset(branch_spec, discovery) or session.parent.name.upper()
+    target_node = branch_target_node(branch_spec, discovery)
     requested_start = str(
         branch_spec.get("requested_start") or _get_backtest_start(discovery)
     ).strip()
     session_start = _get_backtest_start(discovery)
     coverage_hints = (readiness or {}).get("coverage_hints") or {}
-    drivers = _branch_driver_list(branch_spec)
-    drivers_text = ", ".join(drivers) if drivers else "none"
+    inputs = _branch_input_list(branch_spec)
+    inputs_text = ", ".join(inputs) if inputs else "none"
     starter_scaffold = branch_uses_default_scaffold(branch, discovery, readiness, session)
-    inputs_prepared = branch_inputs_ready(branch)
+    prepare_status = branch_prepare_status(branch, discovery)
+    inputs_prepared = prepare_status.get("ready", False)
+    window_report = {}
+    if window_availability_path(branch).exists():
+        window_report = json.loads(window_availability_path(branch).read_text(encoding="utf-8"))
 
     lines = [
-        f"target={target}",
-        f"selected_drivers={len(drivers)} ({drivers_text})",
+        f"target_asset={target}",
+        f"target_node={target_node}",
+        f"selected_inputs={len(inputs)} ({inputs_text})",
         f"requested_start={requested_start}",
     ]
     if requested_start == session_start:
@@ -3510,12 +4401,33 @@ def branch_context_summary_lines(
     dense_overlap = coverage_hints.get("dense_overlap_hint_start")
     if dense_overlap:
         lines.append(f"dense_overlap_hint={dense_overlap}")
-    lines.append(f"inputs_prepared={'yes' if inputs_prepared else 'no'}")
+    if inputs_prepared:
+        lines.append("inputs_prepared=yes")
+    elif branch_inputs_ready(branch):
+        lines.append("inputs_prepared=stale")
+    else:
+        lines.append("inputs_prepared=no")
+    lines.append(f"prepare_status={format_branch_prepare_status(prepare_status)}")
+    effective_window = (window_report or {}).get("effective_window") or {}
+    if effective_window:
+        lines.append(
+            "effective_window="
+            f"{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}"
+        )
+        start_alignment = (window_report or {}).get("start_alignment") or {}
+        if start_alignment.get("avoidable_gap_days") is not None:
+            lines.append(
+                f"avoidable_gap_days={start_alignment.get('avoidable_gap_days')}"
+            )
+        limiting = ", ".join((window_report or {}).get("limiting_inputs") or []) or "none"
+        lines.append(f"limiting_inputs={limiting}")
     lines.append(
         "scaffold_status="
         + ("starter_scaffold" if starter_scaffold else "branch_specific_engine")
     )
-    if not inputs_prepared:
+    if prepare_status.get("status") == "stale":
+        lines.append("current_branch_boundary=refresh_prepared_inputs")
+    elif not inputs_prepared:
         lines.append("current_branch_boundary=prepare_branch_inputs")
     elif starter_scaffold:
         lines.append("recorded_round_boundary=branch_specific_engine_required")
@@ -3530,6 +4442,25 @@ def render_section(title: str, lines: list[str]) -> None:
     print(f"{title}:")
     for line in lines:
         print(f"  {line}")
+
+
+def semantic_prepared_input_lines(semantic: dict) -> list[str]:
+    prepared = (semantic or {}).get("prepared_inputs") or {}
+    if not isinstance(prepared, dict) or not prepared:
+        return []
+    lines = [
+        f"traced_inputs={', '.join(prepared.get('traced_inputs') or []) or 'none'}",
+    ]
+    effective_window = prepared.get("effective_window") or {}
+    if effective_window:
+        lines.append(
+            "prepared_effective_window="
+            f"{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}"
+        )
+    issues = [str(item.get("kind") or "") for item in (prepared.get("issues") or []) if str(item.get("kind") or "").strip()]
+    if issues:
+        lines.append(f"prepared_issues={', '.join(issues)}")
+    return lines
 
 
 def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
@@ -3548,7 +4479,7 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
     if failure_signature == "auth_missing" or "api key not found" in failures_lower:
         return (
             "workflow_boundary",
-            "The branch is still blocked on auth for a data path; complete the auth handoff before treating this as an engine or strategy issue.",
+            "The branch is still blocked on auth for a data path; use `abel-auth` to restore shared collection auth before treating this as an engine or strategy issue.",
         )
 
     if verdict == "ERROR":
@@ -3726,8 +4657,11 @@ def build_branch_context(
     dependencies = {}
     if dependencies_path(branch).exists():
         dependencies = json.loads(dependencies_path(branch).read_text(encoding="utf-8"))
+    target_asset = branch_target_asset(branch_spec, discovery)
+    target_node = branch_target_node(branch_spec, discovery)
     runtime_profile = build_runtime_profile_payload(
-        target=str(branch_spec.get("target") or discovery.get("ticker") or "").strip().upper()
+        target_asset=target_asset,
+        target_node=target_node,
     )
     if runtime_profile_path(branch).exists():
         runtime_profile = json.loads(runtime_profile_path(branch).read_text(encoding="utf-8"))
@@ -3737,25 +4671,41 @@ def build_branch_context(
             execution_constraints_path(branch).read_text(encoding="utf-8")
         )
     data_manifest = build_data_manifest_payload(
-        target=str(runtime_profile.get("target") or discovery.get("ticker") or "").strip().upper(),
-        selected_drivers=[
-            str(item).strip().upper()
-            for item in (branch_spec.get("selected_drivers") or [])
-            if str(item).strip()
-        ],
+        target_asset=str(
+            runtime_profile.get("target_asset")
+            or runtime_profile.get("target")
+            or target_asset
+            or discovery.get("ticker")
+            or ""
+        ).strip().upper(),
+        target_node=str(runtime_profile.get("target_node") or target_node or "").strip(),
+        selected_inputs=branch_selected_inputs(branch_spec),
         cache_payload=(dependencies.get("cache") or {}) if isinstance(dependencies, dict) else {},
         readiness=readiness,
     )
     if data_manifest_path(branch).exists():
         data_manifest = json.loads(data_manifest_path(branch).read_text(encoding="utf-8"))
+    window_report = build_window_availability_report(
+        requested_start=backtest_start,
+        data_manifest=data_manifest,
+        overlap_mode=str(branch_spec.get("overlap_mode") or "target_only"),
+        frontier_state=load_frontier_state(session),
+        readiness=readiness,
+    )
+    if window_availability_path(branch).exists():
+        window_report = json.loads(window_availability_path(branch).read_text(encoding="utf-8"))
     cache = dependencies.get("cache") if isinstance(dependencies, dict) else {}
     primary_feed = {
         "name": "primary",
         "kind": "bars",
         "adapter": str((cache or {}).get("adapter") or "abel"),
         "timeframe": str((cache or {}).get("timeframe") or "1d"),
-        "symbol": discovery.get("ticker", session.parent.name.upper()),
+        "symbol": str(runtime_profile.get("target") or target_asset or discovery.get("ticker", session.parent.name.upper())),
         "profile": str((cache or {}).get("profile") or "daily"),
+        "node_id": str(runtime_profile.get("target_node") or target_node or ""),
+        "default_field": graph_node_runtime_field(
+            str(runtime_profile.get("target_node") or target_node or "").rpartition(".")[2] or "price"
+        ),
     }
     cache_root = (cache or {}).get("cache_root")
     if cache_root:
@@ -3775,6 +4725,8 @@ def build_branch_context(
             "timeframe": str(item.get("timeframe") or primary_feed["timeframe"]),
             "symbol": symbol,
             "profile": str(item.get("profile") or primary_feed["profile"]),
+            "node_id": str(item.get("node_id") or ""),
+            "default_field": str(item.get("runtime_field") or "close"),
             **({"cache_root": item.get("cache_root")} if item.get("cache_root") else {}),
         }
     return {
@@ -3791,6 +4743,7 @@ def build_branch_context(
         "runtime_profile_path": str(runtime_profile_path(branch).resolve()),
         "execution_constraints_path": str(execution_constraints_path(branch).resolve()),
         "data_manifest_path": str(data_manifest_path(branch).resolve()),
+        "window_availability_path": str(window_availability_path(branch).resolve()),
         "context_guide_path": str(context_guide_path(branch).resolve()),
         "probe_samples_path": str(probe_samples_path(branch).resolve()),
         "discovery_path": str((session / "discovery.json").resolve()),
@@ -3804,6 +4757,7 @@ def build_branch_context(
         "runtime_profile": runtime_profile,
         "execution_constraints": execution_constraints,
         "data_manifest": data_manifest,
+        "window_availability": window_report,
         "_runtime_profile": runtime_profile,
         "_execution_constraints": execution_constraints,
         "_feeds": feeds,
@@ -3852,13 +4806,90 @@ def build_branch_snapshot_line(branch: dict) -> str:
     )
 
 
+def render_frontier_markdown(frontier: dict) -> str:
+    nodes = sorted(
+        [item for item in (frontier.get("nodes") or []) if isinstance(item, dict)],
+        key=lambda item: (
+            int(item.get("depth", 999) or 999),
+            item.get("asset") != frontier.get("target_asset"),
+            _frontier_role_rank(item.get("discovery_roles") or []),
+            str(item.get("node_id") or ""),
+        ),
+    )
+    if not nodes:
+        return "1. `No frontier nodes recorded yet.`"
+    lines = [
+        f"- target_node: `{frontier.get('target_node', 'unknown')}`",
+        f"- node_count: `{len(nodes)}`",
+        f"- expansion_count: `{len(frontier.get('expansions') or [])}`",
+        "",
+    ]
+    for item in nodes[:10]:
+        roles = ", ".join(item.get("discovery_roles") or []) or "unknown"
+        discovered_from = ", ".join(item.get("discovered_from") or []) or "seed"
+        availability = item.get("availability_summary") or {}
+        availability_text = ""
+        if availability:
+            availability_text = (
+                f", probe `{availability.get('status', 'unknown')}` "
+                f"{availability.get('target_overlap_days', 0)}/{availability.get('target_decision_days', 0)} target days"
+            )
+        lines.append(
+            "1. "
+            f"`{item.get('node_id', 'unknown')}` depth `{item.get('depth', '?')}` "
+            f"roles `{roles}` from `{discovered_from}`{availability_text}"
+        )
+    return "\n".join(lines)
+
+
 def session_next_step(
     session: Path,
     branches: list[dict],
     discovery: dict,
     readiness: dict,
+    *,
+    frontier: dict | None = None,
 ) -> str:
+    frontier_state = frontier or load_frontier_state(session)
+    discovery_state = load_discovery_state(
+        session,
+        discovery=discovery,
+        frontier=frontier_state,
+    )
     if not branches:
+        if discovery_state.get("status") == "failed":
+            return (
+                f"The last live discovery attempt failed and this session is still "
+                f"`{discovery_state.get('frontier_mode', 'seed_only')}`. Retry "
+                f"`abel-strategy-discovery init-session --ticker {discovery.get('ticker', session.parent.name.upper())} "
+                f"--exp-id {session.name} --discover` once auth or runtime issues "
+                "are resolved, or continue intentionally with "
+                f"`abel-strategy-discovery init-branch --session {session} --branch-id graph-v1` "
+                "knowing the first branch will stay target-only."
+            )
+        if discovery_state.get("status") in {"seed_only", "pending"}:
+            return (
+                f"This session is currently "
+                f"`{discovery_state.get('frontier_mode', 'seed_only')}` because "
+                "live discovery is not recorded yet. If you want a graph-backed "
+                "frontier, rerun "
+                f"`abel-strategy-discovery init-session --ticker {discovery.get('ticker', session.parent.name.upper())} "
+                f"--exp-id {session.name} --discover`; otherwise continue with "
+                f"`abel-strategy-discovery init-branch --session {session} --branch-id graph-v1` "
+                "knowing the first branch will start target-only."
+            )
+        frontier_nodes = frontier_candidate_nodes(frontier_state)
+        if frontier_nodes:
+            preview = ", ".join(ref.node_id for ref in frontier_nodes[:3])
+            return (
+                f"Inspect the graph frontier with "
+                f"`abel-strategy-discovery frontier-status --session {session}`, "
+                f"probe promising nodes with "
+                f"`abel-strategy-discovery probe-nodes --session {session} --node <node_id>`, "
+                f"expand outward with "
+                f"`abel-strategy-discovery expand-frontier --session {session} --from-node <node_id>`, "
+                f"and use nearby candidates like `{preview}` before you narrow into a branch thesis."
+            )
         return (
             f"Create the first branch with "
             f"`abel-strategy-discovery init-branch --session {session} --branch-id graph-v1`, "
@@ -3890,6 +4921,14 @@ def session_next_step(
         return f"Continue improving `{keep[-1]['branch_id']}` or open a sibling branch from its latest KEEP baseline."
     if pending:
         branch = pending[-1]
+        prepare_status = branch_prepare_status(branch["branch_dir"], discovery)
+        if not prepare_status.get("ready", False):
+            return (
+                f"Refresh `{branch['branch_id']}` with "
+                f"`abel-strategy-discovery prepare-branch --branch {branch['branch_dir']}` because "
+                f"the prepared contract is `{format_branch_prepare_status(prepare_status)}`, "
+                f"then rerun `abel-strategy-discovery debug-branch --branch {branch['branch_dir']}`."
+            )
         debug_note = latest_debug_snapshot(branch["branch_dir"])
         if debug_note:
             return (
@@ -3975,13 +5014,10 @@ def load_branches(session: Path) -> list[dict]:
 def load_discovery(session: Path) -> dict:
     path = session / "discovery.json"
     if not path.exists():
-        return {
-            "ticker": session.parent.name.upper(),
-            "source": "unknown",
-            "parents": [],
-            "blanket_new": [],
-            "K_discovery": 0,
-        }
+        return build_pending_discovery_payload(
+            session.parent.name.upper(),
+            backtest_start=DEFAULT_BACKTEST_START,
+        )
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -4012,6 +5048,10 @@ def data_manifest_path(branch: Path) -> Path:
     return branch / "inputs" / DATA_MANIFEST_FILENAME
 
 
+def window_availability_path(branch: Path) -> Path:
+    return branch / "inputs" / WINDOW_AVAILABILITY_FILENAME
+
+
 def context_guide_path(branch: Path) -> Path:
     return branch / "inputs" / CONTEXT_GUIDE_FILENAME
 
@@ -4026,10 +5066,17 @@ def branch_inputs_ready(branch: Path) -> bool:
         runtime_profile_path(branch),
         execution_constraints_path(branch),
         data_manifest_path(branch),
+        window_availability_path(branch),
         context_guide_path(branch),
         probe_samples_path(branch),
     )
     return all(path.exists() for path in required)
+
+
+def gap_days_between(start: pd.Timestamp | None, end: pd.Timestamp | None) -> int | None:
+    if start is None or end is None:
+        return None
+    return max(int((end - start).days), 0)
 
 
 def load_branch_spec(branch: Path) -> dict:
@@ -4047,36 +5094,232 @@ def write_branch_spec(branch: Path, payload: dict) -> None:
     )
 
 
-def discovery_candidate_tickers(discovery: dict) -> list[str]:
-    target = str(discovery.get("ticker") or "").strip().upper()
-    ordered: list[str] = []
-    for section in ("parents", "blanket_new", "children"):
+def current_branch_prepare_contract(branch: Path, discovery: dict) -> dict[str, object]:
+    branch_spec = load_branch_spec(branch)
+    return {
+        "target_asset": branch_target_asset(branch_spec, discovery),
+        "target_node": branch_target_node(branch_spec, discovery),
+        "requested_start": branch_requested_start(branch, discovery),
+        "overlap_mode": str(branch_spec.get("overlap_mode") or "target_only"),
+        "selected_inputs": [
+            ref.to_payload() for ref in branch_selected_inputs(branch_spec)
+        ],
+        "data_requirements": branch_spec.get("data_requirements") or {"timeframe": "1d"},
+        "execution_constraints": build_execution_constraints_payload(branch_spec),
+    }
+
+
+def prepare_contract_changed_fields(
+    prepared_contract: dict,
+    current_contract: dict,
+) -> list[str]:
+    labels = (
+        "target_asset",
+        "target_node",
+        "requested_start",
+        "overlap_mode",
+        "selected_inputs",
+        "data_requirements",
+        "execution_constraints",
+    )
+    return [
+        label
+        for label in labels
+        if prepared_contract.get(label) != current_contract.get(label)
+    ]
+
+
+def persist_prepared_branch_contract(branch: Path, discovery: dict) -> None:
+    state = load_branch_state(branch)
+    state["prepared_contract"] = {
+        "prepared_at": _now(),
+        "payload": current_branch_prepare_contract(branch, discovery),
+    }
+    write_branch_state(branch, state)
+
+
+def branch_prepare_status(branch: Path, discovery: dict) -> dict[str, object]:
+    if not branch_inputs_ready(branch):
+        return {
+            "ready": False,
+            "status": "missing",
+            "reason": "prepared input artifacts are missing",
+            "changed_fields": [],
+        }
+    state = load_branch_state(branch)
+    prepared = state.get("prepared_contract")
+    if not isinstance(prepared, dict) or not isinstance(prepared.get("payload"), dict):
+        return {
+            "ready": False,
+            "status": "missing_contract",
+            "reason": "prepared contract tracking is missing; rerun prepare-branch once",
+            "changed_fields": [],
+        }
+    current_contract = current_branch_prepare_contract(branch, discovery)
+    changed_fields = prepare_contract_changed_fields(
+        prepared.get("payload") or {},
+        current_contract,
+    )
+    if changed_fields:
+        return {
+            "ready": False,
+            "status": "stale",
+            "reason": "branch contract changed after the last prepare",
+            "changed_fields": changed_fields,
+            "prepared_at": str(prepared.get("prepared_at") or "").strip(),
+        }
+    return {
+        "ready": True,
+        "status": "ready",
+        "reason": "prepared contract matches the current branch spec",
+        "changed_fields": [],
+        "prepared_at": str(prepared.get("prepared_at") or "").strip(),
+    }
+
+
+def format_branch_prepare_status(status: dict[str, object]) -> str:
+    label = str(status.get("status") or "unknown").strip()
+    if label == "ready":
+        return "ready"
+    if label == "stale":
+        changed = ", ".join(status.get("changed_fields") or []) or "branch_contract"
+        return f"prepare_required ({changed})"
+    if label == "missing_contract":
+        return "prepare_required (refresh prepared contract once)"
+    return "prepare_required"
+
+
+def print_branch_prepare_required(
+    branch: Path,
+    status: dict[str, object],
+    *,
+    stream,
+) -> None:
+    label = str(status.get("status") or "").strip()
+    if label == "stale":
+        print(
+            "Prepared branch inputs are stale. "
+            "Run `abel-strategy-discovery prepare-branch --branch ...` again before debug or run.",
+            file=stream,
+        )
+        changed = ", ".join(status.get("changed_fields") or []) or "branch_contract"
+        print(f"Prepare context: changed_fields={changed}", file=stream)
+    elif label == "missing_contract":
+        print(
+            "Prepared inputs exist, but this branch does not have a tracked prepare contract yet. "
+            "Run `abel-strategy-discovery prepare-branch --branch ...` once to refresh it before debug or run.",
+            file=stream,
+        )
+    else:
+        print(
+            "Branch inputs have not been prepared yet. "
+            "Run `abel-strategy-discovery prepare-branch --branch ...` before debug or run.",
+            file=stream,
+        )
+    prepared_at = str(status.get("prepared_at") or "").strip()
+    if prepared_at:
+        print(f"Prepare context: last_prepared_at={prepared_at}", file=stream)
+    print(f"Prepare context: next_step=abel-strategy-discovery prepare-branch --branch {branch}", file=stream)
+
+
+def branch_target_asset(branch_spec: dict, discovery: dict | None = None) -> str:
+    target = str(
+        branch_spec.get("target_asset")
+        or branch_spec.get("target")
+        or (discovery or {}).get("ticker")
+        or ""
+    ).strip().upper()
+    return target
+
+
+def branch_target_node(branch_spec: dict, discovery: dict | None = None) -> str:
+    raw = (
+        branch_spec.get("target_node")
+        or (discovery or {}).get("target_node")
+        or branch_target_asset(branch_spec, discovery)
+        or (discovery or {}).get("ticker")
+        or ""
+    )
+    refs = coerce_graph_node_refs([raw])
+    return refs[0].node_id if refs else ""
+
+
+def branch_selected_inputs(branch_spec: dict) -> list[GraphNodeRef]:
+    explicit = branch_spec.get("selected_inputs")
+    if explicit:
+        return coerce_graph_node_refs(explicit)
+    return coerce_graph_node_refs(branch_spec.get("selected_drivers") or [])
+
+
+def format_graph_nodes(items: list[object], *, limit: int = 8, include_roles: bool = False) -> str:
+    rendered = [
+        graph_node_label(item, include_roles=include_roles)
+        for item in items[:limit]
+    ]
+    rendered = [item for item in rendered if item]
+    return ", ".join(rendered) or "none recorded"
+
+
+def discovery_candidate_nodes(discovery: dict) -> list[GraphNodeRef]:
+    target_node = branch_target_node({}, discovery)
+    ordered: list[GraphNodeRef] = []
+    seen: set[str] = set()
+    for section, fallback_role in (
+        ("parents", "parent"),
+        ("blanket_new", "blanket"),
+        ("children", "child"),
+    ):
         for item in discovery.get(section) or []:
-            if isinstance(item, dict):
-                ticker = str(item.get("ticker") or "").strip().upper()
-            else:
-                ticker = str(item or "").strip().upper()
-            if not ticker or ticker == target or ticker in ordered:
+            refs = coerce_graph_node_refs([item], extra_roles=[fallback_role])
+            if not refs:
                 continue
-            ordered.append(ticker)
+            ref = refs[0]
+            if not ref.node_id or ref.node_id == target_node or ref.node_id in seen:
+                continue
+            ordered.append(ref)
+            seen.add(ref.node_id)
     return ordered
 
 
-def suggest_branch_drivers(discovery: dict, readiness: dict, *, limit: int = 5) -> list[str]:
-    discovered = discovery_candidate_tickers(discovery)
+def suggest_branch_inputs(
+    discovery: dict,
+    readiness: dict,
+    *,
+    frontier_state: dict | None = None,
+    limit: int = 5,
+) -> list[GraphNodeRef]:
+    discovered = (
+        suggest_frontier_inputs(frontier_state, limit=limit * 3)
+        if frontier_state
+        else discovery_candidate_nodes(discovery)
+    )
     usable = set(readiness_usable_tickers(readiness))
-    prioritized = [ticker for ticker in discovered if ticker in usable]
-    fallback = [ticker for ticker in discovered if ticker not in usable]
+    prioritized = [item for item in discovered if item.asset in usable]
+    fallback = [item for item in discovered if item.asset not in usable]
     return (prioritized + fallback)[:limit]
 
 
-def build_default_branch_spec(*, branch: Path, discovery: dict, readiness: dict) -> dict:
-    suggested = suggest_branch_drivers(discovery, readiness, limit=5)
+def build_default_branch_spec(
+    *,
+    branch: Path,
+    discovery: dict,
+    readiness: dict,
+    frontier_state: dict | None = None,
+) -> dict:
+    target_asset = str(discovery.get("ticker") or branch.parent.parent.parent.name).strip().upper()
+    target_node = branch_target_node({"target_asset": target_asset}, discovery)
+    suggested = suggest_branch_inputs(
+        discovery,
+        readiness,
+        frontier_state=frontier_state,
+        limit=5,
+    )
     selected = suggested[: min(3, len(suggested))]
     return {
-        "version": 1,
+        "version": 2,
         "branch_id": branch.name,
-        "target": discovery.get("ticker", branch.parent.parent.parent.name.upper()),
+        "target_asset": target_asset,
+        "target_node": target_node,
         "hypothesis": "",
         "source_type": "causal",
         "method_family": "graph",
@@ -4084,11 +5327,11 @@ def build_default_branch_spec(*, branch: Path, discovery: dict, readiness: dict)
         "requested_start": _get_backtest_start(discovery),
         "resolved_start_policy": "requested",
         "overlap_mode": "target_only",
-        "selected_drivers": selected,
-        "suggested_drivers": suggested,
+        "selected_inputs": [ref.to_payload() for ref in selected],
+        "suggested_inputs": [ref.to_payload() for ref in suggested],
         "data_requirements": {
             "timeframe": "1d",
-            "fields": ["close"],
+            "fields": ["close", "volume"],
         },
     }
 
@@ -4097,15 +5340,17 @@ def branch_dependencies_payload(
     *,
     branch: Path,
     branch_spec: dict,
-    target: str,
-    selected_drivers: list[str],
+    target_asset: str,
+    target_node: str,
+    selected_inputs: list[GraphNodeRef],
     requested_start: str,
 ) -> dict:
     return {
-        "version": 1,
+        "version": 2,
         "branch_id": branch.name,
-        "target": target,
-        "selected_drivers": selected_drivers,
+        "target_asset": target_asset,
+        "target_node": target_node,
+        "selected_inputs": [ref.to_payload() for ref in selected_inputs],
         "requested_start": requested_start,
         "overlap_mode": branch_spec.get("overlap_mode") or "target_only",
         "data_requirements": branch_spec.get("data_requirements") or {"timeframe": "1d"},
@@ -4113,10 +5358,12 @@ def branch_dependencies_payload(
     }
 
 
-def build_runtime_profile_payload(*, target: str) -> dict:
+def build_runtime_profile_payload(*, target_asset: str, target_node: str) -> dict:
     return {
         "profile": "daily",
-        "target": target,
+        "target": target_asset,
+        "target_asset": target_asset,
+        "target_node": target_node,
         "decision_event": "bar_close",
         "execution_delay_bars": 1,
         "return_basis": "close_to_close",
@@ -4133,8 +5380,9 @@ def build_execution_constraints_payload(branch_spec: dict) -> dict:
 
 def build_data_manifest_payload(
     *,
-    target: str,
-    selected_drivers: list[str],
+    target_asset: str,
+    target_node: str,
+    selected_inputs: list[GraphNodeRef],
     cache_payload: dict,
     readiness: dict,
 ) -> dict:
@@ -4149,52 +5397,172 @@ def build_data_manifest_payload(
         if isinstance(item, dict) and str(item.get("ticker") or "").strip()
     }
     feeds: list[dict[str, object]] = []
-    ordered_symbols = [target] + [ticker for ticker in selected_drivers if ticker != target]
     adapter = str(cache_payload.get("adapter") or "abel")
     timeframe = str(cache_payload.get("timeframe") or "1d")
     profile = str(cache_payload.get("profile") or "daily")
     cache_root = cache_payload.get("cache_root")
-    for symbol in ordered_symbols:
-        cache_item = cache_results.get(symbol, {})
-        readiness_item = readiness_results.get(symbol, {})
-        feed_entry = {
-            "name": "primary" if symbol == target else symbol,
-            "symbol": symbol,
-            "role": "target" if symbol == target else "driver",
+    target_refs = coerce_graph_node_refs([target_node])
+    target_ref = target_refs[0] if target_refs else None
+    if target_ref is None:
+        raise RuntimeError("Target node could not be normalized into a graph node reference.")
+
+    def build_feed_entry(*, name: str, ref: GraphNodeRef, role: str) -> dict[str, object]:
+        cache_item = cache_results.get(ref.asset, {})
+        readiness_item = readiness_results.get(ref.asset, {})
+        feed_entry: dict[str, object] = {
+            "name": name,
+            "node_id": ref.node_id,
+            "asset": ref.asset,
+            "field": ref.field,
+            "symbol": ref.asset,
+            "role": role,
+            "runtime_field": graph_node_runtime_field(ref),
+            "value_field": graph_node_runtime_field(ref),
+            "source_kind": "abel_market_bars",
+            "native_calendar": timeframe,
+            "alignment_mode": "asof_to_target_decision",
             "adapter": adapter,
             "timeframe": timeframe,
             "profile": profile,
             "ok": bool(cache_item.get("ok", False)),
             "row_count": int(cache_item.get("row_count", 0) or 0),
             "available_range": cache_item.get("available_range") or {},
+            "native_window": cache_item.get("available_range") or {},
             "readiness_status": readiness_item.get("status", "unknown"),
             "covers_requested_start": bool(readiness_item.get("covers_requested_start", False)),
         }
         if cache_root:
             feed_entry["cache_root"] = cache_root
-        feeds.append(feed_entry)
+        return feed_entry
+
+    feeds.append(build_feed_entry(name="primary", ref=target_ref, role="target"))
+    for ref in selected_inputs:
+        if ref.node_id == target_ref.node_id:
+            continue
+        feeds.append(build_feed_entry(name=ref.node_id, ref=ref, role="input"))
+    return {
+        "version": 2,
+        "target_asset": target_asset,
+        "target_node": target_node,
+        "selected_inputs": [ref.to_payload() for ref in selected_inputs],
+        "feeds": feeds,
+    }
+
+
+def build_window_availability_report(
+    *,
+    requested_start: str,
+    data_manifest: dict,
+    overlap_mode: str,
+    frontier_state: dict | None = None,
+    readiness: dict | None = None,
+) -> dict:
+    feeds = [item for item in (data_manifest.get("feeds") or []) if isinstance(item, dict)]
+    target_feed = next((item for item in feeds if item.get("role") == "target"), {})
+    target_window = dict(target_feed.get("native_window") or target_feed.get("available_range") or {})
+    requested_start_ts = _coerce_utc_timestamp(requested_start)
+    target_start_ts = _coerce_utc_timestamp(target_window.get("start"))
+    target_end_ts = _coerce_utc_timestamp(target_window.get("end"))
+    coverage_hints = (readiness or {}).get("coverage_hints") or {}
+    target_safe_ts = _coerce_utc_timestamp(coverage_hints.get("target_safe_start"))
+    if target_safe_ts is None:
+        safe_candidates = [
+            item for item in [requested_start_ts, target_start_ts] if item is not None
+        ]
+        target_safe_ts = max(safe_candidates) if safe_candidates else None
+    start_candidates = [item for item in [requested_start_ts, target_start_ts] if item is not None]
+    end_candidates = [item for item in [target_end_ts] if item is not None]
+    per_input_coverage: list[dict[str, object]] = []
+
+    for feed in feeds:
+        if str(feed.get("role") or "") != "input":
+            continue
+        node_id = str(feed.get("node_id") or "").strip()
+        feed_window = dict(feed.get("native_window") or feed.get("available_range") or {})
+        frontier_entry = find_frontier_entry(frontier_state or {}, node_id) if frontier_state else None
+        availability = (frontier_entry or {}).get("availability_summary") or {}
+        effective_start_source = (
+            availability.get("first_usable_target_time")
+            or feed_window.get("start")
+        )
+        effective_start_ts = _coerce_utc_timestamp(effective_start_source)
+        effective_end_ts = _coerce_utc_timestamp(feed_window.get("end"))
+        if effective_start_ts is not None:
+            start_candidates.append(effective_start_ts)
+        if effective_end_ts is not None:
+            end_candidates.append(effective_end_ts)
+        per_input_coverage.append(
+            {
+                "node_id": node_id,
+                "field": feed.get("field"),
+                "native_start": feed_window.get("start"),
+                "native_end": feed_window.get("end"),
+                "effective_start": effective_start_ts.isoformat() if effective_start_ts is not None else None,
+                "effective_start_source": (
+                    "probe_first_usable_target_time"
+                    if availability.get("first_usable_target_time")
+                    else "native_window_start"
+                ),
+                "status": availability.get("status") or feed.get("readiness_status") or "unknown",
+                "target_overlap_days": int(availability.get("target_overlap_days", 0) or 0),
+                "target_decision_days": int(availability.get("target_decision_days", 0) or 0),
+            }
+        )
+
+    effective_start_ts = max(start_candidates) if start_candidates else None
+    effective_end_ts = min(end_candidates) if end_candidates else None
+    limiting_inputs = [
+        item["node_id"]
+        for item in per_input_coverage
+        if item.get("effective_start") == (effective_start_ts.isoformat() if effective_start_ts is not None else None)
+        or item.get("native_end") == (effective_end_ts.isoformat() if effective_end_ts is not None else None)
+    ]
+    start_alignment = {
+        "requested_start": requested_start,
+        "target_safe_start": target_safe_ts.isoformat() if target_safe_ts is not None else None,
+        "prepared_effective_start": effective_start_ts.isoformat() if effective_start_ts is not None else None,
+        "unavoidable_gap_days": gap_days_between(requested_start_ts, target_safe_ts),
+        "avoidable_gap_days": gap_days_between(target_safe_ts, effective_start_ts),
+        "total_gap_days": gap_days_between(requested_start_ts, effective_start_ts),
+    }
     return {
         "version": 1,
-        "target": target,
-        "selected_drivers": selected_drivers,
-        "feeds": feeds,
+        "target_node": data_manifest.get("target_node"),
+        "requested_start": requested_start,
+        "requested_end": None,
+        "overlap_mode": overlap_mode,
+        "target_window": target_window,
+        "effective_window": {
+            "start": effective_start_ts.isoformat() if effective_start_ts is not None else None,
+            "end": effective_end_ts.isoformat() if effective_end_ts is not None else None,
+        },
+        "start_alignment": start_alignment,
+        "limiting_inputs": _dedupe_strings(limiting_inputs),
+        "per_input_coverage": per_input_coverage,
     }
 
 
 def build_probe_samples_payload(
     *,
-    target: str,
+    target_asset: str,
     requested_start: str,
     data_manifest: dict,
+    window_report: dict | None = None,
 ) -> dict:
-    feeds = data_manifest.get("feeds") or []
-    target_feed = next(
-        (item for item in feeds if item.get("role") == "target"),
-        {},
-    )
-    available_range = (target_feed.get("available_range") or {}) if isinstance(target_feed, dict) else {}
-    start = str(available_range.get("start") or requested_start or "").strip()
-    end = str(available_range.get("end") or start or "").strip()
+    effective_window = (window_report or {}).get("effective_window") or {}
+    target_window = (window_report or {}).get("target_window") or {}
+    start = str(
+        effective_window.get("start")
+        or target_window.get("start")
+        or requested_start
+        or ""
+    ).strip()
+    end = str(
+        effective_window.get("end")
+        or target_window.get("end")
+        or start
+        or ""
+    ).strip()
     samples: list[str] = []
     if start and end:
         try:
@@ -4203,8 +5571,9 @@ def build_probe_samples_payload(
         except Exception:
             samples = [item for item in [start, end] if item]
     return {
-        "version": 1,
-        "target": target,
+        "version": 2,
+        "target_asset": target_asset,
+        "target_node": data_manifest.get("target_node"),
         "requested_start": requested_start,
         "sample_decision_dates": samples,
     }
@@ -4212,20 +5581,44 @@ def build_probe_samples_payload(
 
 def build_context_guide_markdown(
     *,
-    target: str,
+    target_asset: str,
+    target_node: str,
     runtime_profile: dict,
     execution_constraints: dict,
     data_manifest: dict,
+    window_report: dict | None = None,
 ) -> str:
     feed_names = [
         str(item.get("name"))
         for item in (data_manifest.get("feeds") or [])
         if isinstance(item, dict) and str(item.get("name") or "").strip()
     ]
+    feed_examples = [
+        (
+            f"- `{item.get('name')}` -> `ctx.feed(\"{item.get('name')}\").asof_series(\"{item.get('runtime_field', 'close')}\")`"
+        )
+        for item in (data_manifest.get("feeds") or [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip() and str(item.get("name")) != "primary"
+    ]
+    feed_details = [
+        (
+            f"- `{item.get('name')}` -> "
+            f"`{item.get('field')}` on `{item.get('native_calendar', item.get('timeframe', '1d'))}`, "
+            f"runtime `{item.get('runtime_field', 'close')}`, "
+            f"native `{((item.get('native_window') or {}).get('start') or 'n/a')}` -> "
+            f"`{((item.get('native_window') or {}).get('end') or 'n/a')}`"
+        )
+        for item in (data_manifest.get("feeds") or [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    ]
+    effective_window = (window_report or {}).get("effective_window") or {}
+    start_alignment = (window_report or {}).get("start_alignment") or {}
     lines = [
-        f"# {target} Branch Context Guide",
+        f"# {target_asset} Branch Context Guide",
         "",
         "## Runtime",
+        f"- target_asset: `{target_asset}`",
+        f"- target_node: `{target_node}`",
         f"- profile: `{runtime_profile.get('profile', 'daily')}`",
         f"- decision_event: `{runtime_profile.get('decision_event', 'bar_close')}`",
         f"- execution_delay_bars: `{runtime_profile.get('execution_delay_bars', 1)}`",
@@ -4235,19 +5628,80 @@ def build_context_guide_markdown(
         f"- long_only: `{execution_constraints.get('long_only', False)}`",
         f"- position_bounds: `{execution_constraints.get('position_bounds', 'unbounded')}`",
         "",
+        "## Window Availability",
+        f"- requested_start: `{(window_report or {}).get('requested_start', 'unknown')}`",
+        f"- target_safe_start: `{start_alignment.get('target_safe_start', 'unknown')}`",
+        f"- effective_window: `{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}`",
+        f"- avoidable_gap_days: `{start_alignment.get('avoidable_gap_days', 'unknown')}`",
+        f"- limiting_inputs: `{', '.join((window_report or {}).get('limiting_inputs') or []) or 'none'}`",
+        "- if avoidable_gap_days is large, try replacing limiting inputs before narrowing requested_start",
+        "",
         "## Available Feeds",
         f"- names: `{', '.join(feed_names) or 'primary only'}`",
-        "- use `ctx.target.series(\"close\")` for target history",
-        "- use `ctx.feed(\"<name>\").asof_series(\"close\")` for aligned driver history",
+        f"- use `ctx.target.series(\"{graph_node_runtime_field(target_node.rpartition('.')[2] or 'price')}\")` for the target node",
+        "- each non-primary feed is named by its graph node id",
         "- use `ctx.points()` when you need path-sensitive cross-calendar logic",
+        *feed_details[:8],
+        *feed_examples[:6],
         "",
         "## Suggested Loop",
-        "1. Inspect `probe_samples.json` and `data_manifest.json`.",
+        "1. Inspect `window_availability.json`, `probe_samples.json`, and `data_manifest.json`.",
         "2. Edit `engine.py` against `DecisionContext`.",
         "3. Run `abel-strategy-discovery debug-branch --branch ...` first to read semantic preflight.",
         "4. Only record a round after the branch expresses a real mechanism.",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _coerce_utc_timestamp(value: object) -> pd.Timestamp | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    ts = pd.Timestamp(text)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+    return ts.tz_convert("UTC")
+
+
+def window_availability_advisory_lines(window_report: dict | None) -> list[str]:
+    report = window_report or {}
+    start_alignment = report.get("start_alignment") or {}
+    requested = str(start_alignment.get("requested_start") or "").strip()
+    target_safe = str(start_alignment.get("target_safe_start") or "").strip()
+    prepared = str(start_alignment.get("prepared_effective_start") or "").strip()
+    lines: list[str] = []
+    if requested or target_safe or prepared:
+        lines.append(
+            "start_alignment="
+            f"requested {requested or 'unknown'} -> "
+            f"target_safe {target_safe or 'unknown'} -> "
+            f"prepared_effective {prepared or 'unknown'}"
+        )
+    unavoidable_gap = start_alignment.get("unavoidable_gap_days")
+    if unavoidable_gap is not None:
+        lines.append(f"target_gap_days={unavoidable_gap}")
+    avoidable_gap = start_alignment.get("avoidable_gap_days")
+    if avoidable_gap is not None:
+        lines.append(f"avoidable_gap_days={avoidable_gap}")
+    if isinstance(avoidable_gap, int) and avoidable_gap > 0:
+        limiting = ", ".join(report.get("limiting_inputs") or []) or "none"
+        lines.append(f"time_cost_driver={limiting}")
+        lines.append(
+            "time_cost_guidance=replace limiting inputs before narrowing requested_start"
+        )
+    return lines
+
+
+def branch_window_runtime_lines(branch: Path) -> list[str]:
+    if not window_availability_path(branch).exists():
+        return []
+    try:
+        window_report = json.loads(
+            window_availability_path(branch).read_text(encoding="utf-8")
+        )
+    except json.JSONDecodeError:
+        return []
+    return window_availability_advisory_lines(window_report)
 
 
 def branch_state_path(branch: Path) -> Path:
@@ -4284,6 +5738,160 @@ def write_session_state(session: Path, payload: dict) -> None:
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def frontier_mode(frontier_state: dict, *, discovery: dict | None = None) -> str:
+    target_node = branch_target_node({}, discovery or frontier_state)
+    for item in frontier_state.get("nodes") or []:
+        node_id = str(item.get("node_id") or "").strip()
+        if node_id and node_id != target_node:
+            return "graph"
+    return "seed_only"
+
+
+def summarize_status_text(value: str | None, *, limit: int = 220) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 3].rstrip()}..."
+
+
+def default_discovery_state_message(
+    status: str,
+    *,
+    discovery: dict,
+    frontier: dict,
+) -> str:
+    source = str(discovery.get("source") or "unknown").strip()
+    mode = frontier_mode(frontier, discovery=discovery)
+    if status == "ready":
+        return (
+            f"Live Abel discovery is recorded from {source}; "
+            f"frontier mode is {mode}."
+        )
+    if status == "pending":
+        return (
+            "Live discovery has been requested; the session stays seed-only "
+            "until results are recorded."
+        )
+    if status == "failed":
+        return (
+            "The last live discovery attempt failed; the session remains "
+            "seed-only until you retry."
+        )
+    return "Live discovery has not been run for this session yet."
+
+
+def build_discovery_state_payload(
+    *,
+    discovery: dict,
+    frontier: dict,
+    status: str,
+    mode: str,
+    requested_live_discovery: bool,
+    message: str | None = None,
+    error: str | None = None,
+    updated_at: str | None = None,
+) -> dict:
+    payload = {
+        "status": status,
+        "mode": mode,
+        "requested_live_discovery": bool(requested_live_discovery),
+        "frontier_mode": frontier_mode(frontier, discovery=discovery),
+        "discovery_source": str(discovery.get("source") or "unknown").strip() or "unknown",
+        "target_node": branch_target_node({}, discovery),
+        "node_count": len(frontier.get("nodes") or []),
+        "updated_at": str(updated_at or _now()),
+        "message": str(
+            message
+            or default_discovery_state_message(
+                status,
+                discovery=discovery,
+                frontier=frontier,
+            )
+        ).strip(),
+    }
+    if error:
+        payload["error"] = str(error).strip()
+    return payload
+
+
+def load_discovery_state(
+    session: Path,
+    *,
+    discovery: dict | None = None,
+    frontier: dict | None = None,
+) -> dict:
+    discovery_data = discovery or load_discovery(session)
+    frontier_state = frontier or load_frontier_state(session)
+    source = str(discovery_data.get("source") or "").strip().lower()
+    if source and source not in {"pending", "unknown"}:
+        return build_discovery_state_payload(
+            discovery=discovery_data,
+            frontier=frontier_state,
+            status="ready",
+            mode="live",
+            requested_live_discovery=True,
+        )
+    session_state = load_session_state(session)
+    explicit = session_state.get(DISCOVERY_STATE_SESSION_KEY)
+    if isinstance(explicit, dict):
+        status = str(explicit.get("status") or "").strip().lower()
+        if status not in {"seed_only", "pending", "ready", "failed"}:
+            status = ""
+        mode = str(explicit.get("mode") or "").strip().lower()
+        if mode not in {"live", "deferred"}:
+            mode = "live" if status in {"pending", "ready", "failed"} else "deferred"
+        if status:
+            return build_discovery_state_payload(
+                discovery=discovery_data,
+                frontier=frontier_state,
+                status=status,
+                mode=mode,
+                requested_live_discovery=bool(
+                    explicit.get("requested_live_discovery", mode == "live")
+                ),
+                message=str(explicit.get("message") or "").strip() or None,
+                error=str(explicit.get("error") or "").strip() or None,
+                updated_at=str(explicit.get("updated_at") or _now()),
+            )
+    return build_discovery_state_payload(
+        discovery=discovery_data,
+        frontier=frontier_state,
+        status="seed_only",
+        mode="deferred",
+        requested_live_discovery=False,
+    )
+
+
+def write_discovery_state(
+    session: Path,
+    *,
+    discovery: dict | None = None,
+    frontier: dict | None = None,
+    status: str,
+    mode: str,
+    requested_live_discovery: bool,
+    message: str | None = None,
+    error: str | None = None,
+    updated_at: str | None = None,
+) -> dict:
+    discovery_data = discovery or load_discovery(session)
+    frontier_state = frontier or load_frontier_state(session)
+    payload = build_discovery_state_payload(
+        discovery=discovery_data,
+        frontier=frontier_state,
+        status=status,
+        mode=mode,
+        requested_live_discovery=requested_live_discovery,
+        message=message,
+        error=error,
+        updated_at=updated_at,
+    )
+    state = load_session_state(session)
+    state[DISCOVERY_STATE_SESSION_KEY] = payload
+    write_session_state(session, state)
+    return payload
 
 
 def readiness_warning_fingerprint(readiness: dict) -> str:
