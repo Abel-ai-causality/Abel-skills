@@ -14,13 +14,13 @@ def _sample_selected_inputs() -> list[dict]:
     ]
 
 
-def _semantic_result(*, traced_inputs: list[str]) -> dict:
+def _semantic_result(*, traced_inputs: list[str], requested_start: str = "2020-01-01") -> dict:
     return {
         "verdict": "PASS",
         "score": "7/7",
         "metrics": {},
-        "requested_window": {"start": "2020-01-01", "end": None},
-        "effective_window": {"start": "2020-01-01", "end": "2020-12-31"},
+        "requested_window": {"start": requested_start, "end": None},
+        "effective_window": {"start": requested_start, "end": "2020-12-31"},
         "semantic": {
             "verdict": "PASS",
             "prepared_inputs": {
@@ -48,6 +48,7 @@ def _record_round(
     sharpe: float = 1.0,
     protocol_flags: str = "none",
     next_step: str = "",
+    backtest_start: str = "2020-01-01",
 ) -> None:
     ni.append_tsv_row(
         branch / "results.tsv",
@@ -82,8 +83,11 @@ def _record_round(
         mode="explore",
         decision=decision,
         description=description,
-        result=_semantic_result(traced_inputs=["AAPL.price"] if evidence_type == "candidate_evidence" else []),
-        backtest_start="2020-01-01",
+        result=_semantic_result(
+            traced_inputs=["AAPL.price"] if evidence_type == "candidate_evidence" else [],
+            requested_start=backtest_start,
+        ),
+        backtest_start=backtest_start,
         input_note="AAPL.price is the selected graph input",
         hypothesis="AAPL price leads TSLA",
         expected_signal="positive cross-asset lead",
@@ -156,6 +160,161 @@ def test_round_evidence_requires_traced_non_target_input(tmp_path: Path) -> None
 
     assert traced["evidence_type"] == "candidate_evidence"
     assert traced["traced_inputs"] == "AAPL.price"
+
+
+def test_post_hoc_requested_start_change_is_protocol_violation(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "window-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "graph-window")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = _sample_selected_inputs()
+    spec["requested_start"] = "2020-01-01"
+    ni.write_branch_spec(branch, spec)
+    _record_round(
+        branch,
+        round_id="round-001",
+        decision="discard",
+        evidence_type="candidate_evidence",
+        description="earlier requested window did not pass",
+        backtest_start="2020-01-01",
+    )
+
+    spec["requested_start"] = "2021-01-01"
+    ni.write_branch_spec(branch, spec)
+    evidence = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(
+            traced_inputs=["AAPL.price"],
+            requested_start="2021-01-01",
+        ),
+        rows=ni.read_tsv_rows(branch / "results.tsv"),
+        hypothesis="AAPL price leads TSLA",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="same thesis under a later requested window",
+        invalidation_condition="AAPL lead should fail when cross-asset pressure is absent",
+    )
+
+    assert evidence["evidence_type"] == "protocol_violation"
+    assert "post_hoc_window_change" in evidence["protocol_flags"]
+
+
+def test_initial_narrow_window_requires_study_protocol_declaration(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "window-v2", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "graph-regime")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = _sample_selected_inputs()
+    spec["requested_start"] = "2021-01-01"
+    ni.write_branch_spec(branch, spec)
+
+    undeclared = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(
+            traced_inputs=["AAPL.price"],
+            requested_start="2021-01-01",
+        ),
+        rows=[],
+        hypothesis="AAPL price leads TSLA in the post-2021 regime",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="first regime attempt",
+        invalidation_condition="AAPL lead should fail outside the claimed regime",
+    )
+
+    assert undeclared["evidence_type"] == "protocol_violation"
+    assert "undeclared_initial_window" in undeclared["protocol_flags"]
+
+    _record_round(
+        branch,
+        round_id="round-001",
+        decision="protocol",
+        evidence_type="protocol_violation",
+        description="undeclared initial window was not comparable",
+        protocol_flags="undeclared_initial_window",
+        backtest_start="2021-01-01",
+    )
+    still_undeclared = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(
+            traced_inputs=["AAPL.price"],
+            requested_start="2021-01-01",
+        ),
+        rows=ni.read_tsv_rows(branch / "results.tsv"),
+        hypothesis="AAPL price leads TSLA in the post-2021 regime",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="second regime attempt",
+        invalidation_condition="AAPL lead should fail outside the claimed regime",
+    )
+
+    assert still_undeclared["evidence_type"] == "protocol_violation"
+    assert "undeclared_study_window" in still_undeclared["protocol_flags"]
+
+    declared_branch = ni.init_branch_dir(session, "graph-declared-regime")
+    declared_spec = ni.load_branch_spec(declared_branch)
+    declared_spec["selected_inputs"] = _sample_selected_inputs()
+    declared_spec["requested_start"] = "2021-01-01"
+    declared_spec["study_protocol"] = "predeclared regime study"
+    ni.write_branch_spec(declared_branch, declared_spec)
+    declared = ni.classify_round_evidence(
+        branch=declared_branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(
+            traced_inputs=["AAPL.price"],
+            requested_start="2021-01-01",
+        ),
+        rows=[],
+        hypothesis="AAPL price leads TSLA in the post-2021 regime",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="first regime attempt",
+        invalidation_condition="AAPL lead should fail outside the claimed regime",
+    )
+
+    assert declared["evidence_type"] == "candidate_evidence"
+    assert "declared_study_window" in declared["protocol_flags"]
+
+
+def test_window_guidance_reports_protocol_facts_without_narrowing_tactic() -> None:
+    window_report = {
+        "requested_start": "2020-01-01",
+        "effective_window": {
+            "start": "2020-03-01T00:00:00+00:00",
+            "end": "2020-12-31T00:00:00+00:00",
+        },
+        "start_alignment": {
+            "requested_start": "2020-01-01T00:00:00+00:00",
+            "target_safe_start": "2020-01-01T00:00:00+00:00",
+            "prepared_effective_start": "2020-03-01T00:00:00+00:00",
+            "avoidable_gap_days": 60,
+        },
+        "limiting_inputs": ["BTCUSD.price"],
+    }
+    guide = ni.build_context_guide_markdown(
+        target_asset="TSLA",
+        target_node="TSLA.price",
+        runtime_profile={"profile": "daily"},
+        execution_constraints={"long_only": True},
+        data_manifest={
+            "feeds": [
+                {
+                    "name": "BTCUSD.price",
+                    "field": "price",
+                    "runtime_field": "close",
+                    "native_window": {"start": "2020-03-01", "end": "2020-12-31"},
+                },
+            ],
+        },
+        window_report=window_report,
+    )
+    advisory = "\n".join(ni.window_availability_advisory_lines(window_report))
+    combined = guide + "\n" + advisory
+
+    assert "narrowing requested_start" not in combined
+    assert "replace limiting inputs" not in combined
+    assert "coverage gaps are reported as facts" in combined
 
 
 def test_round_note_parses_research_protocol_fields(tmp_path: Path) -> None:

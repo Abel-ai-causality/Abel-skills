@@ -2582,6 +2582,7 @@ def run_branch_round(args: argparse.Namespace) -> int:
         branch=branch,
         discovery=discovery,
         result=result,
+        rows=rows,
         hypothesis=effective_hypothesis,
         input_note=args.input_note,
         expected_signal=args.expected_signal,
@@ -3134,6 +3135,7 @@ def classify_round_evidence(
     branch: Path,
     discovery: dict,
     result: dict,
+    rows: list[dict[str, str]] | None = None,
     hypothesis: str,
     input_note: str,
     expected_signal: str,
@@ -3173,6 +3175,23 @@ def classify_round_evidence(
     else:
         evidence_type = "candidate_evidence"
 
+    flags.extend(
+        classify_window_protocol_flags(
+            branch=branch,
+            discovery=discovery,
+            rows=rows or [],
+        )
+    )
+    if evidence_type == "candidate_evidence" and any(
+        flag in flags
+        for flag in [
+            "post_hoc_window_change",
+            "undeclared_initial_window",
+            "undeclared_study_window",
+        ]
+    ):
+        evidence_type = "protocol_violation"
+
     if reflection_status != "complete":
         flags.append("reflection_required")
 
@@ -3183,6 +3202,72 @@ def classify_round_evidence(
         "selected_non_target_inputs": ", ".join(selected_non_target) or "none",
         "traced_inputs": ", ".join(traced_inputs) or "none",
     }
+
+
+def classify_window_protocol_flags(
+    *,
+    branch: Path,
+    discovery: dict,
+    rows: list[dict[str, str]],
+) -> list[str]:
+    branch_spec = load_branch_spec(branch)
+    current_start = branch_requested_start(branch, discovery)
+    session_start = _get_backtest_start(discovery)
+    current_ts = safe_utc_timestamp(current_start)
+    session_ts = safe_utc_timestamp(session_start)
+    flags: list[str] = []
+    if current_ts is None or session_ts is None:
+        return flags
+    if current_ts == session_ts:
+        flags.append("protocol_window")
+    elif current_ts > session_ts:
+        if branch_declares_study_window(branch_spec):
+            flags.append("declared_study_window")
+        elif not rows:
+            flags.append("undeclared_initial_window")
+        else:
+            flags.append("undeclared_study_window")
+    elif current_ts < session_ts:
+        flags.append("branch_window_differs_from_session")
+    for previous_start in previous_round_requested_starts(branch, rows):
+        previous_ts = safe_utc_timestamp(previous_start)
+        if previous_ts is not None and current_ts > previous_ts:
+            flags.append("post_hoc_window_change")
+            break
+    return flags
+
+
+def safe_utc_timestamp(value: object) -> pd.Timestamp | None:
+    try:
+        return _coerce_utc_timestamp(value)
+    except Exception:
+        return None
+
+
+def branch_declares_study_window(branch_spec: dict) -> bool:
+    values: list[str] = []
+    for key in ["study_protocol", "protocol_scope", "window_protocol", "study_type"]:
+        value = branch_spec.get(key)
+        if isinstance(value, dict):
+            values.extend(str(item) for item in value.values())
+        elif isinstance(value, list):
+            values.extend(str(item) for item in value)
+        else:
+            values.append(str(value or ""))
+    text = " ".join(values).lower()
+    return any(token in text for token in ["study", "regime", "protocol"])
+
+
+def previous_round_requested_starts(branch: Path, rows: list[dict[str, str]]) -> list[str]:
+    starts: list[str] = []
+    for row in rows:
+        requested_start = read_round_note(branch, row.get("round_id", "")).get(
+            "requested_start",
+            "",
+        )
+        if requested_start:
+            starts.append(requested_start)
+    return starts
 
 
 def evidence_adjusted_decision(
@@ -5869,7 +5954,7 @@ def build_context_guide_markdown(
         f"- effective_window: `{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}`",
         f"- avoidable_gap_days: `{start_alignment.get('avoidable_gap_days', 'unknown')}`",
         f"- limiting_inputs: `{', '.join((window_report or {}).get('limiting_inputs') or []) or 'none'}`",
-        "- if avoidable_gap_days is large, try replacing limiting inputs before narrowing requested_start",
+        "- requested_start is a study protocol input; coverage-driven effective_window shrinkage is reported separately",
         "",
         "## Available Feeds",
         f"- names: `{', '.join(feed_names) or 'primary only'}`",
@@ -5922,7 +6007,7 @@ def window_availability_advisory_lines(window_report: dict | None) -> list[str]:
         limiting = ", ".join(report.get("limiting_inputs") or []) or "none"
         lines.append(f"time_cost_driver={limiting}")
         lines.append(
-            "time_cost_guidance=replace limiting inputs before narrowing requested_start"
+            "protocol_note=requested_start changes alter study comparability; coverage gaps are reported as facts"
         )
     return lines
 
