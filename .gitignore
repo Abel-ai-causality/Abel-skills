@@ -16,3 +16,5 @@ causal-abel/references/verb-change-checklist.md
 codex-skill-eval/runs/*
 !codex-skill-eval/runs/.gitkeep
 .DS_Store
+endpoints.local.json
+maintainers/skills/

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared endpoint configuration for maintainer-side skill rendering."""
+"""Shared endpoint profile configuration for maintainer-side rendering."""
 
 from __future__ import annotations
 
@@ -7,14 +7,30 @@ import json
 import urllib.parse
 from pathlib import Path
 
-CONFIG_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = CONFIG_DIR / "endpoints.json"
-LOCAL_CONFIG_PATH = CONFIG_DIR / "endpoints.local.json"
+MAINTAINERS_ROOT = Path(__file__).resolve().parent
+CONFIG_PATH = MAINTAINERS_ROOT / "endpoints.json"
+LEGACY_CONFIG_PATH = MAINTAINERS_ROOT / "abel-ask" / "endpoints.json"
+LOCAL_CONFIG_CANDIDATES = (
+    MAINTAINERS_ROOT / "endpoints.local.json",
+)
 AUTHORIZE_PATH = "web/credentials/oauth/google/authorize/agent"
 RESULT_PATH_TEMPLATE = (
     "web/credentials/oauth/google/result?pollToken=POLL_TOKEN"
 )
 CALLBACK_PATH = "web/credentials/oauth/google/callback"
+
+
+def _default_config_path() -> Path:
+    if CONFIG_PATH.exists():
+        return CONFIG_PATH
+    return LEGACY_CONFIG_PATH
+
+
+def _default_local_config_path() -> Path:
+    for path in LOCAL_CONFIG_CANDIDATES:
+        if path.exists():
+            return path
+    return LOCAL_CONFIG_CANDIDATES[0]
 
 
 def _read_config(path: Path) -> dict:
@@ -29,10 +45,7 @@ def _merge_config(base: dict, override: dict) -> dict:
 
     base_profiles = base.get("profiles", {})
     override_profiles = override.get("profiles", {})
-    profiles = {
-        name: dict(profile)
-        for name, profile in base_profiles.items()
-    }
+    profiles = {name: dict(profile) for name, profile in base_profiles.items()}
     for name, profile in override_profiles.items():
         existing = profiles.get(name, {})
         profiles[name] = {**existing, **profile}
@@ -40,10 +53,16 @@ def _merge_config(base: dict, override: dict) -> dict:
     return merged
 
 
-def load_endpoint_config(*, include_local: bool = False) -> dict:
-    config = _read_config(CONFIG_PATH)
-    if include_local and LOCAL_CONFIG_PATH.exists():
-        config = _merge_config(config, _read_config(LOCAL_CONFIG_PATH))
+def load_endpoint_config(
+    *,
+    include_local: bool = False,
+    config_path: Path | None = None,
+    local_config_path: Path | None = None,
+) -> dict:
+    config = _read_config((config_path or _default_config_path()).resolve())
+    local_path = (local_config_path or _default_local_config_path()).resolve()
+    if include_local and local_path.exists():
+        config = _merge_config(config, _read_config(local_path))
     return config
 
 
@@ -87,7 +106,10 @@ def build_profile(name: str, profile: dict) -> dict[str, str]:
             oauth_base_url, f"{CALLBACK_PATH}?code=GOOGLE_CODE&format=json"
         ),
     }
-    for optional_key in ("narrative_cap_base_url", "narrative_cap_enabled"):
+    for optional_key in (
+        "narrative_cap_base_url",
+        "narrative_cap_api_key_env",
+    ):
         value = profile.get(optional_key)
         if value not in (None, ""):
             built[optional_key] = str(value)
@@ -138,9 +160,9 @@ def get_template_values(
         values["ACTIVE_NARRATIVE_CAP_ENDPOINT_URL"] = active[
             "narrative_cap_endpoint_url"
         ]
-    if "narrative_cap_enabled" in active:
-        values["ACTIVE_NARRATIVE_CAP_ENABLED"] = active[
-            "narrative_cap_enabled"
+    if "narrative_cap_api_key_env" in active:
+        values["ACTIVE_NARRATIVE_CAP_API_KEY_ENV"] = active[
+            "narrative_cap_api_key_env"
         ]
     for name, profile in profiles.items():
         prefix = name.upper()
@@ -162,8 +184,8 @@ def get_template_values(
             values[f"{prefix}_NARRATIVE_CAP_ENDPOINT_URL"] = profile[
                 "narrative_cap_endpoint_url"
             ]
-        if "narrative_cap_enabled" in profile:
-            values[f"{prefix}_NARRATIVE_CAP_ENABLED"] = profile[
-                "narrative_cap_enabled"
+        if "narrative_cap_api_key_env" in profile:
+            values[f"{prefix}_NARRATIVE_CAP_API_KEY_ENV"] = profile[
+                "narrative_cap_api_key_env"
             ]
     return values
