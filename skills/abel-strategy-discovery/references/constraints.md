@@ -18,7 +18,7 @@ contract first, not on a giant folklore checklist.
 
 1. Implement `compute_decisions(self, ctx)`.
 2. Read the target through `ctx.target.series(...)`.
-3. Read auxiliary feeds through `ctx.feed(name)...`.
+3. Read auxiliary feeds through `ctx.input(name)...`, `ctx.inputs_frame(...)`, or `ctx.feed(name)...`.
 4. Return `ctx.decisions(next_position)`.
 
 That is the legal authoring surface for branch-default strategies.
@@ -30,6 +30,7 @@ Treat these files as runtime facts supplied by the system:
 - `inputs/runtime_profile.json`
 - `inputs/execution_constraints.json`
 - `inputs/data_manifest.json`
+- `inputs/window_availability.json`
 - `inputs/context_guide.md`
 - `inputs/probe_samples.json`
 
@@ -59,10 +60,10 @@ of collapsing every situation into "add `.shift(1)` everywhere".
 
 ## How To Use The Feedback Loop
 
-1. Run `abel-alpha prepare-branch --branch ...`.
-2. Inspect `context_guide.md`, `data_manifest.json`, and `probe_samples.json`.
+1. Run `abel-strategy-discovery prepare-branch --branch ...`.
+2. Inspect `context_guide.md`, `data_manifest.json`, `window_availability.json`, and `probe_samples.json`.
 3. Edit `engine.py` against `DecisionContext`.
-4. Run `abel-alpha debug-branch --branch ...`.
+4. Run `abel-strategy-discovery debug-branch --branch ...`.
 5. Read the semantic verdict, warnings, and sampled traces.
 6. Only then decide whether `run-branch` is warranted.
 

@@ -26,8 +26,11 @@ WORKSPACE_MODE = "alpha-managed branch research"
 
 
 def build_auth_handoff_command(python_path: str | Path) -> str:
-    """Return the explicit auth handoff command for the active workspace runtime."""
-    return f"{python_path} -m causal_edge.cli login --json --no-browser"
+    """Return the collection-owned auth recovery instruction."""
+    return (
+        "Use the `abel-auth` skill to initialize or repair shared Abel auth, "
+        "then persist it to `skills/abel-auth/.env.skill`."
+    )
 
 
 def run_doctor(start: Path | None = None) -> dict[str, object]:
@@ -147,7 +150,8 @@ def run_doctor(start: Path | None = None) -> dict[str, object]:
                 "status": "edge_contract_missing",
                 "summary": (
                     "Workspace Python can import Abel-edge, but the installed runtime is missing "
-                    "required alpha contracts such as structured discovery or `--context-json`."
+                    "required strategy-discovery contracts such as structured discovery "
+                    "or `--context-json`."
                 ),
                 "next_step": "abel-strategy-discovery env init  # or install a newer Abel-edge into the workspace runtime",
             }
@@ -160,8 +164,8 @@ def run_doctor(start: Path | None = None) -> dict[str, object]:
             {
                 "status": "auth_missing",
                 "summary": (
-                    "Workspace environment is ready, but no reusable Abel auth was detected. "
-                    "Start explicit auth handoff now."
+                    "Workspace environment is ready, but no reusable Abel auth was detected "
+                    "in the workspace or shared skill collection. Use `abel-auth` now."
                 ),
                 "auth_handoff_command": handoff_command,
                 "next_step": handoff_command,
@@ -258,6 +262,6 @@ def render_doctor_report(result: dict[str, object]) -> str:
         lines.append(f"Auth scope: {auth_scope}")
     auth_handoff_command = result.get("auth_handoff_command")
     if auth_handoff_command:
-        lines.append(f"Auth handoff command: {auth_handoff_command}")
+        lines.append(f"Auth handoff: {auth_handoff_command}")
     lines.append(f"Next step: {result.get('next_step', '')}")
     return "\n".join(lines)

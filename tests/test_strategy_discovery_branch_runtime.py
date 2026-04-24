@@ -12,7 +12,8 @@ from abel_strategy_discovery import narrative_impl as ni
 def _sample_discovery() -> dict:
     return {
         "ticker": "TSLA",
-        "parents": [{"ticker": "AAPL"}, {"ticker": "MSFT"}],
+        "target_node": "TSLA.price",
+        "parents": [{"ticker": "AAPL", "field": "price"}, {"ticker": "MSFT", "field": "price"}],
         "blanket_new": [],
         "children": [],
         "backtest": {"start": "2020-01-01"},
@@ -40,8 +41,19 @@ def _sample_readiness() -> dict:
                 "usable": True,
                 "covers_requested_start": False,
             },
-        ]
+        ],
+        "coverage_hints": {
+            "target_safe_start": "2020-01-01",
+            "dense_overlap_hint_start": "2020-03-01",
+        },
     }
+
+
+def _sample_selected_inputs() -> list[dict]:
+    return [
+        {"node_id": "TSLA.volume", "asset": "TSLA", "field": "volume", "roles": ["selected"]},
+        {"node_id": "MSFT.price", "asset": "MSFT", "field": "price", "roles": ["selected"]},
+    ]
 
 
 def _write_runtime_files(branch: Path) -> None:
@@ -86,6 +98,8 @@ def _write_runtime_files(branch: Path) -> None:
             {
                 "profile": "daily",
                 "target": "TSLA",
+                "target_asset": "TSLA",
+                "target_node": "TSLA.price",
                 "decision_event": "bar_close",
                 "execution_delay_bars": 2,
                 "return_basis": "close_to_close",
@@ -101,32 +115,45 @@ def _write_runtime_files(branch: Path) -> None:
     ni.data_manifest_path(branch).write_text(
         json.dumps(
             {
-                "version": 1,
-                "target": "TSLA",
-                "selected_drivers": ["AAPL", "MSFT"],
+                "version": 2,
+                "target_asset": "TSLA",
+                "target_node": "TSLA.price",
+                "selected_inputs": _sample_selected_inputs(),
                 "feeds": [
                     {
                         "name": "primary",
+                        "node_id": "TSLA.price",
+                        "asset": "TSLA",
+                        "field": "price",
                         "symbol": "TSLA",
                         "role": "target",
+                        "runtime_field": "close",
                         "adapter": "abel",
                         "timeframe": "1d",
                         "profile": "daily",
                         "cache_root": "/tmp/cache",
                     },
                     {
-                        "name": "AAPL",
-                        "symbol": "AAPL",
-                        "role": "driver",
+                        "name": "TSLA.volume",
+                        "node_id": "TSLA.volume",
+                        "asset": "TSLA",
+                        "field": "volume",
+                        "symbol": "TSLA",
+                        "role": "input",
+                        "runtime_field": "volume",
                         "adapter": "abel",
                         "timeframe": "1d",
                         "profile": "daily",
                         "cache_root": "/tmp/cache",
                     },
                     {
-                        "name": "MSFT",
+                        "name": "MSFT.price",
+                        "node_id": "MSFT.price",
+                        "asset": "MSFT",
+                        "field": "price",
                         "symbol": "MSFT",
-                        "role": "driver",
+                        "role": "input",
+                        "runtime_field": "close",
                         "adapter": "abel",
                         "timeframe": "1d",
                         "profile": "daily",
@@ -138,11 +165,35 @@ def _write_runtime_files(branch: Path) -> None:
         ),
         encoding="utf-8",
     )
-    ni.probe_samples_path(branch).write_text(
+    ni.window_availability_path(branch).write_text(
         json.dumps(
             {
                 "version": 1,
-                "target": "TSLA",
+                "target_node": "TSLA.price",
+                "requested_start": "2020-01-01",
+                "requested_end": None,
+                "coverage_alignment": "target_aligned",
+                "target_window": {
+                    "start": "2020-01-01T00:00:00+00:00",
+                    "end": "2020-12-31T00:00:00+00:00",
+                },
+                "effective_window": {
+                    "start": "2020-03-01T00:00:00+00:00",
+                    "end": "2020-12-31T00:00:00+00:00",
+                },
+                "limiting_inputs": ["MSFT.price"],
+                "per_input_coverage": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    ni.probe_samples_path(branch).write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "target_asset": "TSLA",
+                "target_node": "TSLA.price",
                 "requested_start": "2020-01-01",
                 "sample_decision_dates": ["2020-01-01", "2020-06-17", "2020-12-31"],
             },
@@ -154,18 +205,20 @@ def _write_runtime_files(branch: Path) -> None:
         "# TSLA Branch Context Guide\n\n- use `ctx.target.series(\"close\")`\n",
         encoding="utf-8",
     )
+    ni.persist_prepared_branch_contract(branch, ni.load_discovery(branch.parent.parent))
 
 
-def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monkeypatch) -> None:
+def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monkeypatch, capsys) -> None:
     session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
     ni.write_discovery(session, _sample_discovery())
     ni.write_readiness(session, _sample_readiness())
     branch = ni.init_branch_dir(session, "graph-v1")
 
     spec = ni.load_branch_spec(branch)
-    spec["target"] = "TSLA"
+    spec["target_asset"] = "TSLA"
+    spec["target_node"] = "TSLA.price"
     spec["requested_start"] = "2020-01-01"
-    spec["selected_drivers"] = ["AAPL", "MSFT"]
+    spec["selected_inputs"] = _sample_selected_inputs()
     spec["position_bounds"] = [-1.0, 1.0]
     ni.write_branch_spec(branch, spec)
 
@@ -218,19 +271,33 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     )
 
     assert result == 0
+    output = capsys.readouterr().out
+    assert "warming cache for 2 symbol(s)" in output
+    assert "warm_cache_completed: returncode=0" in output
     assert calls and "warm-cache" in calls[0]
     assert ni.branch_inputs_ready(branch)
 
     runtime_profile = json.loads(ni.runtime_profile_path(branch).read_text(encoding="utf-8"))
     data_manifest = json.loads(ni.data_manifest_path(branch).read_text(encoding="utf-8"))
+    window_report = json.loads(ni.window_availability_path(branch).read_text(encoding="utf-8"))
     probe_samples = json.loads(ni.probe_samples_path(branch).read_text(encoding="utf-8"))
     context_guide = ni.context_guide_path(branch).read_text(encoding="utf-8")
 
     assert runtime_profile["target"] == "TSLA"
-    assert [feed["name"] for feed in data_manifest["feeds"]] == ["primary", "AAPL", "MSFT"]
-    assert probe_samples["target"] == "TSLA"
+    assert runtime_profile["target_node"] == "TSLA.price"
+    assert [feed["name"] for feed in data_manifest["feeds"]] == ["primary", "TSLA.volume", "MSFT.price"]
+    assert data_manifest["selected_inputs"][0]["node_id"] == "TSLA.volume"
+    assert data_manifest["feeds"][1]["runtime_field"] == "volume"
+    assert data_manifest["feeds"][1]["alignment_mode"] == "asof_to_target_decision"
+    assert window_report["effective_window"]["start"] == "2020-03-01T00:00:00+00:00"
+    assert window_report["start_alignment"]["avoidable_gap_days"] == 60
+    assert probe_samples["target_asset"] == "TSLA"
     assert len(probe_samples["sample_decision_dates"]) >= 2
     assert "DecisionContext" in context_guide
+    assert "window_availability.json" in context_guide
+    assert "avoidable_gap_days" in context_guide
+    assert "coverage_alignment" in context_guide
+    assert 'ctx.feed("TSLA.volume").asof_series("volume")' in context_guide
 
 
 def test_build_branch_context_prefers_prepared_runtime_inputs(tmp_path) -> None:
@@ -242,8 +309,9 @@ def test_build_branch_context_prefers_prepared_runtime_inputs(tmp_path) -> None:
     branch = ni.init_branch_dir(session, "graph-v1")
 
     spec = ni.load_branch_spec(branch)
-    spec["target"] = "TSLA"
-    spec["selected_drivers"] = ["AAPL", "MSFT"]
+    spec["target_asset"] = "TSLA"
+    spec["target_node"] = "TSLA.price"
+    spec["selected_inputs"] = _sample_selected_inputs()
     ni.write_branch_spec(branch, spec)
     _write_runtime_files(branch)
 
@@ -258,6 +326,83 @@ def test_build_branch_context_prefers_prepared_runtime_inputs(tmp_path) -> None:
 
     assert context["runtime_profile"]["execution_delay_bars"] == 2
     assert context["_execution_constraints"]["position_bounds"] == [-0.5, 0.5]
-    assert sorted(context["_feeds"].keys()) == ["AAPL", "MSFT", "primary"]
-    assert context["_feeds"]["AAPL"]["symbol"] == "AAPL"
-    assert context["data_manifest"]["selected_drivers"] == ["AAPL", "MSFT"]
+    assert sorted(context["_feeds"].keys()) == ["MSFT.price", "TSLA.volume", "primary"]
+    assert context["_feeds"]["TSLA.volume"]["symbol"] == "TSLA"
+    assert context["_feeds"]["TSLA.volume"]["default_field"] == "volume"
+    assert context["data_manifest"]["selected_inputs"][1]["node_id"] == "MSFT.price"
+
+
+def test_debug_branch_run_blocks_on_stale_prepared_contract(tmp_path, capsys) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v3-debug", tmp_path / "research")
+    discovery = _sample_discovery()
+    readiness = _sample_readiness()
+    ni.write_discovery(session, discovery)
+    ni.write_readiness(session, readiness)
+    branch = ni.init_branch_dir(session, "graph-v1")
+
+    spec = ni.load_branch_spec(branch)
+    spec["target_asset"] = "TSLA"
+    spec["target_node"] = "TSLA.price"
+    spec["requested_start"] = "2020-01-01"
+    spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(branch, spec)
+    _write_runtime_files(branch)
+
+    spec["requested_start"] = "2020-02-01"
+    ni.write_branch_spec(branch, spec)
+
+    result = ni.debug_branch_run(
+        Namespace(
+            branch=str(branch),
+            python_bin=sys.executable,
+        )
+    )
+
+    captured = capsys.readouterr()
+    assert result == 2
+    assert "Prepared branch inputs are stale" in captured.err
+    assert "changed_fields=requested_start" in captured.err
+
+
+def test_run_branch_round_blocks_on_stale_prepared_contract(tmp_path, capsys) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v3-run", tmp_path / "research")
+    discovery = _sample_discovery()
+    readiness = _sample_readiness()
+    ni.write_discovery(session, discovery)
+    ni.write_readiness(session, readiness)
+    branch = ni.init_branch_dir(session, "graph-v1")
+
+    spec = ni.load_branch_spec(branch)
+    spec["target_asset"] = "TSLA"
+    spec["target_node"] = "TSLA.price"
+    spec["requested_start"] = "2020-01-01"
+    spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(branch, spec)
+    _write_runtime_files(branch)
+
+    spec["selected_inputs"] = [{"node_id": "AAPL.price", "asset": "AAPL", "field": "price"}]
+    ni.write_branch_spec(branch, spec)
+
+    result = ni.run_branch_round(
+        Namespace(
+            branch=str(branch),
+            mode="explore",
+            description="stale contract check",
+            input_note="",
+            hypothesis="stale contract should block run",
+            expected_signal="",
+            trigger="contract drift",
+            change_summary="manual selected input change",
+            time_spent_min="1",
+            summary="",
+            next_step="",
+            action=[],
+            python_bin=None,
+            allow_untouched_template=True,
+        )
+    )
+
+    captured = capsys.readouterr()
+    assert result == 2
+    assert "Prepared branch inputs are stale" in captured.err
+    assert "changed_fields=selected_inputs" in captured.err

@@ -1,6 +1,6 @@
 [project]
 name = "abel-strategy-discovery"
-version = "3.4.0"
+version = "3.5.0"
 description = "Workspace-oriented research orchestration for Abel-driven strategy discovery"
 requires-python = ">=3.11"
 license = "MIT"
@@ -20,6 +20,9 @@ abel-strategy-discovery = "abel_strategy_discovery.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["abel_strategy_discovery*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["setuptools>=68"]

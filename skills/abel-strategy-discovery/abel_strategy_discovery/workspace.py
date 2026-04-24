@@ -188,7 +188,7 @@ def build_default_manifest(name: str) -> dict:
             "python": default_python_path(),
             "edge_package": "causal-edge",
             "edge_spec": DEFAULT_EDGE_SPEC,
-            "auth_strategy": "reuse_causal_abel_first",
+            "auth_strategy": "reuse_skill_collection_auth_first",
         },
         "defaults": {
             "backtest_start": "2020-01-01",
@@ -261,7 +261,9 @@ into branch evidence.
 abel-strategy-discovery doctor
 {default_activate_command()}
 abel-strategy-discovery init-session --ticker TSLA --exp-id tsla-v1 --discover
+abel-strategy-discovery frontier-status --session research/tsla/tsla-v1
 abel-strategy-discovery init-branch --session research/tsla/tsla-v1 --branch-id graph-v1
+abel-strategy-discovery select-inputs --branch research/tsla/tsla-v1/branches/graph-v1 --node TSLA.volume --replace
 edit research/tsla/tsla-v1/branches/graph-v1/branch.yaml
 abel-strategy-discovery prepare-branch --branch research/tsla/tsla-v1/branches/graph-v1
 abel-strategy-discovery debug-branch --branch research/tsla/tsla-v1/branches/graph-v1
@@ -270,7 +272,8 @@ abel-strategy-discovery run-branch --branch research/tsla/tsla-v1/branches/graph
 
 Use that path as orientation, not as a rigid script. The important boundary is:
 - `doctor` tells you whether the workspace is actually ready
-- `branch.yaml` makes the branch inputs explicit
+- `frontier-status` and `select-inputs` keep branch candidates graph-grounded
+- `branch.yaml` makes the final branch inputs explicit
 - `prepare-branch` resolves inputs before you treat any round as evidence
 - the starter `engine.py` is only there to verify branch wiring before a branch-specific mechanism exists
 
@@ -283,10 +286,10 @@ Use that path as orientation, not as a rigid script. The important boundary is:
 
 ## What This Workspace Makes Explicit
 
-- session owns `discovery.json` and `readiness.json`
-- branch owns `branch.yaml`
+- session owns `discovery.json`, `session_state.json`, `frontier.json`, and `readiness.json`
+- branch owns `branch.yaml` and its explicit `selected_inputs`
 - edge owns the market-data cache
-- `prepare-branch` should run before a recorded round
+- `prepare-branch` writes the prepared branch contract, including `window_availability.json`
 - session `backtest_start` is a default target; branch `requested_start` can override it explicitly
 - the generated `engine.py` is a starter baseline for the first end-to-end run, not a finished branch thesis
 
@@ -308,7 +311,7 @@ Run `abel-strategy-discovery doctor` before opening a session.
 
 - `ready`: you can start research
 - `ready` means continue with `init-session -> init-branch -> branch.yaml -> prepare-branch`
-- `auth_missing`: no reusable auth was found; start the explicit workspace-runtime auth handoff immediately and surface the URL as soon as it appears
+- `auth_missing`: no reusable auth was found; use `abel-auth` to initialize or repair shared collection auth before continuing
 - `env_missing`, `edge_missing`, or `edge_contract_missing`: rerun `abel-strategy-discovery env init`
 """
 
@@ -337,23 +340,27 @@ is the workspace root. Do not create `./abel-strategy-discovery-workspace` insid
 ```bash
 abel-strategy-discovery doctor
 abel-strategy-discovery init-session --ticker TSLA --exp-id tsla-v1 --discover
+abel-strategy-discovery frontier-status --session research/tsla/tsla-v1
 abel-strategy-discovery init-branch --session research/tsla/tsla-v1 --branch-id graph-v1
+abel-strategy-discovery select-inputs --branch research/tsla/tsla-v1/branches/graph-v1 --node TSLA.volume --replace
 edit research/tsla/tsla-v1/branches/graph-v1/branch.yaml
 abel-strategy-discovery prepare-branch --branch research/tsla/tsla-v1/branches/graph-v1
 abel-strategy-discovery debug-branch --branch research/tsla/tsla-v1/branches/graph-v1
 abel-strategy-discovery run-branch --branch research/tsla/tsla-v1/branches/graph-v1 -d "baseline"
 ```
 
-Run `doctor` before `init-session`. If it reports `auth_missing`, move
-immediately into the workspace runtime's explicit auth handoff and surface the
-URL as soon as it appears.
-Treat `branch.yaml` as the place where target, start, drivers, and overlap
-become explicit. Treat `prepare-branch` as the moment that makes those inputs
-real. Treat the generated `engine.py` as a starter path check; once the branch
-path is proven, encode the branch-specific mechanism there. Treat session
-readiness as advisory context; the branch's explicit `requested_start` is the
-runtime start when it is set. Treat this workspace `.venv` as the canonical
-runtime for daily work.
+Run `doctor` before `init-session`. If it reports `auth_missing`, use
+`abel-auth` immediately so the shared collection auth is repaired before the
+session continues.
+Treat the session frontier as the default search surface. Use
+`frontier-status`, `probe-nodes`, and `select-inputs` before widening the
+branch universe free-form. Treat `branch.yaml` as the place where target,
+selected inputs, start, and overlap become explicit. Treat `prepare-branch` as
+the moment that makes those inputs real. Treat the generated `engine.py` as a
+starter path check; once the branch path is proven, encode the branch-specific
+mechanism there. Treat session readiness as advisory context; the branch's
+explicit `requested_start` is the runtime start when it is set. Treat this
+workspace `.venv` as the canonical runtime for daily work.
 This workspace is for alpha-managed branch research, so do not create a
 standalone `causal-edge init` project inside it. Put standalone edge work in a
 separate directory.
@@ -367,7 +374,7 @@ abel-strategy-discovery promote-branch --branch research/tsla/tsla-v1/branches/g
 
 ### Understand the workspace layout
 - `alpha.workspace.yaml` is the source of truth for workspace defaults
-- `research/` stores sessions, branches, and evaluation outputs
+- `research/` stores sessions, frontier state, branches, and evaluation outputs
 - `docs/` stores plans, summaries, and iteration records
 - `cache/market_data/` is the edge-owned shared cache root
 
