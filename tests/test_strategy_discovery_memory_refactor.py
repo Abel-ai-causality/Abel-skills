@@ -38,6 +38,71 @@ def _semantic_result(*, traced_inputs: list[str]) -> dict:
     }
 
 
+def _record_round(
+    branch: Path,
+    *,
+    round_id: str,
+    decision: str,
+    evidence_type: str,
+    description: str,
+    sharpe: float = 1.0,
+    protocol_flags: str = "none",
+    next_step: str = "",
+) -> None:
+    ni.append_tsv_row(
+        branch / "results.tsv",
+        ni.RESULTS_HEADER,
+        {
+            "exp_id": branch.parent.parent.name,
+            "ticker": "TSLA",
+            "branch_id": branch.name,
+            "round_id": round_id,
+            "decision": decision,
+            "lo_adj": "2.000",
+            "ic": "0.1000",
+            "omega": "1.500",
+            "sharpe": f"{sharpe:.3f}",
+            "max_dd": "-0.0800",
+            "pnl": "30.0",
+            "K": "1",
+            "score": "7/7",
+            "verdict": "PASS",
+            "mode": "explore",
+            "description": description,
+            "result_path": f"outputs/{round_id}-edge-result.json",
+            "report_path": f"outputs/{round_id}-edge-validation.md",
+            "handoff_path": f"outputs/{round_id}-edge-handoff.json",
+        },
+    )
+    note = ni.render_round_note(
+        ticker="TSLA",
+        exp_id=branch.parent.parent.name,
+        branch_id=branch.name,
+        round_id=round_id,
+        mode="explore",
+        decision=decision,
+        description=description,
+        result=_semantic_result(traced_inputs=["AAPL.price"] if evidence_type == "candidate_evidence" else []),
+        backtest_start="2020-01-01",
+        input_note="AAPL.price is the selected graph input",
+        hypothesis="AAPL price leads TSLA",
+        expected_signal="positive cross-asset lead",
+        trigger=description,
+        change_summary=description,
+        time_spent_min="5",
+        summary=description,
+        next_step=next_step,
+        evidence={
+            "evidence_type": evidence_type,
+            "protocol_flags": protocol_flags,
+            "reflection_status": "complete",
+            "selected_non_target_inputs": "AAPL.price" if evidence_type == "candidate_evidence" else "none",
+            "traced_inputs": "AAPL.price" if evidence_type == "candidate_evidence" else "none",
+        },
+    )
+    (branch / "rounds" / f"{round_id}.md").write_text(note, encoding="utf-8")
+
+
 def test_round_evidence_classifies_target_only_as_control(tmp_path: Path) -> None:
     session = ni.init_session_dir("TSLA", "evidence-v1", tmp_path / "research")
     branch = ni.init_branch_dir(session, "target-only")
@@ -131,6 +196,66 @@ def test_round_note_parses_research_protocol_fields(tmp_path: Path) -> None:
     assert parsed["protocol_flags"] == "none"
     assert parsed["reflection_status"] == "complete"
     assert parsed["requested_start"] == "2020-01-01"
+
+
+def test_control_pass_is_not_leader_or_promotable(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "phase2-v1", tmp_path / "research")
+    control = ni.init_branch_dir(session, "target-control")
+    candidate = ni.init_branch_dir(session, "graph-candidate")
+    control_spec = ni.load_branch_spec(control)
+    control_spec["selected_inputs"] = []
+    ni.write_branch_spec(control, control_spec)
+    candidate_spec = ni.load_branch_spec(candidate)
+    candidate_spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(candidate, candidate_spec)
+
+    _record_round(
+        control,
+        round_id="round-001",
+        decision="control",
+        evidence_type="control_evidence",
+        description="target-only control pass",
+        sharpe=4.0,
+        protocol_flags="target_only",
+    )
+    _record_round(
+        candidate,
+        round_id="round-001",
+        decision="keep",
+        evidence_type="candidate_evidence",
+        description="graph-supported candidate pass",
+        sharpe=1.5,
+    )
+
+    branches = ni.load_branches(session)
+
+    assert ni.select_leader(branches)["branch_id"] == "graph-candidate"
+    assert "target-control" in ni.render_selection_narrative(branches)
+    assert ni.promote_branch_bundle(
+        Namespace(branch=str(control), output_dir=None)
+    ) == 2
+
+
+def test_memory_does_not_turn_control_next_step_into_reusable_rule(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "phase2-v2", tmp_path / "research")
+    control = ni.init_branch_dir(session, "target-control")
+    spec = ni.load_branch_spec(control)
+    spec["selected_inputs"] = []
+    ni.write_branch_spec(control, spec)
+    _record_round(
+        control,
+        round_id="round-001",
+        decision="control",
+        evidence_type="control_evidence",
+        description="target-only control pass",
+        protocol_flags="target_only",
+        next_step="continue this target-only route",
+    )
+
+    insights = ni.build_auto_insight_rows(ni.load_branches(session))
+
+    assert not any(row["kind"] == "worked" for row in insights)
+    assert not any("target-only route" in row["statement"] for row in insights)
 
 
 def test_memory_scaffold_and_views(tmp_path: Path) -> None:

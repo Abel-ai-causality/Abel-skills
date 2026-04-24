@@ -2358,6 +2358,15 @@ def promote_branch_bundle(args: argparse.Namespace) -> int:
     branch_spec = load_branch_spec(branch)
     if not branch_spec:
         raise RuntimeError(f"Missing {BRANCH_SPEC_FILENAME} under {branch}")
+    latest_note = read_round_note(branch, latest.get("round_id", ""))
+    if latest.get("decision") != "keep" or latest_note.get("evidence_type") != "candidate_evidence":
+        print(
+            "Promotion requires the latest round to be candidate_evidence with decision=keep. "
+            f"latest_decision={latest.get('decision', 'none')} "
+            f"latest_evidence={latest_note.get('evidence_type', 'unknown')}",
+            file=sys.stderr,
+        )
+        return 2
     if args.output_dir:
         destination = resolve_workspace_arg_path(args.output_dir).resolve()
     else:
@@ -2579,7 +2588,12 @@ def run_branch_round(args: argparse.Namespace) -> int:
         change_summary=args.change_summary,
         invalidation_condition=getattr(args, "invalidation_condition", ""),
     )
-    decision = alpha_decision(rows, result, session=session)
+    metric_decision = alpha_decision(rows, result, session=session)
+    decision = evidence_adjusted_decision(
+        metric_decision=metric_decision,
+        evidence=evidence,
+        result=result,
+    )
 
     round_note = branch / "rounds" / f"{round_id}.md"
     round_note.write_text(
@@ -2869,7 +2883,7 @@ def print_status(session: Path) -> None:
         latest = leader["rows"][-1]
         latest_note = read_round_note(leader["branch_dir"], latest.get("round_id", ""))
         print(
-            "Lead: "
+            "Candidate lead: "
             f"{leader['branch_id']} {latest.get('decision', 'pending')} {latest.get('verdict', 'n/a')} "
             f"{latest.get('score', '?/?')} {latest_note.get('failure_signature', 'unknown')} "
             f"active={latest_note.get('signal_activity', 'n/a')}"
@@ -2883,13 +2897,15 @@ def print_status(session: Path) -> None:
             latest_note = latest_debug_snapshot(branch["branch_dir"])
         branch_hypothesis = current_branch_hypothesis(branch["branch_dir"], branch["rows"])
         keep_count = sum(1 for row in branch["rows"] if row.get("decision") == "keep")
+        control_count = sum(1 for row in branch["rows"] if row.get("decision") == "control")
         discard_count = sum(
             1 for row in branch["rows"] if row.get("decision") == "discard"
         )
         print(
-            f"  {branch['branch_id']:20s} rounds={len(branch['rows']):2d} keep={keep_count:2d} "
+            f"  {branch['branch_id']:20s} rounds={len(branch['rows']):2d} keep={keep_count:2d} control={control_count:2d} "
             f"discard={discard_count:2d} latest={latest.get('round_id', 'none')} {latest.get('decision', 'pending')} "
             f"{latest.get('verdict', 'n/a')} {latest.get('score', '?/?')} "
+            f"evidence={latest_note.get('evidence_type', 'unknown')} "
             f"{latest_note.get('failure_signature', 'unknown')} "
             f"active={latest_note.get('signal_activity', 'n/a')} "
             f"hypothesis={'yes' if has_explicit_hypothesis(branch_hypothesis) else 'no'}"
@@ -2998,7 +3014,11 @@ def select_leader(branches: list[dict]) -> dict | None:
 
 
 def ranked_branches(branches: list[dict]) -> list[dict]:
-    scored = [branch for branch in branches if branch["rows"]]
+    scored = [
+        branch
+        for branch in branches
+        if branch["rows"] and latest_row_is_candidate_evidence(branch)
+    ]
     return sorted(scored, key=branch_rank_key, reverse=True)
 
 
@@ -3018,7 +3038,13 @@ def branch_rank_key(branch: dict) -> tuple:
 
 
 def decision_rank(decision: str) -> int:
-    return {"keep": 3, "pending": 2, "discard": 1}.get(str(decision or "").strip(), 0)
+    return {
+        "keep": 4,
+        "pending": 3,
+        "control": 2,
+        "protocol": 1,
+        "discard": 1,
+    }.get(str(decision or "").strip(), 0)
 
 
 def verdict_rank(verdict: str) -> int:
@@ -3159,6 +3185,54 @@ def classify_round_evidence(
     }
 
 
+def evidence_adjusted_decision(
+    *,
+    metric_decision: str,
+    evidence: dict[str, str],
+    result: dict,
+) -> str:
+    if metric_decision != "keep":
+        return metric_decision
+    evidence_type = str(evidence.get("evidence_type") or "").strip()
+    if evidence_type == "candidate_evidence":
+        return metric_decision
+    if evidence_type == "control_evidence":
+        return "control"
+    if str(result.get("verdict") or "").upper() == "PASS":
+        return "protocol"
+    return metric_decision
+
+
+def round_note_for_row(branch: dict, row: dict[str, str]) -> dict[str, str]:
+    return read_round_note(branch["branch_dir"], row.get("round_id", ""))
+
+
+def row_evidence_type(branch: dict, row: dict[str, str]) -> str:
+    return round_note_for_row(branch, row).get("evidence_type", "unknown")
+
+
+def latest_branch_evidence_type(branch: dict) -> str:
+    if not branch["rows"]:
+        return "pending"
+    return row_evidence_type(branch, branch["rows"][-1])
+
+
+def row_is_candidate_evidence(branch: dict, row: dict[str, str]) -> bool:
+    return row_evidence_type(branch, row) == "candidate_evidence"
+
+
+def latest_row_is_candidate_evidence(branch: dict) -> bool:
+    return bool(branch["rows"]) and row_is_candidate_evidence(branch, branch["rows"][-1])
+
+
+def latest_candidate_keep_row(rows: list[dict[str, str]], branch_dir: Path) -> dict[str, str] | None:
+    branch = {"branch_dir": branch_dir, "rows": rows}
+    for row in reversed(rows):
+        if row.get("decision") == "keep" and row_is_candidate_evidence(branch, row):
+            return row
+    return None
+
+
 def normalize_hypothesis_text(value: str) -> str:
     text = str(value or "").strip()
     if text:
@@ -3193,12 +3267,27 @@ def build_session_readme(
     keep_branches = [
         branch
         for branch in branches
-        if branch["rows"] and branch["rows"][-1].get("decision") == "keep"
+        if branch["rows"]
+        and branch["rows"][-1].get("decision") == "keep"
+        and latest_row_is_candidate_evidence(branch)
+    ]
+    control_branches = [
+        branch
+        for branch in branches
+        if branch["rows"] and latest_branch_evidence_type(branch) == "control_evidence"
+    ]
+    protocol_branches = [
+        branch
+        for branch in branches
+        if branch["rows"] and latest_branch_evidence_type(branch) == "protocol_violation"
     ]
     discard_branches = [
         branch
         for branch in branches
-        if branch["rows"] and branch["rows"][-1].get("decision") == "discard"
+        if branch["rows"]
+        and branch["rows"][-1].get("decision") == "discard"
+        and latest_branch_evidence_type(branch)
+        not in {"control_evidence", "protocol_violation"}
     ]
     leader = select_leader(branches)
     debugged_branches = [
@@ -3226,22 +3315,27 @@ def build_session_readme(
     if leader and leader["rows"]:
         latest = leader["rows"][-1]
         leader_note = read_round_note(leader["branch_dir"], latest.get("round_id", ""))
-        lead_label = "Current KEEP baseline"
-        if latest.get("decision") != "keep":
-            lead_label = "Current lead candidate (no KEEP baseline yet)"
         executive = (
-            f"Session has {len(branches)} branch(es): {len(keep_branches)} keep and {len(discard_branches)} discard. "
-            f"{lead_label} is `{leader['branch_id']}` at `{latest.get('round_id', 'none')}` with Lo {float(latest.get('lo_adj') or 0):.3f}, "
+            f"Session has {len(branches)} branch(es): {len(keep_branches)} candidate keep, "
+            f"{len(control_branches)} control, {len(protocol_branches)} protocol review, and {len(discard_branches)} discard. "
+            f"Current candidate lead is `{leader['branch_id']}` at `{latest.get('round_id', 'none')}` with Lo {float(latest.get('lo_adj') or 0):.3f}, "
             f"Sharpe {float(latest.get('sharpe') or 0):.3f}, PnL {float(latest.get('pnl') or 0):.1f}%, "
             f"failure signature `{leader_note.get('failure_signature', 'unknown')}`, "
             f"active `{leader_note.get('signal_activity', 'n/a')}`."
+        )
+    elif branches and any(branch["rows"] for branch in branches):
+        executive = (
+            f"Session has {len(branches)} branch(es), but no passing candidate evidence yet. "
+            f"Current recorded outcomes include {len(control_branches)} control, "
+            f"{len(protocol_branches)} protocol review, and {len(discard_branches)} discard."
         )
 
     branch_lines = (
         "\n".join(
             (
                 f"1. `{branch['branch_id']}` - {len(branch['rows'])} rounds, latest "
-                f"`{branch['rows'][-1].get('round_id', 'none')}` {branch['rows'][-1].get('decision', 'pending')}"
+                f"`{branch['rows'][-1].get('round_id', 'none')}` {branch['rows'][-1].get('decision', 'pending')} "
+                f"/ {latest_branch_evidence_type(branch)}"
                 if branch["rows"]
                 else (
                     f"1. `{branch['branch_id']}` - pending, latest debug "
@@ -3303,7 +3397,7 @@ generated by Abel strategy discovery narrative layer
 - discovery_status: `{discovery_state.get("status", "unknown")}`
 - frontier_mode: `{discovery_state.get("frontier_mode", "unknown")}`
 - backtest_start: `{_get_backtest_start(discovery)}`
-- current_status: `{"has_keep" if keep_branches else "active" if branches else "exploring"}`
+- current_status: `{"has_candidate_keep" if keep_branches else "active" if branches else "exploring"}`
 - branch_count: `{len(branches)}`
 
 ## Session Goal
@@ -3327,7 +3421,7 @@ Explore {discovery.get("ticker", session.parent.name.upper())} in session `{sess
 
 ## Selection Narrative
 
-This session tracks {len(branches)} branch(es). Current outcomes: {len(keep_branches)} keep, {len(discard_branches)} discard, {len(branches) - len(keep_branches) - len(discard_branches)} pending.
+This session tracks {len(branches)} branch(es). Current outcomes: {len(keep_branches)} candidate keep, {len(control_branches)} control, {len(protocol_branches)} protocol review, {len(discard_branches)} discard, {len(branches) - len(keep_branches) - len(control_branches) - len(protocol_branches) - len(discard_branches)} pending.
 
 {render_selection_narrative(branches)}
 
@@ -3359,7 +3453,13 @@ def build_branch_readme(
     latest = rows[-1] if rows else {}
     debug_note = latest_debug_snapshot(branch["branch_dir"])
     diagnostics_note = latest_note or debug_note
-    keep_rows = [row for row in rows if row.get("decision") == "keep"]
+    keep_rows = [
+        row
+        for row in rows
+        if row.get("decision") == "keep"
+        and row_is_candidate_evidence(branch, row)
+    ]
+    control_rows = [row for row in rows if row.get("decision") == "control"]
     branch_hypothesis = current_branch_hypothesis(branch["branch_dir"], rows)
     source_type = branch_source_type(branch["branch_dir"], {})
     method_family = branch_method_family(branch["branch_dir"])
@@ -3395,6 +3495,8 @@ generated by Abel strategy discovery narrative layer
 - total_rounds: `{len(rows)}`
 - latest_round: `{latest.get("round_id", "debug" if debug_note else "none")}`
 - validation_status: `{latest.get("verdict", diagnostics_note.get("verdict", "not_validated"))}`
+- evidence_type: `{latest_note.get("evidence_type", "pending" if not latest else "unknown")}`
+- protocol_flags: `{latest_note.get("protocol_flags", "none")}`
 
 ## Branch Thesis
 
@@ -3403,6 +3505,7 @@ See `branch.yaml` for the explicit branch inputs and `thesis.md` for the branch 
 ## Latest Conclusion
 
 - decision: `{latest.get("decision", "pending")}`
+- evidence_type: `{latest_note.get("evidence_type", "not recorded")}`
 - summary: `{latest.get("description", diagnostics_note.get("summary", "No rounds recorded yet."))}`
 - next_step: `{diagnostics_note.get("next_step", "Edit engine.py and use `abel-strategy-discovery debug-branch` before the first recorded round.")}`
 
@@ -3448,6 +3551,7 @@ See `branch.yaml` for the explicit branch inputs and `thesis.md` for the branch 
 
 - keep_rounds: `{len(keep_rows)}`
 - latest_keep: `{keep_rows[-1].get("round_id", "none") if keep_rows else "none"}`
+- control_rounds: `{len(control_rows)}`
 """
 
 
@@ -3759,7 +3863,10 @@ def build_memory_branch_rows(
         branch_dir = branch["branch_dir"]
         branch_rows = branch["rows"]
         latest = branch_rows[-1] if branch_rows else {}
-        best = best_branch_row(branch_rows)
+        candidate_rows = [
+            row for row in branch_rows if row_is_candidate_evidence(branch, row)
+        ]
+        best = best_branch_row(candidate_rows)
         best_round_id = best.get("round_id", "") if best else ""
         rows.append(
             {
@@ -3869,9 +3976,8 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "confidence": "medium",
                 }
             )
-        latest_keep = latest_row_by_decision(rows, "keep")
+        latest_keep = latest_candidate_keep_row(rows, branch_dir)
         if latest_keep is not None:
-            keep_note = read_round_note(branch_dir, latest_keep.get("round_id", ""))
             payloads.append(
                 {
                     "scope": "branch",
@@ -3879,9 +3985,9 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "round_id": latest_keep.get("round_id", ""),
                     "kind": "worked",
                     "statement": latest_keep.get("description", "kept baseline"),
-                    "reusable_rule": keep_note.get(
-                        "next_step",
-                        "Refine from the latest KEEP baseline before opening a sibling branch.",
+                    "reusable_rule": (
+                        "Candidate evidence passed under the active protocol; "
+                        "review the recorded thesis before reuse."
                     ),
                     "confidence": "high",
                 }
@@ -3912,18 +4018,6 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "kind": "risk",
                     "statement": latest_note.get("failures", "none"),
                     "reusable_rule": "Fix this blocker before trusting the next validation result.",
-                    "confidence": "medium",
-                }
-            )
-        if latest_note.get("next_step"):
-            payloads.append(
-                {
-                    "scope": "branch",
-                    "branch_id": branch_id,
-                    "round_id": latest.get("round_id", ""),
-                    "kind": "next_idea",
-                    "statement": latest_note.get("next_step", ""),
-                    "reusable_rule": "Use this as the next experiment seed if no stronger link-based compare candidate exists.",
                     "confidence": "medium",
                 }
             )
@@ -4148,6 +4242,11 @@ def branch_memory_status(session: Path, branch: dict) -> str:
     if not branch["rows"]:
         return "exploring"
     latest = branch["rows"][-1]
+    latest_evidence = latest_branch_evidence_type(branch)
+    if latest_evidence == "control_evidence":
+        return "control"
+    if latest_evidence == "protocol_violation":
+        return "protocol_review"
     if latest.get("decision") == "discard":
         return "archived"
     return "validating"
@@ -4642,9 +4741,9 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
 
 def render_selection_narrative(branches: list[dict]) -> str:
     ranked = ranked_branches(branches)[:3]
-    if not ranked:
-        return "No branch rankings yet because no validated rounds have been recorded."
     lines = []
+    if not ranked:
+        lines.append("No passing candidate evidence is currently available.")
     for index, branch in enumerate(ranked, start=1):
         latest = branch["rows"][-1]
         note = read_round_note(branch["branch_dir"], latest.get("round_id", ""))
@@ -4660,6 +4759,26 @@ def render_selection_narrative(branches: list[dict]) -> str:
             f"`{latest.get('score', '?/?')}` / signature `{note.get('failure_signature', 'unknown')}`. "
             f"Reasoning: `{reason}`"
         )
+    controls = sorted(
+        [
+            branch
+            for branch in branches
+            if branch["rows"] and latest_branch_evidence_type(branch) == "control_evidence"
+        ],
+        key=branch_rank_key,
+        reverse=True,
+    )[:3]
+    if controls:
+        lines.append("")
+        lines.append("Controls:")
+        for branch in controls:
+            latest = branch["rows"][-1]
+            note = read_round_note(branch["branch_dir"], latest.get("round_id", ""))
+            lines.append(
+                f"1. `{branch['branch_id']}` -> `{latest.get('decision', 'pending')}` / "
+                f"`{latest.get('verdict', 'n/a')}` / `{latest.get('score', '?/?')}` / "
+                f"flags `{note.get('protocol_flags', 'none')}`."
+            )
     return "\n".join(lines)
 
 
@@ -4914,7 +5033,8 @@ def build_branch_snapshot_line(branch: dict) -> str:
     )
     return (
         f"1. `{branch['branch_id']}` -> `{latest.get('decision', 'pending')}` after {len(rows)} round(s). "
-        f"Why: `{reason or 'not recorded'}`. Trend: Lo {float(first.get('lo_adj') or 0):.3f} -> {float(latest.get('lo_adj') or 0):.3f}, "
+        f"Evidence: `{note.get('evidence_type', 'unknown')}`. Why: `{reason or 'not recorded'}`. "
+        f"Trend: Lo {float(first.get('lo_adj') or 0):.3f} -> {float(latest.get('lo_adj') or 0):.3f}, "
         f"Sharpe {float(first.get('sharpe') or 0):.3f} -> {float(latest.get('sharpe') or 0):.3f}, "
         f"PnL {float(first.get('pnl') or 0):.1f}% -> {float(latest.get('pnl') or 0):.1f}%, "
         f"signature `{note.get('failure_signature', 'unknown')}`, active `{note.get('signal_activity', 'n/a')}`."
