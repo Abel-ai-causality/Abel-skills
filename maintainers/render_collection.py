@@ -82,6 +82,20 @@ def _copy_source_tree(source_dir: Path, output_dir: Path) -> None:
     _restore_local_auth_files(output_dir, auth_snapshot)
 
 
+def _current_profile_note_lines(
+    values: dict[str, str],
+    *,
+    current_line: str,
+    profile_key_suffix: str,
+) -> list[str]:
+    notes = [current_line]
+    active_prefix = values["ACTIVE_PROFILE"].upper()
+    active_line = values.get(f"{active_prefix}_{profile_key_suffix}")
+    if active_line:
+        notes.append(active_line)
+    return notes
+
+
 def render_abel_ask(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "SKILL.md"
     text = path.read_text(encoding="utf-8")
@@ -107,16 +121,15 @@ def render_abel_ask(skill_root: Path, values: dict[str, str]) -> None:
     endpoint_notes = [
         "## Endpoint Notes",
         "",
-        f"- The current default CAP surface answers on `{values['ACTIVE_CAP_ENDPOINT_URL']}`.",
+        *_current_profile_note_lines(
+            values,
+            current_line=(
+                f"- The current default CAP surface answers on "
+                f"`{values['ACTIVE_CAP_ENDPOINT_URL']}`."
+            ),
+            profile_key_suffix="CAP_ENDPOINT_URL",
+        ),
     ]
-    if "PROD_CAP_ENDPOINT_URL" in values:
-        endpoint_notes.append(
-            f"- Production CAP surface answers on `{values['PROD_CAP_ENDPOINT_URL']}`."
-        )
-    if "SIT_CAP_ENDPOINT_URL" in values:
-        endpoint_notes.append(
-            f"- SIT CAP surface answers on `{values['SIT_CAP_ENDPOINT_URL']}`."
-        )
     endpoint_notes.append(
         f"- The probe accepts base URLs such as `{values['ACTIVE_CAP_BASE_URL']}` and resolves them to `/cap`."
     )
@@ -155,16 +168,15 @@ def render_abel_ask(skill_root: Path, values: dict[str, str]) -> None:
     endpoint_notes = [
         "## Endpoint Notes",
         "",
-        f"- The current default narrative CAP surface answers on `{narrative_endpoint_url}`.",
+        *_current_profile_note_lines(
+            values,
+            current_line=(
+                f"- The current default narrative CAP surface answers on "
+                f"`{narrative_endpoint_url}`."
+            ),
+            profile_key_suffix="NARRATIVE_CAP_ENDPOINT_URL",
+        ),
     ]
-    if "PROD_NARRATIVE_CAP_ENDPOINT_URL" in values:
-        endpoint_notes.append(
-            f"- Production narrative CAP surface answers on `{values['PROD_NARRATIVE_CAP_ENDPOINT_URL']}`."
-        )
-    if "SIT_NARRATIVE_CAP_ENDPOINT_URL" in values:
-        endpoint_notes.append(
-            f"- SIT narrative CAP surface answers on `{values['SIT_NARRATIVE_CAP_ENDPOINT_URL']}`."
-        )
     endpoint_notes.append(
         f"- The probe accepts base URLs such as `{narrative_base_url}` and resolves them to `/cap`."
     )
@@ -193,6 +205,51 @@ def render_abel_ask(skill_root: Path, values: dict[str, str]) -> None:
         f'DEFAULT_BASE_URL = "{default_base_url}"',
     )
     path.write_text(text, encoding="utf-8")
+
+
+def _profile_replacements(values: dict[str, str]) -> dict[str, str]:
+    prod_values = get_template_values(profile_name="prod")
+    replacements = {
+        prod_values["ACTIVE_CAP_BASE_URL"]: values["ACTIVE_CAP_BASE_URL"],
+        prod_values["ACTIVE_CAP_ENDPOINT_URL"]: values["ACTIVE_CAP_ENDPOINT_URL"],
+        prod_values["ACTIVE_OAUTH_BASE_URL"]: values["ACTIVE_OAUTH_BASE_URL"],
+        prod_values["ACTIVE_AUTHORIZE_AGENT_URL"]: values["ACTIVE_AUTHORIZE_AGENT_URL"],
+        prod_values["ACTIVE_RESULT_URL_TEMPLATE"]: values["ACTIVE_RESULT_URL_TEMPLATE"],
+        prod_values["ACTIVE_CALLBACK_URL"]: values["ACTIVE_CALLBACK_URL"],
+        prod_values["ACTIVE_CALLBACK_EXAMPLE_URL"]: values["ACTIVE_CALLBACK_EXAMPLE_URL"],
+    }
+    prod_narrative_base = prod_values.get("ACTIVE_NARRATIVE_CAP_BASE_URL")
+    active_narrative_base = values.get("ACTIVE_NARRATIVE_CAP_BASE_URL")
+    if prod_narrative_base and active_narrative_base:
+        replacements[prod_narrative_base] = active_narrative_base
+    prod_narrative_endpoint = prod_values.get("ACTIVE_NARRATIVE_CAP_ENDPOINT_URL")
+    active_narrative_endpoint = values.get("ACTIVE_NARRATIVE_CAP_ENDPOINT_URL")
+    if prod_narrative_endpoint and active_narrative_endpoint:
+        replacements[prod_narrative_endpoint] = active_narrative_endpoint
+    return {
+        source: target
+        for source, target in replacements.items()
+        if source != target
+    }
+
+
+def _apply_profile_replacements(output_dir: Path, values: dict[str, str]) -> None:
+    replacements = _profile_replacements(values)
+    if not replacements:
+        return
+    ordered = sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True)
+    for path in output_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        updated = text
+        for source, target in ordered:
+            updated = updated.replace(source, target)
+        if updated != text:
+            path.write_text(updated, encoding="utf-8")
 
 
 def _render_profile_aware_skills(output_dir: Path, values: dict[str, str]) -> None:
@@ -245,6 +302,7 @@ def main() -> int:
     if output_dir != source_dir:
         _copy_source_tree(source_dir, output_dir)
     _render_profile_aware_skills(output_dir, values)
+    _apply_profile_replacements(output_dir, values)
 
     print(f"Rendered profile `{values['ACTIVE_PROFILE']}` into {output_dir}")
     return 0

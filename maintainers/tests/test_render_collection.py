@@ -38,7 +38,7 @@ def test_render_collection_renders_all_skills(tmp_path) -> None:
         output_dir / "abel-auth" / "SKILL.md"
     ).read_text(encoding="utf-8")
     source_auth_skill = (
-        REPO_ROOT / "maintainers" / "skills" / "abel-auth" / "SKILL.md"
+        REPO_ROOT / "skills" / "abel-auth" / "SKILL.md"
     ).read_text(encoding="utf-8")
 
     assert 'BASE_URL="https://cap.abel.ai/api"' in rendered_probe_usage
@@ -72,11 +72,39 @@ def test_render_collection_uses_legacy_causal_abel_local_profile(tmp_path) -> No
     rendered_narrative_probe = (
         output_dir / "abel-ask" / "scripts" / "narrative_cap_probe.py"
     ).read_text(encoding="utf-8")
+    rendered_auth_setup = (
+        output_dir / "abel-auth" / "references" / "setup-guide.md"
+    ).read_text(encoding="utf-8")
+    rendered_common_graph_probe = (
+        output_dir
+        / "abel-common"
+        / "python"
+        / "abel_common"
+        / "cap"
+        / "graph_probe.py"
+    ).read_text(encoding="utf-8")
+    rendered_common_narrative_probe = (
+        output_dir
+        / "abel-common"
+        / "python"
+        / "abel_common"
+        / "cap"
+        / "narrative_probe.py"
+    ).read_text(encoding="utf-8")
 
     assert 'BASE_URL="https://cap-sit.abel.ai/api"' in rendered_probe_usage
     assert (
-        'DEFAULT_BASE_URL = "https://abel-data-intelligence-sit.abel.ai"'
+        'DEFAULT_BASE_URL = "https://cap-sit.abel.ai/narrative"'
         in rendered_narrative_probe
+    )
+    assert "Base URL: `https://api-sit.abel.ai/router/`" in rendered_auth_setup
+    assert (
+        'DEFAULT_BASE_URL = "https://cap-sit.abel.ai/api"'
+        in rendered_common_graph_probe
+    )
+    assert (
+        'DEFAULT_BASE_URL = "https://cap-sit.abel.ai/narrative"'
+        in rendered_common_narrative_probe
     )
 
 
