@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the public or local abel-ask skill artifact from maintainer config."""
+"""Render the full Abel skills collection from maintainer sources."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ import re
 import shutil
 from pathlib import Path
 
-from endpoint_config import get_template_values
+from profile_config import get_template_values
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE_DIR = REPO_ROOT / "maintainers" / "skills" / "abel-ask"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "skills" / "abel-ask"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "maintainers" / "skills"
+DEFAULT_SOURCE_DIR = REPO_ROOT / "skills"
 IGNORE_NAMES = {
     "__pycache__",
     ".env.skill",
@@ -50,21 +50,39 @@ def _ignore_copy_patterns(_directory: str, names: list[str]) -> set[str]:
     return {name for name in names if name in IGNORE_NAMES or name.endswith(".pyc")}
 
 
-def _snapshot_local_auth_files(output_dir: Path) -> dict[str, str]:
-    snapshot: dict[str, str] = {}
-    for basename in LOCAL_AUTH_BASENAMES:
-        path = output_dir / basename
-        if path.exists():
-            snapshot[basename] = path.read_text(encoding="utf-8")
+def _snapshot_local_auth_files(output_dir: Path) -> dict[Path, str]:
+    snapshot: dict[Path, str] = {}
+    if not output_dir.exists():
+        return snapshot
+    for skill_root in output_dir.iterdir():
+        if not skill_root.is_dir():
+            continue
+        for basename in LOCAL_AUTH_BASENAMES:
+            path = skill_root / basename
+            if path.exists():
+                snapshot[path.relative_to(output_dir)] = path.read_text(
+                    encoding="utf-8"
+                )
     return snapshot
 
 
-def _restore_local_auth_files(output_dir: Path, snapshot: dict[str, str]) -> None:
-    for basename, content in snapshot.items():
-        (output_dir / basename).write_text(content, encoding="utf-8")
+def _restore_local_auth_files(output_dir: Path, snapshot: dict[Path, str]) -> None:
+    for relative_path, content in snapshot.items():
+        restored_path = output_dir / relative_path
+        restored_path.parent.mkdir(parents=True, exist_ok=True)
+        restored_path.write_text(content, encoding="utf-8")
 
 
-def _sync_skill_md(skill_root: Path, values: dict[str, str]) -> None:
+def _copy_source_tree(source_dir: Path, output_dir: Path) -> None:
+    auth_snapshot = _snapshot_local_auth_files(output_dir)
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_dir, output_dir, ignore=_ignore_copy_patterns)
+    _restore_local_auth_files(output_dir, auth_snapshot)
+
+
+def render_abel_ask(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "SKILL.md"
     text = path.read_text(encoding="utf-8")
     text = _replace_if_present(
@@ -79,36 +97,6 @@ def _sync_skill_md(skill_root: Path, values: dict[str, str]) -> None:
     )
     path.write_text(text, encoding="utf-8")
 
-def _sync_setup_guide(skill_root: Path, values: dict[str, str]) -> None:
-    path = skill_root / "references" / "setup-guide.md"
-    text = path.read_text(encoding="utf-8")
-    text = _replace(
-        text,
-        r"^Base URL: `[^`]+`$",
-        f"Base URL: `{values['ACTIVE_OAUTH_BASE_URL']}`",
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/authorize/agent",
-        values["ACTIVE_AUTHORIZE_AGENT_URL"],
-        text,
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/result\?pollToken=POLL_TOKEN",
-        values["ACTIVE_RESULT_URL_TEMPLATE"],
-        text,
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/callback\?code=GOOGLE_CODE&format=json",
-        values["ACTIVE_CALLBACK_EXAMPLE_URL"],
-        text,
-    )
-    text = re.sub(
-        r"https://[A-Za-z0-9.-]+/(?:echo|router)/web/credentials/oauth/google/callback",
-        values["ACTIVE_CALLBACK_URL"],
-        text,
-    )
-    path.write_text(text, encoding="utf-8")
-def _sync_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "references" / "probe-usage.md"
     text = path.read_text(encoding="utf-8")
     text = _replace(
@@ -142,8 +130,6 @@ def _sync_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
     )
     path.write_text(text, encoding="utf-8")
 
-
-def _sync_narrative_probe_usage(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "references" / "narrative-probe-usage.md"
     text = path.read_text(encoding="utf-8")
     narrative_base_url = values.get(
@@ -189,8 +175,6 @@ def _sync_narrative_probe_usage(skill_root: Path, values: dict[str, str]) -> Non
     )
     path.write_text(text, encoding="utf-8")
 
-
-def _sync_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "scripts" / "cap_probe.py"
     text = path.read_text(encoding="utf-8")
     text = _replace(
@@ -200,8 +184,6 @@ def _sync_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     )
     path.write_text(text, encoding="utf-8")
 
-
-def _sync_narrative_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     path = skill_root / "scripts" / "narrative_cap_probe.py"
     text = path.read_text(encoding="utf-8")
     default_base_url = values.get("ACTIVE_NARRATIVE_CAP_BASE_URL", "")
@@ -213,37 +195,25 @@ def _sync_narrative_cap_probe(skill_root: Path, values: dict[str, str]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def _render_into(skill_root: Path, values: dict[str, str]) -> None:
-    _sync_skill_md(skill_root, values)
-    _sync_setup_guide(skill_root, values)
-    _sync_probe_usage(skill_root, values)
-    _sync_narrative_probe_usage(skill_root, values)
-    _sync_cap_probe(skill_root, values)
-    _sync_narrative_cap_probe(skill_root, values)
-
-
-def _copy_source_tree(source_dir: Path, output_dir: Path) -> None:
-    auth_snapshot = _snapshot_local_auth_files(output_dir)
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source_dir, output_dir, ignore=_ignore_copy_patterns)
-    _restore_local_auth_files(output_dir, auth_snapshot)
+def _render_profile_aware_skills(output_dir: Path, values: dict[str, str]) -> None:
+    abel_ask_root = output_dir / "abel-ask"
+    if abel_ask_root.exists():
+        render_abel_ask(abel_ask_root, values)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render the abel-ask skill with a selected endpoint profile."
+        description="Render the full Abel skills collection with a selected profile."
     )
     parser.add_argument(
         "--source-dir",
         default=str(DEFAULT_SOURCE_DIR),
-        help="Maintainer-owned source skill template directory to render from.",
+        help="Maintainer-owned source collection directory to render from.",
     )
     parser.add_argument(
         "--output-dir",
         default=str(DEFAULT_OUTPUT_DIR),
-        help="Output skill directory. Defaults to the public rendered skill root.",
+        help="Output collection directory. Defaults to the public rendered skills root.",
     )
     parser.add_argument(
         "--profile",
@@ -253,7 +223,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-local",
         action="store_true",
-        help="Allow maintainer-local endpoint overrides from endpoints.local.json.",
+        help="Allow maintainer-local endpoint overrides when resolving the profile.",
     )
     return parser.parse_args()
 
@@ -265,7 +235,7 @@ def main() -> int:
     profile_name = args.profile.strip() or None
 
     if not source_dir.exists():
-        raise SystemExit(f"Source skill directory not found: {source_dir}")
+        raise SystemExit(f"Source collection directory not found: {source_dir}")
 
     values = get_template_values(
         include_local=args.include_local,
@@ -274,11 +244,9 @@ def main() -> int:
 
     if output_dir != source_dir:
         _copy_source_tree(source_dir, output_dir)
-    _render_into(output_dir, values)
+    _render_profile_aware_skills(output_dir, values)
 
-    print(
-        f"Rendered profile `{values['ACTIVE_PROFILE']}` into {output_dir}"
-    )
+    print(f"Rendered profile `{values['ACTIVE_PROFILE']}` into {output_dir}")
     return 0
 
 
