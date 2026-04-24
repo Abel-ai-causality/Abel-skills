@@ -197,7 +197,7 @@ Use branch.yaml to make the critical research choices explicit:
   - target_node
   - requested_start
   - selected_inputs
-  - overlap_mode
+  - coverage_alignment
 Write against DecisionContext instead of raw research helpers:
   - ctx.decision_index()
   - ctx.target.series("close")
@@ -2188,12 +2188,27 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     ]
     for symbol in symbols:
         command.extend(["--symbol", symbol])
+    print(
+        "Preparing branch inputs: "
+        f"warming cache for {len(symbols)} symbol(s) from {requested_start} "
+        f"with limit={args.cache_limit}"
+    )
+    print(f"  symbols: {', '.join(symbols)}")
+    print(f"  dependencies_output: {output_path.relative_to(session)}")
+    print("  status: running causal-edge warm-cache; waiting for runtime output...")
+    sys.stdout.flush()
+    started_at = time.monotonic()
     completed = subprocess.run(
         command,
         cwd=session,
         capture_output=True,
         text=True,
         env=runtime_env,
+    )
+    elapsed_seconds = time.monotonic() - started_at
+    print(
+        "  warm_cache_completed: "
+        f"returncode={completed.returncode} elapsed_seconds={elapsed_seconds:.1f}"
     )
     if completed.stderr:
         sys.stderr.write(completed.stderr)
@@ -2229,7 +2244,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     window_report = build_window_availability_report(
         requested_start=requested_start,
         data_manifest=data_manifest,
-        overlap_mode=str(branch_spec.get("overlap_mode") or "target_only"),
+        coverage_alignment=branch_coverage_alignment(branch_spec),
         frontier_state=frontier_state,
         readiness=readiness,
     )
@@ -2895,6 +2910,20 @@ def print_status(session: Path) -> None:
             f"{latest.get('score', '?/?')} {latest_note.get('failure_signature', 'unknown')} "
             f"active={latest_note.get('signal_activity', 'n/a')}"
         )
+    else:
+        recorded_candidate = best_recorded_candidate_evidence(branches)
+        if recorded_candidate and recorded_candidate["rows"]:
+            latest = recorded_candidate["rows"][-1]
+            latest_note = read_round_note(
+                recorded_candidate["branch_dir"], latest.get("round_id", "")
+            )
+            print(
+                "Best recorded candidate evidence: "
+                f"{recorded_candidate['branch_id']} {latest.get('decision', 'pending')} "
+                f"{latest.get('verdict', 'n/a')} {latest.get('score', '?/?')} "
+                f"{latest_note.get('failure_signature', 'unknown')} "
+                f"active={latest_note.get('signal_activity', 'n/a')}"
+            )
     for branch in branches:
         latest = branch["rows"][-1] if branch["rows"] else {}
         latest_note = (
@@ -3016,17 +3045,37 @@ def check_session(session: Path, *, strict: bool) -> int:
 
 
 def select_leader(branches: list[dict]) -> dict | None:
-    ranked = ranked_branches(branches)
+    ranked = ranked_passing_candidate_branches(branches)
     return ranked[0] if ranked else None
 
 
 def ranked_branches(branches: list[dict]) -> list[dict]:
+    return ranked_candidate_evidence_branches(branches)
+
+
+def ranked_candidate_evidence_branches(branches: list[dict]) -> list[dict]:
     scored = [
         branch
         for branch in branches
         if branch["rows"] and latest_row_is_candidate_evidence(branch)
     ]
     return sorted(scored, key=branch_rank_key, reverse=True)
+
+
+def ranked_passing_candidate_branches(branches: list[dict]) -> list[dict]:
+    scored = [
+        branch
+        for branch in branches
+        if branch["rows"]
+        and latest_row_is_candidate_evidence(branch)
+        and branch["rows"][-1].get("decision") == "keep"
+    ]
+    return sorted(scored, key=branch_rank_key, reverse=True)
+
+
+def best_recorded_candidate_evidence(branches: list[dict]) -> dict | None:
+    ranked = ranked_candidate_evidence_branches(branches)
+    return ranked[0] if ranked else None
 
 
 def branch_rank_key(branch: dict) -> tuple:
@@ -3383,6 +3432,7 @@ def build_session_readme(
         not in {"control_evidence", "protocol_violation"}
     ]
     leader = select_leader(branches)
+    recorded_candidate = best_recorded_candidate_evidence(branches)
     debugged_branches = [
         branch for branch in branches if latest_debug_snapshot(branch["branch_dir"])
     ]
@@ -3412,6 +3462,21 @@ def build_session_readme(
             f"Session has {len(branches)} branch(es): {len(keep_branches)} candidate keep, "
             f"{len(control_branches)} control, {len(protocol_branches)} protocol review, and {len(discard_branches)} discard. "
             f"Current candidate lead is `{leader['branch_id']}` at `{latest.get('round_id', 'none')}` with Lo {float(latest.get('lo_adj') or 0):.3f}, "
+            f"Sharpe {float(latest.get('sharpe') or 0):.3f}, PnL {float(latest.get('pnl') or 0):.1f}%, "
+            f"failure signature `{leader_note.get('failure_signature', 'unknown')}`, "
+            f"active `{leader_note.get('signal_activity', 'n/a')}`."
+        )
+    elif recorded_candidate and recorded_candidate["rows"]:
+        latest = recorded_candidate["rows"][-1]
+        leader_note = read_round_note(
+            recorded_candidate["branch_dir"], latest.get("round_id", "")
+        )
+        executive = (
+            f"Session has {len(branches)} branch(es): {len(keep_branches)} candidate keep, "
+            f"{len(control_branches)} control, {len(protocol_branches)} protocol review, and {len(discard_branches)} discard. "
+            f"No passing candidate evidence yet. Best recorded candidate evidence is "
+            f"`{recorded_candidate['branch_id']}` at `{latest.get('round_id', 'none')}` with decision "
+            f"`{latest.get('decision', 'pending')}`, Lo {float(latest.get('lo_adj') or 0):.3f}, "
             f"Sharpe {float(latest.get('sharpe') or 0):.3f}, PnL {float(latest.get('pnl') or 0):.1f}%, "
             f"failure signature `{leader_note.get('failure_signature', 'unknown')}`, "
             f"active `{leader_note.get('signal_activity', 'n/a')}`."
@@ -3553,6 +3618,7 @@ def build_branch_readme(
         and row_is_candidate_evidence(branch, row)
     ]
     control_rows = [row for row in rows if row.get("decision") == "control"]
+    branch_spec = load_branch_spec(branch["branch_dir"])
     branch_hypothesis = current_branch_hypothesis(branch["branch_dir"], rows)
     source_type = branch_source_type(branch["branch_dir"], {})
     method_family = branch_method_family(branch["branch_dir"])
@@ -3590,6 +3656,7 @@ generated by Abel strategy discovery narrative layer
 - validation_status: `{latest.get("verdict", diagnostics_note.get("verdict", "not_validated"))}`
 - evidence_type: `{latest_note.get("evidence_type", "pending" if not latest else "unknown")}`
 - protocol_flags: `{latest_note.get("protocol_flags", "none")}`
+- coverage_alignment: `{branch_coverage_alignment_label(branch_spec)}`
 
 ## Branch Thesis
 
@@ -3770,7 +3837,7 @@ generated by Abel strategy discovery narrative layer
 - target_asset: `{branch_target_asset(branch_spec) or "unknown"}`
 - target_node: `{branch_target_node(branch_spec) or "unknown"}`
 - requested_start: `{branch_spec.get("requested_start", "unknown")}`
-- overlap_mode: `{branch_spec.get("overlap_mode", "target_only")}`
+- coverage_alignment: `{branch_coverage_alignment_label(branch_spec)}`
 - selected_inputs: `{selected}`
 - latest_round: `{latest.get("round_id", "none")}`
 - latest_decision: `{latest.get("decision", "n/a")}`
@@ -4440,8 +4507,8 @@ def candidate_compare_basis(left: dict, right: dict) -> str:
     basis = ["same asset scope and both have validated rounds"]
     if left_spec.get("requested_start") == right_spec.get("requested_start"):
         basis.append("same requested_start")
-    if left_spec.get("overlap_mode") == right_spec.get("overlap_mode"):
-        basis.append("same overlap_mode")
+    if branch_coverage_alignment(left_spec) == branch_coverage_alignment(right_spec):
+        basis.append("same coverage_alignment")
     return "; ".join(basis)
 
 
@@ -4451,7 +4518,7 @@ def candidate_compare_score(left: dict, right: dict) -> float:
     score = 0.6
     if left_spec.get("requested_start") == right_spec.get("requested_start"):
         score += 0.2
-    if left_spec.get("overlap_mode") == right_spec.get("overlap_mode"):
+    if branch_coverage_alignment(left_spec) == branch_coverage_alignment(right_spec):
         score += 0.2
     return min(score, 1.0)
 
@@ -4837,7 +4904,8 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
 
 
 def render_selection_narrative(branches: list[dict]) -> str:
-    ranked = ranked_branches(branches)[:3]
+    ranked = ranked_passing_candidate_branches(branches)[:3]
+    recorded_candidates = ranked_candidate_evidence_branches(branches)[:3]
     lines = []
     if not ranked:
         lines.append("No passing candidate evidence is currently available.")
@@ -4856,6 +4924,17 @@ def render_selection_narrative(branches: list[dict]) -> str:
             f"`{latest.get('score', '?/?')}` / signature `{note.get('failure_signature', 'unknown')}`. "
             f"Reasoning: `{reason}`"
         )
+    if recorded_candidates and not ranked:
+        lines.append("")
+        lines.append("Recorded candidate evidence:")
+        for branch in recorded_candidates:
+            latest = branch["rows"][-1]
+            note = read_round_note(branch["branch_dir"], latest.get("round_id", ""))
+            lines.append(
+                f"1. `{branch['branch_id']}` -> `{latest.get('decision', 'pending')}` / "
+                f"`{latest.get('verdict', 'n/a')}` / `{latest.get('score', '?/?')}` / "
+                f"signature `{note.get('failure_signature', 'unknown')}`."
+            )
     controls = sorted(
         [
             branch
@@ -5019,7 +5098,7 @@ def build_branch_context(
     window_report = build_window_availability_report(
         requested_start=backtest_start,
         data_manifest=data_manifest,
-        overlap_mode=str(branch_spec.get("overlap_mode") or "target_only"),
+        coverage_alignment=branch_coverage_alignment(branch_spec),
         frontier_state=load_frontier_state(session),
         readiness=readiness,
     )
@@ -5420,7 +5499,7 @@ def current_branch_prepare_contract(branch: Path, discovery: dict) -> dict[str, 
         "target_asset": branch_target_asset(branch_spec, discovery),
         "target_node": branch_target_node(branch_spec, discovery),
         "requested_start": branch_requested_start(branch, discovery),
-        "overlap_mode": str(branch_spec.get("overlap_mode") or "target_only"),
+        "coverage_alignment": branch_coverage_alignment(branch_spec),
         "selected_inputs": [
             ref.to_payload() for ref in branch_selected_inputs(branch_spec)
         ],
@@ -5437,7 +5516,7 @@ def prepare_contract_changed_fields(
         "target_asset",
         "target_node",
         "requested_start",
-        "overlap_mode",
+        "coverage_alignment",
         "selected_inputs",
         "data_requirements",
         "execution_constraints",
@@ -5571,6 +5650,26 @@ def branch_selected_inputs(branch_spec: dict) -> list[GraphNodeRef]:
     return coerce_graph_node_refs(branch_spec.get("selected_drivers") or [])
 
 
+def branch_coverage_alignment(branch_spec: dict) -> str:
+    return str(branch_spec.get("coverage_alignment") or "target_aligned").strip() or "target_aligned"
+
+
+def format_coverage_alignment_label(coverage_alignment: str, *, selected_input_count: int) -> str:
+    alignment = str(coverage_alignment or "target_aligned").strip() or "target_aligned"
+    if alignment == "target_aligned" and selected_input_count:
+        return "target-aligned coverage; selected graph inputs remain evidence inputs"
+    if alignment == "target_aligned":
+        return "target-aligned coverage"
+    return f"{alignment.replace('_', '-')} coverage"
+
+
+def branch_coverage_alignment_label(branch_spec: dict) -> str:
+    return format_coverage_alignment_label(
+        branch_coverage_alignment(branch_spec),
+        selected_input_count=len(branch_selected_inputs(branch_spec)),
+    )
+
+
 def format_graph_nodes(items: list[object], *, limit: int = 8, include_roles: bool = False) -> str:
     rendered = [
         graph_node_label(item, include_roles=include_roles)
@@ -5646,7 +5745,7 @@ def build_default_branch_spec(
         "parent_branch_id": "",
         "requested_start": _get_backtest_start(discovery),
         "resolved_start_policy": "requested",
-        "overlap_mode": "target_only",
+        "coverage_alignment": "target_aligned",
         "selected_inputs": [ref.to_payload() for ref in selected],
         "suggested_inputs": [ref.to_payload() for ref in suggested],
         "data_requirements": {
@@ -5672,7 +5771,7 @@ def branch_dependencies_payload(
         "target_node": target_node,
         "selected_inputs": [ref.to_payload() for ref in selected_inputs],
         "requested_start": requested_start,
-        "overlap_mode": branch_spec.get("overlap_mode") or "target_only",
+        "coverage_alignment": branch_coverage_alignment(branch_spec),
         "data_requirements": branch_spec.get("data_requirements") or {"timeframe": "1d"},
         "prepared_at": _now(),
     }
@@ -5773,7 +5872,7 @@ def build_window_availability_report(
     *,
     requested_start: str,
     data_manifest: dict,
-    overlap_mode: str,
+    coverage_alignment: str,
     frontier_state: dict | None = None,
     readiness: dict | None = None,
 ) -> dict:
@@ -5850,7 +5949,7 @@ def build_window_availability_report(
         "target_node": data_manifest.get("target_node"),
         "requested_start": requested_start,
         "requested_end": None,
-        "overlap_mode": overlap_mode,
+        "coverage_alignment": coverage_alignment,
         "target_window": target_window,
         "effective_window": {
             "start": effective_start_ts.isoformat() if effective_start_ts is not None else None,
@@ -5933,6 +6032,11 @@ def build_context_guide_markdown(
     ]
     effective_window = (window_report or {}).get("effective_window") or {}
     start_alignment = (window_report or {}).get("start_alignment") or {}
+    selected_feed_count = sum(1 for name in feed_names if name != "primary")
+    coverage_alignment = format_coverage_alignment_label(
+        str((window_report or {}).get("coverage_alignment") or "target_aligned"),
+        selected_input_count=selected_feed_count,
+    )
     lines = [
         f"# {target_asset} Branch Context Guide",
         "",
@@ -5950,6 +6054,7 @@ def build_context_guide_markdown(
         "",
         "## Window Availability",
         f"- requested_start: `{(window_report or {}).get('requested_start', 'unknown')}`",
+        f"- coverage_alignment: `{coverage_alignment}`",
         f"- target_safe_start: `{start_alignment.get('target_safe_start', 'unknown')}`",
         f"- effective_window: `{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}`",
         f"- avoidable_gap_days: `{start_alignment.get('avoidable_gap_days', 'unknown')}`",

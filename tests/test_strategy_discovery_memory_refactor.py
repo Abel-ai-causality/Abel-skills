@@ -505,6 +505,50 @@ def test_generated_surfaces_use_reflection_prompts_not_strategy_routes(tmp_path:
     assert "no next strategy route is implied" in rules
 
 
+def test_discarded_candidate_is_recorded_but_not_lead(tmp_path: Path, capsys) -> None:
+    session = ni.init_session_dir("TSLA", "phase6-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "graph-failed")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(branch, spec)
+    _record_round(
+        branch,
+        round_id="round-001",
+        decision="discard",
+        evidence_type="candidate_evidence",
+        description="graph evidence failed validation",
+    )
+
+    branches = ni.load_branches(session)
+    assert ni.select_leader(branches) is None
+
+    selection = ni.render_selection_narrative(branches)
+    assert "No passing candidate evidence is currently available." in selection
+    assert "Recorded candidate evidence:" in selection
+    assert "(lead)" not in selection
+
+    ni.render_session(session)
+    readme = (session / "README.md").read_text(encoding="utf-8")
+    assert "Current candidate lead" not in readme
+    assert "Best recorded candidate evidence" in readme
+
+    ni.print_status(session)
+    status = capsys.readouterr().out
+    assert "Candidate lead:" not in status
+    assert "Best recorded candidate evidence:" in status
+
+
+def test_coverage_alignment_display_distinguishes_alignment_from_strategy() -> None:
+    spec = {
+        "coverage_alignment": "target_aligned",
+        "selected_inputs": _sample_selected_inputs(),
+    }
+
+    label = ni.branch_coverage_alignment_label(spec)
+    assert "selected graph inputs remain evidence inputs" in label
+    assert "target_only" not in label
+
+
 def test_memory_scaffold_and_views(tmp_path: Path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
     branch = ni.init_branch_dir(session, "graph-v1")
@@ -655,7 +699,7 @@ def test_run_branch_round_updates_memory_and_status(
         window_report = ni.build_window_availability_report(
             requested_start="2020-01-01",
             data_manifest=data_manifest,
-            overlap_mode="target_only",
+            coverage_alignment="target_aligned",
         )
         probe_samples = ni.build_probe_samples_payload(
             target_asset="TSLA",

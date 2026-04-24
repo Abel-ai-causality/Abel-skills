@@ -172,7 +172,7 @@ def _write_runtime_files(branch: Path) -> None:
                 "target_node": "TSLA.price",
                 "requested_start": "2020-01-01",
                 "requested_end": None,
-                "overlap_mode": "target_only",
+                "coverage_alignment": "target_aligned",
                 "target_window": {
                     "start": "2020-01-01T00:00:00+00:00",
                     "end": "2020-12-31T00:00:00+00:00",
@@ -208,7 +208,7 @@ def _write_runtime_files(branch: Path) -> None:
     ni.persist_prepared_branch_contract(branch, ni.load_discovery(branch.parent.parent))
 
 
-def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monkeypatch) -> None:
+def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monkeypatch, capsys) -> None:
     session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
     ni.write_discovery(session, _sample_discovery())
     ni.write_readiness(session, _sample_readiness())
@@ -271,6 +271,9 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     )
 
     assert result == 0
+    output = capsys.readouterr().out
+    assert "warming cache for 2 symbol(s)" in output
+    assert "warm_cache_completed: returncode=0" in output
     assert calls and "warm-cache" in calls[0]
     assert ni.branch_inputs_ready(branch)
 
@@ -293,6 +296,7 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     assert "DecisionContext" in context_guide
     assert "window_availability.json" in context_guide
     assert "avoidable_gap_days" in context_guide
+    assert "coverage_alignment" in context_guide
     assert 'ctx.feed("TSLA.volume").asof_series("volume")' in context_guide
 
 
