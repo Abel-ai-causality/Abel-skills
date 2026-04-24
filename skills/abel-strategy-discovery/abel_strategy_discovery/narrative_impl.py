@@ -82,6 +82,10 @@ DATA_MANIFEST_FILENAME = "data_manifest.json"
 WINDOW_AVAILABILITY_FILENAME = "window_availability.json"
 CONTEXT_GUIDE_FILENAME = "context_guide.md"
 PROBE_SAMPLES_FILENAME = "probe_samples.json"
+REFLECTION_PROMPT = (
+    "Record the causal claim, input rationale, expected signal, invalidation "
+    "condition, and change summary before treating a round as candidate evidence."
+)
 MEMORY_MANIFEST_FILENAME = "manifest.json"
 MEMORY_BRANCHES_FILENAME = "branches.tsv"
 MEMORY_ROUNDS_FILENAME = "rounds.tsv"
@@ -193,7 +197,7 @@ Use branch.yaml to make the critical research choices explicit:
   - target_node
   - requested_start
   - selected_inputs
-  - overlap_mode
+  - coverage_alignment
 Write against DecisionContext instead of raw research helpers:
   - ctx.decision_index()
   - ctx.target.series("close")
@@ -558,6 +562,7 @@ def main() -> int:
     run_branch.add_argument("--input-note", default="")
     run_branch.add_argument("--hypothesis", default="")
     run_branch.add_argument("--expected-signal", default="")
+    run_branch.add_argument("--invalidation-condition", default="")
     run_branch.add_argument("--summary", default="")
     run_branch.add_argument("--next-step", default="")
     run_branch.add_argument("--trigger", default="")
@@ -792,11 +797,11 @@ def main() -> int:
             ),
         )
         print("")
-        print("What matters now:")
-        print("  use the session frontier and probe loop before you widen the branch thesis.")
-        print("  branch.yaml is where target, inputs, start, and overlap become explicit.")
-        print("  The generated engine is only a starter path check; it helps you verify the branch wiring before you encode a branch-specific mechanism.")
-        print("  If you fetch bars, keep `limit=...` explicit and avoid blanket `dropna()` before confirming the target column survives.")
+        print("Protocol facts to record:")
+        print("  branch.yaml records target, selected inputs, requested_start, overlap, and any study protocol.")
+        print("  candidate evidence requires non-target selected inputs that are traced at runtime.")
+        print("  reflection fields explain why the round is evidence; the framework does not choose the next strategy move.")
+        print("  if you fetch bars, keep `limit=...` explicit and confirm the target column survives.")
         print("")
         print("From here:")
         print(f"  abel-strategy-discovery probe-nodes --session {session} --node <node_id>")
@@ -2183,12 +2188,27 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     ]
     for symbol in symbols:
         command.extend(["--symbol", symbol])
+    print(
+        "Preparing branch inputs: "
+        f"warming cache for {len(symbols)} symbol(s) from {requested_start} "
+        f"with limit={args.cache_limit}"
+    )
+    print(f"  symbols: {', '.join(symbols)}")
+    print(f"  dependencies_output: {output_path.relative_to(session)}")
+    print("  status: running causal-edge warm-cache; waiting for runtime output...")
+    sys.stdout.flush()
+    started_at = time.monotonic()
     completed = subprocess.run(
         command,
         cwd=session,
         capture_output=True,
         text=True,
         env=runtime_env,
+    )
+    elapsed_seconds = time.monotonic() - started_at
+    print(
+        "  warm_cache_completed: "
+        f"returncode={completed.returncode} elapsed_seconds={elapsed_seconds:.1f}"
     )
     if completed.stderr:
         sys.stderr.write(completed.stderr)
@@ -2224,7 +2244,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     window_report = build_window_availability_report(
         requested_start=requested_start,
         data_manifest=data_manifest,
-        overlap_mode=str(branch_spec.get("overlap_mode") or "target_only"),
+        coverage_alignment=branch_coverage_alignment(branch_spec),
         frontier_state=frontier_state,
         readiness=readiness,
     )
@@ -2358,6 +2378,15 @@ def promote_branch_bundle(args: argparse.Namespace) -> int:
     branch_spec = load_branch_spec(branch)
     if not branch_spec:
         raise RuntimeError(f"Missing {BRANCH_SPEC_FILENAME} under {branch}")
+    latest_note = read_round_note(branch, latest.get("round_id", ""))
+    if latest.get("decision") != "keep" or latest_note.get("evidence_type") != "candidate_evidence":
+        print(
+            "Promotion requires the latest round to be candidate_evidence with decision=keep. "
+            f"latest_decision={latest.get('decision', 'none')} "
+            f"latest_evidence={latest_note.get('evidence_type', 'unknown')}",
+            file=sys.stderr,
+        )
+        return 2
     if args.output_dir:
         destination = resolve_workspace_arg_path(args.output_dir).resolve()
     else:
@@ -2569,7 +2598,23 @@ def run_branch_round(args: argparse.Namespace) -> int:
             "State the causal claim, expected sign, and invalidation condition before the next round.",
             file=sys.stderr,
         )
-    decision = alpha_decision(rows, result, session=session)
+    evidence = classify_round_evidence(
+        branch=branch,
+        discovery=discovery,
+        result=result,
+        rows=rows,
+        hypothesis=effective_hypothesis,
+        input_note=args.input_note,
+        expected_signal=args.expected_signal,
+        change_summary=args.change_summary,
+        invalidation_condition=getattr(args, "invalidation_condition", ""),
+    )
+    metric_decision = alpha_decision(rows, result, session=session)
+    decision = evidence_adjusted_decision(
+        metric_decision=metric_decision,
+        evidence=evidence,
+        result=result,
+    )
 
     round_note = branch / "rounds" / f"{round_id}.md"
     round_note.write_text(
@@ -2586,11 +2631,13 @@ def run_branch_round(args: argparse.Namespace) -> int:
             input_note=args.input_note,
             hypothesis=effective_hypothesis,
             expected_signal=args.expected_signal,
+            invalidation_condition=getattr(args, "invalidation_condition", ""),
             trigger=args.trigger,
             change_summary=args.change_summary,
             time_spent_min=args.time_spent_min,
             summary=args.summary,
             next_step=args.next_step,
+            evidence=evidence,
             actions=args.action + [f"hypothesis_source={hypothesis_source}"],
             context_mode="injected",
             context_path=str(context_path.relative_to(session)),
@@ -2858,11 +2905,25 @@ def print_status(session: Path) -> None:
         latest = leader["rows"][-1]
         latest_note = read_round_note(leader["branch_dir"], latest.get("round_id", ""))
         print(
-            "Lead: "
+            "Candidate lead: "
             f"{leader['branch_id']} {latest.get('decision', 'pending')} {latest.get('verdict', 'n/a')} "
             f"{latest.get('score', '?/?')} {latest_note.get('failure_signature', 'unknown')} "
             f"active={latest_note.get('signal_activity', 'n/a')}"
         )
+    else:
+        recorded_candidate = best_recorded_candidate_evidence(branches)
+        if recorded_candidate and recorded_candidate["rows"]:
+            latest = recorded_candidate["rows"][-1]
+            latest_note = read_round_note(
+                recorded_candidate["branch_dir"], latest.get("round_id", "")
+            )
+            print(
+                "Best recorded candidate evidence: "
+                f"{recorded_candidate['branch_id']} {latest.get('decision', 'pending')} "
+                f"{latest.get('verdict', 'n/a')} {latest.get('score', '?/?')} "
+                f"{latest_note.get('failure_signature', 'unknown')} "
+                f"active={latest_note.get('signal_activity', 'n/a')}"
+            )
     for branch in branches:
         latest = branch["rows"][-1] if branch["rows"] else {}
         latest_note = (
@@ -2872,13 +2933,15 @@ def print_status(session: Path) -> None:
             latest_note = latest_debug_snapshot(branch["branch_dir"])
         branch_hypothesis = current_branch_hypothesis(branch["branch_dir"], branch["rows"])
         keep_count = sum(1 for row in branch["rows"] if row.get("decision") == "keep")
+        control_count = sum(1 for row in branch["rows"] if row.get("decision") == "control")
         discard_count = sum(
             1 for row in branch["rows"] if row.get("decision") == "discard"
         )
         print(
-            f"  {branch['branch_id']:20s} rounds={len(branch['rows']):2d} keep={keep_count:2d} "
+            f"  {branch['branch_id']:20s} rounds={len(branch['rows']):2d} keep={keep_count:2d} control={control_count:2d} "
             f"discard={discard_count:2d} latest={latest.get('round_id', 'none')} {latest.get('decision', 'pending')} "
             f"{latest.get('verdict', 'n/a')} {latest.get('score', '?/?')} "
+            f"evidence={latest_note.get('evidence_type', 'unknown')} "
             f"{latest_note.get('failure_signature', 'unknown')} "
             f"active={latest_note.get('signal_activity', 'n/a')} "
             f"hypothesis={'yes' if has_explicit_hypothesis(branch_hypothesis) else 'no'}"
@@ -2982,13 +3045,37 @@ def check_session(session: Path, *, strict: bool) -> int:
 
 
 def select_leader(branches: list[dict]) -> dict | None:
-    ranked = ranked_branches(branches)
+    ranked = ranked_passing_candidate_branches(branches)
     return ranked[0] if ranked else None
 
 
 def ranked_branches(branches: list[dict]) -> list[dict]:
-    scored = [branch for branch in branches if branch["rows"]]
+    return ranked_candidate_evidence_branches(branches)
+
+
+def ranked_candidate_evidence_branches(branches: list[dict]) -> list[dict]:
+    scored = [
+        branch
+        for branch in branches
+        if branch["rows"] and latest_row_is_candidate_evidence(branch)
+    ]
     return sorted(scored, key=branch_rank_key, reverse=True)
+
+
+def ranked_passing_candidate_branches(branches: list[dict]) -> list[dict]:
+    scored = [
+        branch
+        for branch in branches
+        if branch["rows"]
+        and latest_row_is_candidate_evidence(branch)
+        and branch["rows"][-1].get("decision") == "keep"
+    ]
+    return sorted(scored, key=branch_rank_key, reverse=True)
+
+
+def best_recorded_candidate_evidence(branches: list[dict]) -> dict | None:
+    ranked = ranked_candidate_evidence_branches(branches)
+    return ranked[0] if ranked else None
 
 
 def branch_rank_key(branch: dict) -> tuple:
@@ -3007,7 +3094,13 @@ def branch_rank_key(branch: dict) -> tuple:
 
 
 def decision_rank(decision: str) -> int:
-    return {"keep": 3, "pending": 2, "discard": 1}.get(str(decision or "").strip(), 0)
+    return {
+        "keep": 4,
+        "pending": 3,
+        "control": 2,
+        "protocol": 1,
+        "discard": 1,
+    }.get(str(decision or "").strip(), 0)
 
 
 def verdict_rank(verdict: str) -> int:
@@ -3044,6 +3137,244 @@ def signal_activity_ratio(activity: str) -> float:
     return active / total
 
 
+def round_reflection_status(
+    *,
+    hypothesis: str,
+    input_note: str,
+    expected_signal: str,
+    change_summary: str,
+    invalidation_condition: str = "",
+) -> str:
+    missing: list[str] = []
+    if not has_explicit_hypothesis(hypothesis):
+        missing.append("causal_claim")
+    if not str(input_note or "").strip():
+        missing.append("input_rationale")
+    if not str(expected_signal or "").strip():
+        missing.append("expected_signal")
+    if not str(invalidation_condition or "").strip():
+        missing.append("invalidation_condition")
+    if not str(change_summary or "").strip():
+        missing.append("change_summary")
+    if missing:
+        return "incomplete:" + ",".join(missing)
+    return "complete"
+
+
+def _semantic_prepared_inputs(result: dict) -> dict:
+    semantic = result.get("semantic") or {}
+    if not isinstance(semantic, dict):
+        return {}
+    prepared = semantic.get("prepared_inputs") or {}
+    return prepared if isinstance(prepared, dict) else {}
+
+
+def _semantic_verdict(result: dict) -> str:
+    semantic = result.get("semantic") or {}
+    if not isinstance(semantic, dict):
+        return ""
+    return str(semantic.get("verdict") or "").strip().upper()
+
+
+def selected_non_target_input_ids(branch_spec: dict, discovery: dict) -> list[str]:
+    target_node = branch_target_node(branch_spec, discovery)
+    return [
+        ref.node_id
+        for ref in branch_selected_inputs(branch_spec)
+        if ref.node_id and ref.node_id != target_node
+    ]
+
+
+def classify_round_evidence(
+    *,
+    branch: Path,
+    discovery: dict,
+    result: dict,
+    rows: list[dict[str, str]] | None = None,
+    hypothesis: str,
+    input_note: str,
+    expected_signal: str,
+    change_summary: str,
+    invalidation_condition: str = "",
+) -> dict[str, str]:
+    branch_spec = load_branch_spec(branch)
+    selected_non_target = selected_non_target_input_ids(branch_spec, discovery)
+    prepared = _semantic_prepared_inputs(result)
+    traced_inputs = _dedupe_strings(prepared.get("traced_inputs") or [])
+    traced_set = set(traced_inputs)
+    traced_selected = [
+        node_id for node_id in selected_non_target if node_id in traced_set
+    ]
+    reflection_status = round_reflection_status(
+        hypothesis=hypothesis,
+        input_note=input_note,
+        expected_signal=expected_signal,
+        change_summary=change_summary,
+        invalidation_condition=invalidation_condition,
+    )
+
+    flags: list[str] = []
+    semantic_verdict = _semantic_verdict(result)
+    if not selected_non_target:
+        evidence_type = "control_evidence"
+        flags.append("target_only")
+    elif not traced_inputs and not semantic_verdict:
+        evidence_type = "protocol_violation"
+        flags.append("semantic_trace_missing")
+    elif not traced_selected:
+        evidence_type = "control_evidence"
+        flags.append("declared_input_not_traced")
+    elif semantic_verdict and semantic_verdict != "PASS":
+        evidence_type = "protocol_violation"
+        flags.append("runtime_legality_not_pass")
+    else:
+        evidence_type = "candidate_evidence"
+
+    flags.extend(
+        classify_window_protocol_flags(
+            branch=branch,
+            discovery=discovery,
+            rows=rows or [],
+        )
+    )
+    if evidence_type == "candidate_evidence" and any(
+        flag in flags
+        for flag in [
+            "post_hoc_window_change",
+            "undeclared_initial_window",
+            "undeclared_study_window",
+        ]
+    ):
+        evidence_type = "protocol_violation"
+
+    if reflection_status != "complete":
+        flags.append("reflection_required")
+        if evidence_type == "candidate_evidence":
+            evidence_type = "protocol_violation"
+
+    return {
+        "evidence_type": evidence_type,
+        "protocol_flags": ", ".join(_dedupe_strings(flags)) or "none",
+        "reflection_status": reflection_status,
+        "selected_non_target_inputs": ", ".join(selected_non_target) or "none",
+        "traced_inputs": ", ".join(traced_inputs) or "none",
+    }
+
+
+def classify_window_protocol_flags(
+    *,
+    branch: Path,
+    discovery: dict,
+    rows: list[dict[str, str]],
+) -> list[str]:
+    branch_spec = load_branch_spec(branch)
+    current_start = branch_requested_start(branch, discovery)
+    session_start = _get_backtest_start(discovery)
+    current_ts = safe_utc_timestamp(current_start)
+    session_ts = safe_utc_timestamp(session_start)
+    flags: list[str] = []
+    if current_ts is None or session_ts is None:
+        return flags
+    if current_ts == session_ts:
+        flags.append("protocol_window")
+    elif current_ts > session_ts:
+        if branch_declares_study_window(branch_spec):
+            flags.append("declared_study_window")
+        elif not rows:
+            flags.append("undeclared_initial_window")
+        else:
+            flags.append("undeclared_study_window")
+    elif current_ts < session_ts:
+        flags.append("branch_window_differs_from_session")
+    for previous_start in previous_round_requested_starts(branch, rows):
+        previous_ts = safe_utc_timestamp(previous_start)
+        if previous_ts is not None and current_ts > previous_ts:
+            flags.append("post_hoc_window_change")
+            break
+    return flags
+
+
+def safe_utc_timestamp(value: object) -> pd.Timestamp | None:
+    try:
+        return _coerce_utc_timestamp(value)
+    except Exception:
+        return None
+
+
+def branch_declares_study_window(branch_spec: dict) -> bool:
+    values: list[str] = []
+    for key in ["study_protocol", "protocol_scope", "window_protocol", "study_type"]:
+        value = branch_spec.get(key)
+        if isinstance(value, dict):
+            values.extend(str(item) for item in value.values())
+        elif isinstance(value, list):
+            values.extend(str(item) for item in value)
+        else:
+            values.append(str(value or ""))
+    text = " ".join(values).lower()
+    return any(token in text for token in ["study", "regime", "protocol"])
+
+
+def previous_round_requested_starts(branch: Path, rows: list[dict[str, str]]) -> list[str]:
+    starts: list[str] = []
+    for row in rows:
+        requested_start = read_round_note(branch, row.get("round_id", "")).get(
+            "requested_start",
+            "",
+        )
+        if requested_start:
+            starts.append(requested_start)
+    return starts
+
+
+def evidence_adjusted_decision(
+    *,
+    metric_decision: str,
+    evidence: dict[str, str],
+    result: dict,
+) -> str:
+    if metric_decision != "keep":
+        return metric_decision
+    evidence_type = str(evidence.get("evidence_type") or "").strip()
+    if evidence_type == "candidate_evidence":
+        return metric_decision
+    if evidence_type == "control_evidence":
+        return "control"
+    if str(result.get("verdict") or "").upper() == "PASS":
+        return "protocol"
+    return metric_decision
+
+
+def round_note_for_row(branch: dict, row: dict[str, str]) -> dict[str, str]:
+    return read_round_note(branch["branch_dir"], row.get("round_id", ""))
+
+
+def row_evidence_type(branch: dict, row: dict[str, str]) -> str:
+    return round_note_for_row(branch, row).get("evidence_type", "unknown")
+
+
+def latest_branch_evidence_type(branch: dict) -> str:
+    if not branch["rows"]:
+        return "pending"
+    return row_evidence_type(branch, branch["rows"][-1])
+
+
+def row_is_candidate_evidence(branch: dict, row: dict[str, str]) -> bool:
+    return row_evidence_type(branch, row) == "candidate_evidence"
+
+
+def latest_row_is_candidate_evidence(branch: dict) -> bool:
+    return bool(branch["rows"]) and row_is_candidate_evidence(branch, branch["rows"][-1])
+
+
+def latest_candidate_keep_row(rows: list[dict[str, str]], branch_dir: Path) -> dict[str, str] | None:
+    branch = {"branch_dir": branch_dir, "rows": rows}
+    for row in reversed(rows):
+        if row.get("decision") == "keep" and row_is_candidate_evidence(branch, row):
+            return row
+    return None
+
+
 def normalize_hypothesis_text(value: str) -> str:
     text = str(value or "").strip()
     if text:
@@ -3078,14 +3409,30 @@ def build_session_readme(
     keep_branches = [
         branch
         for branch in branches
-        if branch["rows"] and branch["rows"][-1].get("decision") == "keep"
+        if branch["rows"]
+        and branch["rows"][-1].get("decision") == "keep"
+        and latest_row_is_candidate_evidence(branch)
+    ]
+    control_branches = [
+        branch
+        for branch in branches
+        if branch["rows"] and latest_branch_evidence_type(branch) == "control_evidence"
+    ]
+    protocol_branches = [
+        branch
+        for branch in branches
+        if branch["rows"] and latest_branch_evidence_type(branch) == "protocol_violation"
     ]
     discard_branches = [
         branch
         for branch in branches
-        if branch["rows"] and branch["rows"][-1].get("decision") == "discard"
+        if branch["rows"]
+        and branch["rows"][-1].get("decision") == "discard"
+        and latest_branch_evidence_type(branch)
+        not in {"control_evidence", "protocol_violation"}
     ]
     leader = select_leader(branches)
+    recorded_candidate = best_recorded_candidate_evidence(branches)
     debugged_branches = [
         branch for branch in branches if latest_debug_snapshot(branch["branch_dir"])
     ]
@@ -3111,22 +3458,42 @@ def build_session_readme(
     if leader and leader["rows"]:
         latest = leader["rows"][-1]
         leader_note = read_round_note(leader["branch_dir"], latest.get("round_id", ""))
-        lead_label = "Current KEEP baseline"
-        if latest.get("decision") != "keep":
-            lead_label = "Current lead candidate (no KEEP baseline yet)"
         executive = (
-            f"Session has {len(branches)} branch(es): {len(keep_branches)} keep and {len(discard_branches)} discard. "
-            f"{lead_label} is `{leader['branch_id']}` at `{latest.get('round_id', 'none')}` with Lo {float(latest.get('lo_adj') or 0):.3f}, "
+            f"Session has {len(branches)} branch(es): {len(keep_branches)} candidate keep, "
+            f"{len(control_branches)} control, {len(protocol_branches)} protocol review, and {len(discard_branches)} discard. "
+            f"Current candidate lead is `{leader['branch_id']}` at `{latest.get('round_id', 'none')}` with Lo {float(latest.get('lo_adj') or 0):.3f}, "
             f"Sharpe {float(latest.get('sharpe') or 0):.3f}, PnL {float(latest.get('pnl') or 0):.1f}%, "
             f"failure signature `{leader_note.get('failure_signature', 'unknown')}`, "
             f"active `{leader_note.get('signal_activity', 'n/a')}`."
+        )
+    elif recorded_candidate and recorded_candidate["rows"]:
+        latest = recorded_candidate["rows"][-1]
+        leader_note = read_round_note(
+            recorded_candidate["branch_dir"], latest.get("round_id", "")
+        )
+        executive = (
+            f"Session has {len(branches)} branch(es): {len(keep_branches)} candidate keep, "
+            f"{len(control_branches)} control, {len(protocol_branches)} protocol review, and {len(discard_branches)} discard. "
+            f"No passing candidate evidence yet. Best recorded candidate evidence is "
+            f"`{recorded_candidate['branch_id']}` at `{latest.get('round_id', 'none')}` with decision "
+            f"`{latest.get('decision', 'pending')}`, Lo {float(latest.get('lo_adj') or 0):.3f}, "
+            f"Sharpe {float(latest.get('sharpe') or 0):.3f}, PnL {float(latest.get('pnl') or 0):.1f}%, "
+            f"failure signature `{leader_note.get('failure_signature', 'unknown')}`, "
+            f"active `{leader_note.get('signal_activity', 'n/a')}`."
+        )
+    elif branches and any(branch["rows"] for branch in branches):
+        executive = (
+            f"Session has {len(branches)} branch(es), but no passing candidate evidence yet. "
+            f"Current recorded outcomes include {len(control_branches)} control, "
+            f"{len(protocol_branches)} protocol review, and {len(discard_branches)} discard."
         )
 
     branch_lines = (
         "\n".join(
             (
                 f"1. `{branch['branch_id']}` - {len(branch['rows'])} rounds, latest "
-                f"`{branch['rows'][-1].get('round_id', 'none')}` {branch['rows'][-1].get('decision', 'pending')}"
+                f"`{branch['rows'][-1].get('round_id', 'none')}` {branch['rows'][-1].get('decision', 'pending')} "
+                f"/ {latest_branch_evidence_type(branch)}"
                 if branch["rows"]
                 else (
                     f"1. `{branch['branch_id']}` - pending, latest debug "
@@ -3188,7 +3555,7 @@ generated by Abel strategy discovery narrative layer
 - discovery_status: `{discovery_state.get("status", "unknown")}`
 - frontier_mode: `{discovery_state.get("frontier_mode", "unknown")}`
 - backtest_start: `{_get_backtest_start(discovery)}`
-- current_status: `{"has_keep" if keep_branches else "active" if branches else "exploring"}`
+- current_status: `{"has_candidate_keep" if keep_branches else "active" if branches else "exploring"}`
 - branch_count: `{len(branches)}`
 
 ## Session Goal
@@ -3212,7 +3579,7 @@ Explore {discovery.get("ticker", session.parent.name.upper())} in session `{sess
 
 ## Selection Narrative
 
-This session tracks {len(branches)} branch(es). Current outcomes: {len(keep_branches)} keep, {len(discard_branches)} discard, {len(branches) - len(keep_branches) - len(discard_branches)} pending.
+This session tracks {len(branches)} branch(es). Current outcomes: {len(keep_branches)} candidate keep, {len(control_branches)} control, {len(protocol_branches)} protocol review, {len(discard_branches)} discard, {len(branches) - len(keep_branches) - len(control_branches) - len(protocol_branches) - len(discard_branches)} pending.
 
 {render_selection_narrative(branches)}
 
@@ -3244,7 +3611,14 @@ def build_branch_readme(
     latest = rows[-1] if rows else {}
     debug_note = latest_debug_snapshot(branch["branch_dir"])
     diagnostics_note = latest_note or debug_note
-    keep_rows = [row for row in rows if row.get("decision") == "keep"]
+    keep_rows = [
+        row
+        for row in rows
+        if row.get("decision") == "keep"
+        and row_is_candidate_evidence(branch, row)
+    ]
+    control_rows = [row for row in rows if row.get("decision") == "control"]
+    branch_spec = load_branch_spec(branch["branch_dir"])
     branch_hypothesis = current_branch_hypothesis(branch["branch_dir"], rows)
     source_type = branch_source_type(branch["branch_dir"], {})
     method_family = branch_method_family(branch["branch_dir"])
@@ -3280,6 +3654,9 @@ generated by Abel strategy discovery narrative layer
 - total_rounds: `{len(rows)}`
 - latest_round: `{latest.get("round_id", "debug" if debug_note else "none")}`
 - validation_status: `{latest.get("verdict", diagnostics_note.get("verdict", "not_validated"))}`
+- evidence_type: `{latest_note.get("evidence_type", "pending" if not latest else "unknown")}`
+- protocol_flags: `{latest_note.get("protocol_flags", "none")}`
+- coverage_alignment: `{branch_coverage_alignment_label(branch_spec)}`
 
 ## Branch Thesis
 
@@ -3288,8 +3665,10 @@ See `branch.yaml` for the explicit branch inputs and `thesis.md` for the branch 
 ## Latest Conclusion
 
 - decision: `{latest.get("decision", "pending")}`
+- evidence_type: `{latest_note.get("evidence_type", "not recorded")}`
 - summary: `{latest.get("description", diagnostics_note.get("summary", "No rounds recorded yet."))}`
-- next_step: `{diagnostics_note.get("next_step", "Edit engine.py and use `abel-strategy-discovery debug-branch` before the first recorded round.")}`
+- recorded_next_step: `{diagnostics_note.get("next_step", "not recorded")}`
+- reflection_prompt: `{REFLECTION_PROMPT}`
 
 ## Latest Diagnostics
 
@@ -3317,6 +3696,10 @@ See `branch.yaml` for the explicit branch inputs and `thesis.md` for the branch 
 ## Decision Rationale
 
 1. latest_hypothesis: `{branch_hypothesis or latest_note.get("hypothesis", "not recorded")}`
+1. input_rationale: `{latest_note.get("input_rationale", "not recorded")}`
+1. expected_signal: `{latest_note.get("expected_signal", "not recorded")}`
+1. invalidation_condition: `{latest_note.get("invalidation_condition", "not recorded")}`
+1. reflection_status: `{latest_note.get("reflection_status", "not recorded")}`
 1. latest_summary: `{diagnostics_note.get("summary", latest.get("description", "not recorded"))}`
 1. latest_failures: `{diagnostics_note.get("failures", "none")}`
 1. hypothesis_status: `{"explicit" if has_explicit_hypothesis(branch_hypothesis) else "needs work"}`
@@ -3333,6 +3716,7 @@ See `branch.yaml` for the explicit branch inputs and `thesis.md` for the branch 
 
 - keep_rounds: `{len(keep_rows)}`
 - latest_keep: `{keep_rows[-1].get("round_id", "none") if keep_rows else "none"}`
+- control_rounds: `{len(control_rows)}`
 """
 
 
@@ -3453,7 +3837,7 @@ generated by Abel strategy discovery narrative layer
 - target_asset: `{branch_target_asset(branch_spec) or "unknown"}`
 - target_node: `{branch_target_node(branch_spec) or "unknown"}`
 - requested_start: `{branch_spec.get("requested_start", "unknown")}`
-- overlap_mode: `{branch_spec.get("overlap_mode", "target_only")}`
+- coverage_alignment: `{branch_coverage_alignment_label(branch_spec)}`
 - selected_inputs: `{selected}`
 - latest_round: `{latest.get("round_id", "none")}`
 - latest_decision: `{latest.get("decision", "n/a")}`
@@ -3644,7 +4028,10 @@ def build_memory_branch_rows(
         branch_dir = branch["branch_dir"]
         branch_rows = branch["rows"]
         latest = branch_rows[-1] if branch_rows else {}
-        best = best_branch_row(branch_rows)
+        candidate_rows = [
+            row for row in branch_rows if row_is_candidate_evidence(branch, row)
+        ]
+        best = best_branch_row(candidate_rows)
         best_round_id = best.get("round_id", "") if best else ""
         rows.append(
             {
@@ -3750,13 +4137,12 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "round_id": latest.get("round_id", ""),
                     "kind": "pattern",
                     "statement": hypothesis,
-                    "reusable_rule": "Treat this as the branch thesis until a stronger validated explanation replaces it.",
+                    "reusable_rule": "Recorded branch thesis; review it against later evidence before reuse.",
                     "confidence": "medium",
                 }
             )
-        latest_keep = latest_row_by_decision(rows, "keep")
+        latest_keep = latest_candidate_keep_row(rows, branch_dir)
         if latest_keep is not None:
-            keep_note = read_round_note(branch_dir, latest_keep.get("round_id", ""))
             payloads.append(
                 {
                     "scope": "branch",
@@ -3764,9 +4150,9 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "round_id": latest_keep.get("round_id", ""),
                     "kind": "worked",
                     "statement": latest_keep.get("description", "kept baseline"),
-                    "reusable_rule": keep_note.get(
-                        "next_step",
-                        "Refine from the latest KEEP baseline before opening a sibling branch.",
+                    "reusable_rule": (
+                        "Candidate evidence passed under the active protocol; "
+                        "review the recorded reflection before reuse."
                     ),
                     "confidence": "high",
                 }
@@ -3784,7 +4170,7 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                         "failures",
                         latest_discard.get("description", "discarded direction"),
                     ),
-                    "reusable_rule": "Do not retry this direction without changing the causal claim, drivers, or start window.",
+                    "reusable_rule": "Discarded result is evidence to review; no next strategy route is implied.",
                     "confidence": "high",
                 }
             )
@@ -3796,19 +4182,7 @@ def build_auto_insight_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "round_id": latest.get("round_id", ""),
                     "kind": "risk",
                     "statement": latest_note.get("failures", "none"),
-                    "reusable_rule": "Fix this blocker before trusting the next validation result.",
-                    "confidence": "medium",
-                }
-            )
-        if latest_note.get("next_step"):
-            payloads.append(
-                {
-                    "scope": "branch",
-                    "branch_id": branch_id,
-                    "round_id": latest.get("round_id", ""),
-                    "kind": "next_idea",
-                    "statement": latest_note.get("next_step", ""),
-                    "reusable_rule": "Use this as the next experiment seed if no stronger link-based compare candidate exists.",
+                    "reusable_rule": "Recorded blocker fact; review it before interpreting follow-up validation.",
                     "confidence": "medium",
                 }
             )
@@ -3860,7 +4234,7 @@ def build_auto_link_rows(branches: list[dict]) -> list[dict[str, str]]:
                     "match_score": f"{candidate_compare_score(branch, candidate):.2f}",
                     "match_basis": candidate_compare_basis(branch, candidate),
                     "status": "candidate",
-                    "note": "auto-suggested compare candidate",
+                    "note": "auto-derived compare relation",
                 }
             )
     rows: list[dict[str, str]] = []
@@ -4033,6 +4407,11 @@ def branch_memory_status(session: Path, branch: dict) -> str:
     if not branch["rows"]:
         return "exploring"
     latest = branch["rows"][-1]
+    latest_evidence = latest_branch_evidence_type(branch)
+    if latest_evidence == "control_evidence":
+        return "control"
+    if latest_evidence == "protocol_violation":
+        return "protocol_review"
     if latest.get("decision") == "discard":
         return "archived"
     return "validating"
@@ -4128,8 +4507,8 @@ def candidate_compare_basis(left: dict, right: dict) -> str:
     basis = ["same asset scope and both have validated rounds"]
     if left_spec.get("requested_start") == right_spec.get("requested_start"):
         basis.append("same requested_start")
-    if left_spec.get("overlap_mode") == right_spec.get("overlap_mode"):
-        basis.append("same overlap_mode")
+    if branch_coverage_alignment(left_spec) == branch_coverage_alignment(right_spec):
+        basis.append("same coverage_alignment")
     return "; ".join(basis)
 
 
@@ -4139,7 +4518,7 @@ def candidate_compare_score(left: dict, right: dict) -> float:
     score = 0.6
     if left_spec.get("requested_start") == right_spec.get("requested_start"):
         score += 0.2
-    if left_spec.get("overlap_mode") == right_spec.get("overlap_mode"):
+    if branch_coverage_alignment(left_spec) == branch_coverage_alignment(right_spec):
         score += 0.2
     return min(score, 1.0)
 
@@ -4236,8 +4615,8 @@ def render_readiness_guidance(readiness: dict) -> str:
     dense_overlap = coverage_hints.get("dense_overlap_hint_start")
     if target_safe and dense_overlap and target_safe != dense_overlap:
         return (
-            f"Desired start remains {requested_start}. Target-first research can begin around "
-            f"{target_safe}, while denser driver overlap appears around {dense_overlap} if the branch needs it."
+            f"Desired start remains {requested_start}. Target coverage is observed around "
+            f"{target_safe}; denser driver overlap is observed around {dense_overlap}."
         )
     if target_safe and target_safe != requested_start:
         return (
@@ -4247,7 +4626,7 @@ def render_readiness_guidance(readiness: dict) -> str:
     if dense_overlap:
         return (
             f"Desired start remains {requested_start}. Dense overlap is hinted around {dense_overlap}, "
-            "but target-first branches may continue earlier if they tolerate partial driver coverage."
+            "and partial driver coverage before that remains a reported data fact."
         )
     return (
         f"Desired start remains {requested_start}. Use readiness as a coverage profile, not as a mandatory "
@@ -4293,8 +4672,8 @@ def build_readiness_warning(readiness: dict) -> str:
     if classification == "confirmed_after_requested_start":
         return (
             "Target history begins after the session requested backtest_start "
-            f"{requested_start}. Treat this as a session-level coverage note; branches may still "
-            "choose narrower explicit starts intentionally."
+            f"{requested_start}. Treat this as a session-level coverage note; requested_start "
+            "changes alter the study protocol."
         )
     if classification == "unknown_probe_truncated":
         observed_suffix = (
@@ -4309,8 +4688,7 @@ def build_readiness_warning(readiness: dict) -> str:
     if int(summary.get("start_covered_count", 0) or 0) <= 0:
         return (
             "Discovered drivers are only partially available from the session requested start "
-            f"{requested_start}. Target-first research can still continue; use coverage hints only "
-            "if your branch depends on strict overlap."
+            f"{requested_start}. Treat this as a coverage fact for the branch evidence record."
         )
     return ""
 
@@ -4486,7 +4864,7 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
         if runtime_stage == "semantic_preflight":
             return (
                 "preflight_blocker",
-                "The branch failed semantic preflight before metric validation; fix data visibility or output-shape issues before recording a round.",
+                "The branch failed semantic preflight before metric validation; inspect data visibility and output-shape facts before recording a round.",
             )
         if (
             "target bars" in failures_lower
@@ -4516,7 +4894,7 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
     if verdict == "PASS" and str(semantic.get("verdict") or "").upper() == "PASS":
         return (
             "preflight_ready",
-            "Semantic preflight passed; the branch is ready for further mechanism tuning or a full recorded round.",
+            f"Semantic preflight passed. {REFLECTION_PROMPT}",
         )
 
     return (
@@ -4526,10 +4904,11 @@ def classify_result_frame(result: dict[str, object]) -> tuple[str, str]:
 
 
 def render_selection_narrative(branches: list[dict]) -> str:
-    ranked = ranked_branches(branches)[:3]
-    if not ranked:
-        return "No branch rankings yet because no validated rounds have been recorded."
+    ranked = ranked_passing_candidate_branches(branches)[:3]
+    recorded_candidates = ranked_candidate_evidence_branches(branches)[:3]
     lines = []
+    if not ranked:
+        lines.append("No passing candidate evidence is currently available.")
     for index, branch in enumerate(ranked, start=1):
         latest = branch["rows"][-1]
         note = read_round_note(branch["branch_dir"], latest.get("round_id", ""))
@@ -4545,6 +4924,37 @@ def render_selection_narrative(branches: list[dict]) -> str:
             f"`{latest.get('score', '?/?')}` / signature `{note.get('failure_signature', 'unknown')}`. "
             f"Reasoning: `{reason}`"
         )
+    if recorded_candidates and not ranked:
+        lines.append("")
+        lines.append("Recorded candidate evidence:")
+        for branch in recorded_candidates:
+            latest = branch["rows"][-1]
+            note = read_round_note(branch["branch_dir"], latest.get("round_id", ""))
+            lines.append(
+                f"1. `{branch['branch_id']}` -> `{latest.get('decision', 'pending')}` / "
+                f"`{latest.get('verdict', 'n/a')}` / `{latest.get('score', '?/?')}` / "
+                f"signature `{note.get('failure_signature', 'unknown')}`."
+            )
+    controls = sorted(
+        [
+            branch
+            for branch in branches
+            if branch["rows"] and latest_branch_evidence_type(branch) == "control_evidence"
+        ],
+        key=branch_rank_key,
+        reverse=True,
+    )[:3]
+    if controls:
+        lines.append("")
+        lines.append("Controls:")
+        for branch in controls:
+            latest = branch["rows"][-1]
+            note = read_round_note(branch["branch_dir"], latest.get("round_id", ""))
+            lines.append(
+                f"1. `{branch['branch_id']}` -> `{latest.get('decision', 'pending')}` / "
+                f"`{latest.get('verdict', 'n/a')}` / `{latest.get('score', '?/?')}` / "
+                f"flags `{note.get('protocol_flags', 'none')}`."
+            )
     return "\n".join(lines)
 
 
@@ -4688,7 +5098,7 @@ def build_branch_context(
     window_report = build_window_availability_report(
         requested_start=backtest_start,
         data_manifest=data_manifest,
-        overlap_mode=str(branch_spec.get("overlap_mode") or "target_only"),
+        coverage_alignment=branch_coverage_alignment(branch_spec),
         frontier_state=load_frontier_state(session),
         readiness=readiness,
     )
@@ -4799,7 +5209,8 @@ def build_branch_snapshot_line(branch: dict) -> str:
     )
     return (
         f"1. `{branch['branch_id']}` -> `{latest.get('decision', 'pending')}` after {len(rows)} round(s). "
-        f"Why: `{reason or 'not recorded'}`. Trend: Lo {float(first.get('lo_adj') or 0):.3f} -> {float(latest.get('lo_adj') or 0):.3f}, "
+        f"Evidence: `{note.get('evidence_type', 'unknown')}`. Why: `{reason or 'not recorded'}`. "
+        f"Trend: Lo {float(first.get('lo_adj') or 0):.3f} -> {float(latest.get('lo_adj') or 0):.3f}, "
         f"Sharpe {float(first.get('sharpe') or 0):.3f} -> {float(latest.get('sharpe') or 0):.3f}, "
         f"PnL {float(first.get('pnl') or 0):.1f}% -> {float(latest.get('pnl') or 0):.1f}%, "
         f"signature `{note.get('failure_signature', 'unknown')}`, active `{note.get('signal_activity', 'n/a')}`."
@@ -4860,55 +5271,47 @@ def session_next_step(
         if discovery_state.get("status") == "failed":
             return (
                 f"The last live discovery attempt failed and this session is still "
-                f"`{discovery_state.get('frontier_mode', 'seed_only')}`. Retry "
+                f"`{discovery_state.get('frontier_mode', 'seed_only')}`. Workflow options are "
                 f"`abel-strategy-discovery init-session --ticker {discovery.get('ticker', session.parent.name.upper())} "
-                f"--exp-id {session.name} --discover` once auth or runtime issues "
-                "are resolved, or continue intentionally with "
+                f"--exp-id {session.name} --discover` after auth/runtime recovery, or "
                 f"`abel-strategy-discovery init-branch --session {session} --branch-id graph-v1` "
-                "knowing the first branch will stay target-only."
+                "as a control-oriented start until non-target graph inputs are selected and traced."
             )
         if discovery_state.get("status") in {"seed_only", "pending"}:
             return (
                 f"This session is currently "
                 f"`{discovery_state.get('frontier_mode', 'seed_only')}` because "
-                "live discovery is not recorded yet. If you want a graph-backed "
-                "frontier, rerun "
+                "live discovery is not recorded yet. Workflow options are "
                 f"`abel-strategy-discovery init-session --ticker {discovery.get('ticker', session.parent.name.upper())} "
-                f"--exp-id {session.name} --discover`; otherwise continue with "
+                f"--exp-id {session.name} --discover` for graph facts, or "
                 f"`abel-strategy-discovery init-branch --session {session} --branch-id graph-v1` "
-                "knowing the first branch will start target-only."
+                "with the result labeled as control evidence until non-target graph inputs are selected and traced."
             )
         frontier_nodes = frontier_candidate_nodes(frontier_state)
         if frontier_nodes:
-            preview = ", ".join(ref.node_id for ref in frontier_nodes[:3])
             return (
                 f"Inspect the graph frontier with "
                 f"`abel-strategy-discovery frontier-status --session {session}`, "
-                f"probe promising nodes with "
+                f"probe node facts with "
                 f"`abel-strategy-discovery probe-nodes --session {session} --node <node_id>`, "
                 f"expand outward with "
                 f"`abel-strategy-discovery expand-frontier --session {session} --from-node <node_id>`, "
-                f"and use nearby candidates like `{preview}` before you narrow into a branch thesis."
+                f"then choose the thesis and evidence set yourself. {REFLECTION_PROMPT}"
             )
         return (
             f"Create the first branch with "
             f"`abel-strategy-discovery init-branch --session {session} --branch-id graph-v1`, "
-            "then make the branch inputs explicit in `branch.yaml`, inspect the "
-            "starter path through `prepare-branch` and `debug-branch`, and turn "
-            "the engine into a branch-specific mechanism before you treat the "
-            "first round as evidence."
+            "then make branch inputs explicit in `branch.yaml`, run `prepare-branch` "
+            f"and `debug-branch`, and record reflection fields before evidence interpretation. {REFLECTION_PROMPT}"
         )
     leader = select_leader(branches)
     pending = [branch for branch in branches if not branch["rows"]]
-    has_historical_keep = any(
-        row.get("decision") == "keep"
-        for branch in branches
-        for row in branch["rows"]
-    )
     keep = [
         branch
         for branch in branches
-        if branch["rows"] and branch["rows"][-1].get("decision") == "keep"
+        if branch["rows"]
+        and branch["rows"][-1].get("decision") == "keep"
+        and latest_row_is_candidate_evidence(branch)
     ]
     discard = [
         branch
@@ -4916,9 +5319,15 @@ def session_next_step(
         if branch["rows"] and branch["rows"][-1].get("decision") == "discard"
     ]
     if keep and discard:
-        return f"Continue improving `{keep[-1]['branch_id']}` or branch from the discarded ideas now that both keep and discard outcomes are recorded."
+        return (
+            "Candidate keep and discard outcomes are both recorded. Review the evidence, "
+            f"control, protocol, and reflection facts before choosing the next research move. {REFLECTION_PROMPT}"
+        )
     if keep:
-        return f"Continue improving `{keep[-1]['branch_id']}` or open a sibling branch from its latest KEEP baseline."
+        return (
+            "Candidate evidence is available. Review whether the next round changes the "
+            f"causal claim, evidence set, mechanism, or protocol before recording it. {REFLECTION_PROMPT}"
+        )
     if pending:
         branch = pending[-1]
         prepare_status = branch_prepare_status(branch["branch_dir"], discovery)
@@ -4932,46 +5341,36 @@ def session_next_step(
         debug_note = latest_debug_snapshot(branch["branch_dir"])
         if debug_note:
             return (
-                f"Fix `{branch['branch_id']}` after the latest debug blocker "
+                f"`{branch['branch_id']}` has debug facts under "
                 f"`{debug_note.get('failure_signature', 'unknown')}` "
-                f"({debug_note.get('summary', 'see debug result')}), then rerun "
-                f"`abel-strategy-discovery debug-branch --branch {branch['branch_dir']}` before recording the first round."
+                f"({debug_note.get('summary', 'see debug result')}). Review those facts, then rerun "
+                f"`abel-strategy-discovery debug-branch --branch {branch['branch_dir']}` before any recorded round."
             )
         warning = build_readiness_warning(readiness)
-        recommendations = ", ".join(readiness_recommendation_lines(readiness))
         guidance = (
             f"Confirm `{branch['branch_id']}/branch.yaml`, then use "
-            f"`abel-strategy-discovery debug-branch --branch {branch['branch_dir']}` to wire the first real signal before recording a round."
+            f"`abel-strategy-discovery debug-branch --branch {branch['branch_dir']}` "
+            f"to inspect runtime facts before recording a round. {REFLECTION_PROMPT}"
         )
         if warning:
-            suffix = (
-                " Also revisit `backtest_start` first with "
-                f"`abel-strategy-discovery set-backtest-start --session {session} --target-safe` ({recommendations})."
-                if recommendations
-                else " Also revisit `backtest_start` first with "
-                f"`abel-strategy-discovery set-backtest-start --session {session} --date YYYY-MM-DD`."
+            return (
+                guidance
+                + " The readiness warning is a coverage fact; changing `backtest_start` changes the study protocol."
             )
-            return guidance + suffix
         return guidance
     if leader and leader["rows"]:
         branch_hypothesis = current_branch_hypothesis(leader["branch_dir"], leader["rows"])
         if not has_explicit_hypothesis(branch_hypothesis):
             return (
-                f"Before the next round, add an explicit hypothesis to "
-                f"`{leader['branch_id']}/branch.yaml`, then validate the next causal claim."
-            )
-        if has_historical_keep:
-            return (
-                f"No branch is currently ending on KEEP, but `{leader['branch_id']}` still carries the strongest "
-                "history. Resume it from the latest credible baseline before opening a new sibling branch."
+                "Candidate evidence requires an explicit branch hypothesis. Record the "
+                f"causal claim in `{leader['branch_id']}/branch.yaml` before the next candidate round."
             )
         return (
-            f"No KEEP baseline exists yet. Resume `{leader['branch_id']}` first because it is currently the strongest "
-            "candidate, or open a sibling branch only if you have a genuinely different causal thesis."
+            "No passing candidate evidence is currently available. Review current branch facts "
+            f"and decide what causal claim, evidence set, mechanism, or protocol assumption changes. {REFLECTION_PROMPT}"
         )
     return (
-        "Open a new branch only if you have a genuinely different causal thesis; "
-        "otherwise continue refining the current working candidate."
+        "Review recorded evidence types, protocol flags, and reflection fields before choosing the next research move."
     )
 
 
@@ -5100,7 +5499,7 @@ def current_branch_prepare_contract(branch: Path, discovery: dict) -> dict[str, 
         "target_asset": branch_target_asset(branch_spec, discovery),
         "target_node": branch_target_node(branch_spec, discovery),
         "requested_start": branch_requested_start(branch, discovery),
-        "overlap_mode": str(branch_spec.get("overlap_mode") or "target_only"),
+        "coverage_alignment": branch_coverage_alignment(branch_spec),
         "selected_inputs": [
             ref.to_payload() for ref in branch_selected_inputs(branch_spec)
         ],
@@ -5117,7 +5516,7 @@ def prepare_contract_changed_fields(
         "target_asset",
         "target_node",
         "requested_start",
-        "overlap_mode",
+        "coverage_alignment",
         "selected_inputs",
         "data_requirements",
         "execution_constraints",
@@ -5251,6 +5650,26 @@ def branch_selected_inputs(branch_spec: dict) -> list[GraphNodeRef]:
     return coerce_graph_node_refs(branch_spec.get("selected_drivers") or [])
 
 
+def branch_coverage_alignment(branch_spec: dict) -> str:
+    return str(branch_spec.get("coverage_alignment") or "target_aligned").strip() or "target_aligned"
+
+
+def format_coverage_alignment_label(coverage_alignment: str, *, selected_input_count: int) -> str:
+    alignment = str(coverage_alignment or "target_aligned").strip() or "target_aligned"
+    if alignment == "target_aligned" and selected_input_count:
+        return "target-aligned coverage; selected graph inputs remain evidence inputs"
+    if alignment == "target_aligned":
+        return "target-aligned coverage"
+    return f"{alignment.replace('_', '-')} coverage"
+
+
+def branch_coverage_alignment_label(branch_spec: dict) -> str:
+    return format_coverage_alignment_label(
+        branch_coverage_alignment(branch_spec),
+        selected_input_count=len(branch_selected_inputs(branch_spec)),
+    )
+
+
 def format_graph_nodes(items: list[object], *, limit: int = 8, include_roles: bool = False) -> str:
     rendered = [
         graph_node_label(item, include_roles=include_roles)
@@ -5326,7 +5745,7 @@ def build_default_branch_spec(
         "parent_branch_id": "",
         "requested_start": _get_backtest_start(discovery),
         "resolved_start_policy": "requested",
-        "overlap_mode": "target_only",
+        "coverage_alignment": "target_aligned",
         "selected_inputs": [ref.to_payload() for ref in selected],
         "suggested_inputs": [ref.to_payload() for ref in suggested],
         "data_requirements": {
@@ -5352,7 +5771,7 @@ def branch_dependencies_payload(
         "target_node": target_node,
         "selected_inputs": [ref.to_payload() for ref in selected_inputs],
         "requested_start": requested_start,
-        "overlap_mode": branch_spec.get("overlap_mode") or "target_only",
+        "coverage_alignment": branch_coverage_alignment(branch_spec),
         "data_requirements": branch_spec.get("data_requirements") or {"timeframe": "1d"},
         "prepared_at": _now(),
     }
@@ -5453,7 +5872,7 @@ def build_window_availability_report(
     *,
     requested_start: str,
     data_manifest: dict,
-    overlap_mode: str,
+    coverage_alignment: str,
     frontier_state: dict | None = None,
     readiness: dict | None = None,
 ) -> dict:
@@ -5530,7 +5949,7 @@ def build_window_availability_report(
         "target_node": data_manifest.get("target_node"),
         "requested_start": requested_start,
         "requested_end": None,
-        "overlap_mode": overlap_mode,
+        "coverage_alignment": coverage_alignment,
         "target_window": target_window,
         "effective_window": {
             "start": effective_start_ts.isoformat() if effective_start_ts is not None else None,
@@ -5613,6 +6032,11 @@ def build_context_guide_markdown(
     ]
     effective_window = (window_report or {}).get("effective_window") or {}
     start_alignment = (window_report or {}).get("start_alignment") or {}
+    selected_feed_count = sum(1 for name in feed_names if name != "primary")
+    coverage_alignment = format_coverage_alignment_label(
+        str((window_report or {}).get("coverage_alignment") or "target_aligned"),
+        selected_input_count=selected_feed_count,
+    )
     lines = [
         f"# {target_asset} Branch Context Guide",
         "",
@@ -5630,11 +6054,12 @@ def build_context_guide_markdown(
         "",
         "## Window Availability",
         f"- requested_start: `{(window_report or {}).get('requested_start', 'unknown')}`",
+        f"- coverage_alignment: `{coverage_alignment}`",
         f"- target_safe_start: `{start_alignment.get('target_safe_start', 'unknown')}`",
         f"- effective_window: `{effective_window.get('start', 'unknown')} -> {effective_window.get('end', 'unknown')}`",
         f"- avoidable_gap_days: `{start_alignment.get('avoidable_gap_days', 'unknown')}`",
         f"- limiting_inputs: `{', '.join((window_report or {}).get('limiting_inputs') or []) or 'none'}`",
-        "- if avoidable_gap_days is large, try replacing limiting inputs before narrowing requested_start",
+        "- requested_start is a study protocol input; coverage-driven effective_window shrinkage is reported separately",
         "",
         "## Available Feeds",
         f"- names: `{', '.join(feed_names) or 'primary only'}`",
@@ -5687,7 +6112,7 @@ def window_availability_advisory_lines(window_report: dict | None) -> list[str]:
         limiting = ", ".join(report.get("limiting_inputs") or []) or "none"
         lines.append(f"time_cost_driver={limiting}")
         lines.append(
-            "time_cost_guidance=replace limiting inputs before narrowing requested_start"
+            "protocol_note=requested_start changes alter study comparability; coverage gaps are reported as facts"
         )
     return lines
 
@@ -6131,9 +6556,8 @@ def build_debug_snapshot(
     )
     summary = failures[0] if failures else fallback_error.splitlines()[-1]
     next_step = (
-        hints[0]
-        if hints
-        else "Fix the semantic blocker in engine.py, then rerun `abel-strategy-discovery debug-branch`."
+        "Review the debug facts and decide whether the thesis, evidence set, "
+        f"mechanism, or protocol changed. {REFLECTION_PROMPT}"
     )
     return {
         "updated_at": _now(),
@@ -6189,11 +6613,19 @@ def read_round_note(branch_dir: Path, round_id: str) -> dict[str, str]:
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         for key in (
+            "evidence_type",
+            "protocol_flags",
+            "reflection_status",
+            "selected_non_target_inputs",
+            "traced_inputs",
             "trigger",
+            "input_rationale",
             "hypothesis",
             "expected_signal",
+            "invalidation_condition",
             "change_summary",
             "time_spent_min",
+            "requested_start",
             "failures",
             "failure_signature",
             "runtime_stage",
@@ -6220,6 +6652,7 @@ def render_round_note(**kwargs) -> str:
     effective_window = result.get("effective_window", {})
     diagnostics = result.get("diagnostics") or {}
     signal = diagnostics.get("signal") or {}
+    evidence = kwargs.get("evidence") or {}
     actions = kwargs.get("actions") or ["Executed raw causal-edge evaluation"]
     action_lines = "\n".join(f"1. {action}" for action in actions)
     return f"""# {kwargs["round_id"]}
@@ -6238,16 +6671,25 @@ def render_round_note(**kwargs) -> str:
 - requested_end: `{requested_window.get("end") or "latest"}`
 - effective_window: `{effective_window.get("start", "unknown")} -> {effective_window.get("end", "unknown")}`
 
+## Research Protocol
+
+- evidence_type: `{evidence.get("evidence_type", "not_classified")}`
+- protocol_flags: `{evidence.get("protocol_flags", "none")}`
+- reflection_status: `{evidence.get("reflection_status", "not_recorded")}`
+- selected_non_target_inputs: `{evidence.get("selected_non_target_inputs", "not_recorded")}`
+- traced_inputs: `{evidence.get("traced_inputs", "not_recorded")}`
+
 ## Goal
 
 `{kwargs["description"]}`
 
 ## Inputs And Hypothesis
 
-- input: `{kwargs.get("input_note") or f"Branch {kwargs['branch_id']} entering {kwargs['round_id']}."}`
+- input_rationale: `{kwargs.get("input_note") or "not recorded"}`
 - trigger: `{kwargs.get("trigger") or kwargs["description"]}`
 - hypothesis: `{normalize_hypothesis_text(kwargs.get("hypothesis", ""))}`
-- expected_signal: `{kwargs.get("expected_signal") or "Improve evaluation outcome versus the current working baseline."}`
+- expected_signal: `{kwargs.get("expected_signal") or "not recorded"}`
+- invalidation_condition: `{kwargs.get("invalidation_condition") or "not recorded"}`
 
 ## Actions
 
@@ -6283,7 +6725,7 @@ def render_round_note(**kwargs) -> str:
 - change_summary: `{kwargs.get("change_summary") or kwargs["description"]}`
 - time_spent_min: `{kwargs.get("time_spent_min") or "not recorded"}`
 - summary: `{kwargs.get("summary") or f"Recorded {result.get('verdict', 'ERROR')} {result.get('score', '?/?')}."}`
-- next_step: `{kwargs.get("next_step") or "Review the branch README and decide whether to keep refining or open a new branch."}`
+- next_step: `{kwargs.get("next_step") or REFLECTION_PROMPT}`
 """
 
 
