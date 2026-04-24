@@ -49,6 +49,7 @@ def _record_round(
     protocol_flags: str = "none",
     next_step: str = "",
     backtest_start: str = "2020-01-01",
+    invalidation_condition: str = "AAPL lead should fail without cross-asset pressure",
 ) -> None:
     ni.append_tsv_row(
         branch / "results.tsv",
@@ -91,6 +92,7 @@ def _record_round(
         input_note="AAPL.price is the selected graph input",
         hypothesis="AAPL price leads TSLA",
         expected_signal="positive cross-asset lead",
+        invalidation_condition=invalidation_condition,
         trigger=description,
         change_summary=description,
         time_spent_min="5",
@@ -156,10 +158,37 @@ def test_round_evidence_requires_traced_non_target_input(tmp_path: Path) -> None
         input_note="AAPL.price is the selected graph input",
         expected_signal="positive cross-asset lead",
         change_summary="first graph attempt",
+        invalidation_condition="AAPL lead should fail when the cross-asset thesis is absent",
     )
 
     assert traced["evidence_type"] == "candidate_evidence"
     assert traced["traced_inputs"] == "AAPL.price"
+
+
+def test_missing_reflection_blocks_candidate_evidence(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "evidence-v2b", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "graph-incomplete-reflection")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(branch, spec)
+
+    evidence = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(traced_inputs=["AAPL.price"]),
+        hypothesis="AAPL price leads TSLA",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="first graph attempt",
+    )
+
+    assert evidence["evidence_type"] == "protocol_violation"
+    assert "reflection_required" in evidence["protocol_flags"]
+    assert ni.evidence_adjusted_decision(
+        metric_decision="keep",
+        evidence=evidence,
+        result=_semantic_result(traced_inputs=["AAPL.price"]),
+    ) == "protocol"
 
 
 def test_post_hoc_requested_start_change_is_protocol_violation(tmp_path: Path) -> None:
@@ -334,6 +363,7 @@ def test_round_note_parses_research_protocol_fields(tmp_path: Path) -> None:
         input_note="AAPL.price is the selected graph input",
         hypothesis="AAPL price leads TSLA",
         expected_signal="positive cross-asset lead",
+        invalidation_condition="AAPL lead should fail without cross-asset pressure",
         trigger="first graph attempt",
         change_summary="first graph attempt",
         time_spent_min="5",
@@ -355,6 +385,8 @@ def test_round_note_parses_research_protocol_fields(tmp_path: Path) -> None:
     assert parsed["protocol_flags"] == "none"
     assert parsed["reflection_status"] == "complete"
     assert parsed["requested_start"] == "2020-01-01"
+    assert parsed["input_rationale"] == "AAPL.price is the selected graph input"
+    assert parsed["invalidation_condition"] == "AAPL lead should fail without cross-asset pressure"
 
 
 def test_control_pass_is_not_leader_or_promotable(tmp_path: Path) -> None:
@@ -415,6 +447,62 @@ def test_memory_does_not_turn_control_next_step_into_reusable_rule(tmp_path: Pat
 
     assert not any(row["kind"] == "worked" for row in insights)
     assert not any("target-only route" in row["statement"] for row in insights)
+
+
+def test_generated_surfaces_use_reflection_prompts_not_strategy_routes(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "phase4-v1", tmp_path / "research")
+    readme = (session / "README.md").read_text(encoding="utf-8")
+
+    assert "first branch will start target-only" not in readme
+    assert "Continue improving" not in readme
+    assert "set-backtest-start --session" not in readme
+    assert "control evidence until non-target graph inputs are selected and traced" in readme
+
+    context_path = session / "debug-context.json"
+    context_path.write_text("{}", encoding="utf-8")
+    debug_result_path = session / "debug-result.json"
+    debug_result_path.write_text(
+        json.dumps(
+            {
+                "verdict": "ERROR",
+                "failures": ["shape mismatch"],
+                "diagnostics": {
+                    "failure_signature": "shape_mismatch",
+                    "runtime_stage": "semantic_preflight",
+                    "hints": ["try a wider threshold"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    snapshot = ni.build_debug_snapshot(
+        completed=subprocess.CompletedProcess([], 1, stdout="", stderr=""),
+        session=session,
+        context_path=context_path,
+        debug_result_path=debug_result_path,
+        backtest_start="2020-01-01",
+    )
+
+    assert "try a wider threshold" not in snapshot["next_step"]
+    assert "invalidation condition" in snapshot["next_step"]
+
+    branch = ni.init_branch_dir(session, "graph-failed")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(branch, spec)
+    _record_round(
+        branch,
+        round_id="round-001",
+        decision="discard",
+        evidence_type="candidate_evidence",
+        description="graph evidence did not pass",
+    )
+    insights = ni.build_auto_insight_rows(ni.load_branches(session))
+    rules = "\n".join(row.get("reusable_rule", "") for row in insights)
+
+    assert "Do not retry" not in rules
+    assert "Fix this blocker" not in rules
+    assert "no next strategy route is implied" in rules
 
 
 def test_memory_scaffold_and_views(tmp_path: Path) -> None:

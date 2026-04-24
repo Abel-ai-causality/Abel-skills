@@ -134,7 +134,7 @@ def test_seed_only_session_records_explicit_discovery_state(tmp_path: Path) -> N
     assert discovery_state["status"] == "seed_only"
     assert discovery_state["frontier_mode"] == "seed_only"
     assert "discovery_status: `seed_only`" in readme
-    assert "first branch will start target-only" in readme
+    assert "control evidence until non-target graph inputs are selected and traced" in readme
 
 
 def test_live_discovery_session_records_ready_state(tmp_path: Path, monkeypatch) -> None:
