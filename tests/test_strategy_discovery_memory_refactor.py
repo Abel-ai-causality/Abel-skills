@@ -14,6 +14,125 @@ def _sample_selected_inputs() -> list[dict]:
     ]
 
 
+def _semantic_result(*, traced_inputs: list[str]) -> dict:
+    return {
+        "verdict": "PASS",
+        "score": "7/7",
+        "metrics": {},
+        "requested_window": {"start": "2020-01-01", "end": None},
+        "effective_window": {"start": "2020-01-01", "end": "2020-12-31"},
+        "semantic": {
+            "verdict": "PASS",
+            "prepared_inputs": {
+                "selected_inputs": ["AAPL.price"],
+                "traced_inputs": traced_inputs,
+                "issues": [],
+            },
+        },
+        "diagnostics": {
+            "failure_signature": "clean_pass",
+            "runtime_stage": "validation",
+            "signal": {"active_days": 10, "total_days": 20},
+            "hints": [],
+        },
+    }
+
+
+def test_round_evidence_classifies_target_only_as_control(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "evidence-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "target-only")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = []
+    ni.write_branch_spec(branch, spec)
+
+    evidence = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(traced_inputs=[]),
+        hypothesis="target trend persistence",
+        input_note="target-only control",
+        expected_signal="control should expose target fit",
+        change_summary="first control",
+    )
+
+    assert evidence["evidence_type"] == "control_evidence"
+    assert "target_only" in evidence["protocol_flags"]
+
+
+def test_round_evidence_requires_traced_non_target_input(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "evidence-v2", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "graph-declared")
+    spec = ni.load_branch_spec(branch)
+    spec["selected_inputs"] = _sample_selected_inputs()
+    ni.write_branch_spec(branch, spec)
+
+    evidence = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(traced_inputs=[]),
+        hypothesis="AAPL price leads TSLA",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="first graph attempt",
+    )
+
+    assert evidence["evidence_type"] == "control_evidence"
+    assert "declared_input_not_traced" in evidence["protocol_flags"]
+
+    traced = ni.classify_round_evidence(
+        branch=branch,
+        discovery=ni.load_discovery(session),
+        result=_semantic_result(traced_inputs=["AAPL.price"]),
+        hypothesis="AAPL price leads TSLA",
+        input_note="AAPL.price is the selected graph input",
+        expected_signal="positive cross-asset lead",
+        change_summary="first graph attempt",
+    )
+
+    assert traced["evidence_type"] == "candidate_evidence"
+    assert traced["traced_inputs"] == "AAPL.price"
+
+
+def test_round_note_parses_research_protocol_fields(tmp_path: Path) -> None:
+    branch = tmp_path / "branch"
+    rounds = branch / "rounds"
+    rounds.mkdir(parents=True)
+    note = ni.render_round_note(
+        ticker="TSLA",
+        exp_id="evidence-v3",
+        branch_id="graph-v1",
+        round_id="round-001",
+        mode="explore",
+        decision="keep",
+        description="graph evidence",
+        result=_semantic_result(traced_inputs=["AAPL.price"]),
+        backtest_start="2020-01-01",
+        input_note="AAPL.price is the selected graph input",
+        hypothesis="AAPL price leads TSLA",
+        expected_signal="positive cross-asset lead",
+        trigger="first graph attempt",
+        change_summary="first graph attempt",
+        time_spent_min="5",
+        summary="recorded graph evidence",
+        next_step="",
+        evidence={
+            "evidence_type": "candidate_evidence",
+            "protocol_flags": "none",
+            "reflection_status": "complete",
+            "selected_non_target_inputs": "AAPL.price",
+            "traced_inputs": "AAPL.price",
+        },
+    )
+    (rounds / "round-001.md").write_text(note, encoding="utf-8")
+
+    parsed = ni.read_round_note(branch, "round-001")
+
+    assert parsed["evidence_type"] == "candidate_evidence"
+    assert parsed["protocol_flags"] == "none"
+    assert parsed["reflection_status"] == "complete"
+    assert parsed["requested_start"] == "2020-01-01"
+
+
 def test_memory_scaffold_and_views(tmp_path: Path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
     branch = ni.init_branch_dir(session, "graph-v1")

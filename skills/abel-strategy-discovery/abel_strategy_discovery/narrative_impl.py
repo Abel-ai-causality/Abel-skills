@@ -2569,6 +2569,16 @@ def run_branch_round(args: argparse.Namespace) -> int:
             "State the causal claim, expected sign, and invalidation condition before the next round.",
             file=sys.stderr,
         )
+    evidence = classify_round_evidence(
+        branch=branch,
+        discovery=discovery,
+        result=result,
+        hypothesis=effective_hypothesis,
+        input_note=args.input_note,
+        expected_signal=args.expected_signal,
+        change_summary=args.change_summary,
+        invalidation_condition=getattr(args, "invalidation_condition", ""),
+    )
     decision = alpha_decision(rows, result, session=session)
 
     round_note = branch / "rounds" / f"{round_id}.md"
@@ -2591,6 +2601,7 @@ def run_branch_round(args: argparse.Namespace) -> int:
             time_spent_min=args.time_spent_min,
             summary=args.summary,
             next_step=args.next_step,
+            evidence=evidence,
             actions=args.action + [f"hypothesis_source={hypothesis_source}"],
             context_mode="injected",
             context_path=str(context_path.relative_to(session)),
@@ -3042,6 +3053,110 @@ def signal_activity_ratio(activity: str) -> float:
     if total <= 0:
         return 0.0
     return active / total
+
+
+def round_reflection_status(
+    *,
+    hypothesis: str,
+    input_note: str,
+    expected_signal: str,
+    change_summary: str,
+    invalidation_condition: str = "",
+) -> str:
+    missing: list[str] = []
+    if not has_explicit_hypothesis(hypothesis):
+        missing.append("causal_claim")
+    if not str(input_note or "").strip():
+        missing.append("input_rationale")
+    if not str(expected_signal or "").strip():
+        missing.append("expected_signal")
+    if not str(invalidation_condition or "").strip():
+        missing.append("invalidation_condition")
+    if not str(change_summary or "").strip():
+        missing.append("change_summary")
+    if missing:
+        return "incomplete:" + ",".join(missing)
+    return "complete"
+
+
+def _semantic_prepared_inputs(result: dict) -> dict:
+    semantic = result.get("semantic") or {}
+    if not isinstance(semantic, dict):
+        return {}
+    prepared = semantic.get("prepared_inputs") or {}
+    return prepared if isinstance(prepared, dict) else {}
+
+
+def _semantic_verdict(result: dict) -> str:
+    semantic = result.get("semantic") or {}
+    if not isinstance(semantic, dict):
+        return ""
+    return str(semantic.get("verdict") or "").strip().upper()
+
+
+def selected_non_target_input_ids(branch_spec: dict, discovery: dict) -> list[str]:
+    target_node = branch_target_node(branch_spec, discovery)
+    return [
+        ref.node_id
+        for ref in branch_selected_inputs(branch_spec)
+        if ref.node_id and ref.node_id != target_node
+    ]
+
+
+def classify_round_evidence(
+    *,
+    branch: Path,
+    discovery: dict,
+    result: dict,
+    hypothesis: str,
+    input_note: str,
+    expected_signal: str,
+    change_summary: str,
+    invalidation_condition: str = "",
+) -> dict[str, str]:
+    branch_spec = load_branch_spec(branch)
+    selected_non_target = selected_non_target_input_ids(branch_spec, discovery)
+    prepared = _semantic_prepared_inputs(result)
+    traced_inputs = _dedupe_strings(prepared.get("traced_inputs") or [])
+    traced_set = set(traced_inputs)
+    traced_selected = [
+        node_id for node_id in selected_non_target if node_id in traced_set
+    ]
+    reflection_status = round_reflection_status(
+        hypothesis=hypothesis,
+        input_note=input_note,
+        expected_signal=expected_signal,
+        change_summary=change_summary,
+        invalidation_condition=invalidation_condition,
+    )
+
+    flags: list[str] = []
+    semantic_verdict = _semantic_verdict(result)
+    if not selected_non_target:
+        evidence_type = "control_evidence"
+        flags.append("target_only")
+    elif not traced_inputs and not semantic_verdict:
+        evidence_type = "protocol_violation"
+        flags.append("semantic_trace_missing")
+    elif not traced_selected:
+        evidence_type = "control_evidence"
+        flags.append("declared_input_not_traced")
+    elif semantic_verdict and semantic_verdict != "PASS":
+        evidence_type = "protocol_violation"
+        flags.append("runtime_legality_not_pass")
+    else:
+        evidence_type = "candidate_evidence"
+
+    if reflection_status != "complete":
+        flags.append("reflection_required")
+
+    return {
+        "evidence_type": evidence_type,
+        "protocol_flags": ", ".join(_dedupe_strings(flags)) or "none",
+        "reflection_status": reflection_status,
+        "selected_non_target_inputs": ", ".join(selected_non_target) or "none",
+        "traced_inputs": ", ".join(traced_inputs) or "none",
+    }
 
 
 def normalize_hypothesis_text(value: str) -> str:
@@ -6189,11 +6304,17 @@ def read_round_note(branch_dir: Path, round_id: str) -> dict[str, str]:
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         for key in (
+            "evidence_type",
+            "protocol_flags",
+            "reflection_status",
+            "selected_non_target_inputs",
+            "traced_inputs",
             "trigger",
             "hypothesis",
             "expected_signal",
             "change_summary",
             "time_spent_min",
+            "requested_start",
             "failures",
             "failure_signature",
             "runtime_stage",
@@ -6220,6 +6341,7 @@ def render_round_note(**kwargs) -> str:
     effective_window = result.get("effective_window", {})
     diagnostics = result.get("diagnostics") or {}
     signal = diagnostics.get("signal") or {}
+    evidence = kwargs.get("evidence") or {}
     actions = kwargs.get("actions") or ["Executed raw causal-edge evaluation"]
     action_lines = "\n".join(f"1. {action}" for action in actions)
     return f"""# {kwargs["round_id"]}
@@ -6237,6 +6359,14 @@ def render_round_note(**kwargs) -> str:
 - requested_start: `{requested_window.get("start", kwargs.get("backtest_start", DEFAULT_BACKTEST_START))}`
 - requested_end: `{requested_window.get("end") or "latest"}`
 - effective_window: `{effective_window.get("start", "unknown")} -> {effective_window.get("end", "unknown")}`
+
+## Research Protocol
+
+- evidence_type: `{evidence.get("evidence_type", "not_classified")}`
+- protocol_flags: `{evidence.get("protocol_flags", "none")}`
+- reflection_status: `{evidence.get("reflection_status", "not_recorded")}`
+- selected_non_target_inputs: `{evidence.get("selected_non_target_inputs", "not_recorded")}`
+- traced_inputs: `{evidence.get("traced_inputs", "not_recorded")}`
 
 ## Goal
 
