@@ -14,6 +14,7 @@ from typing import Any
 
 
 DEFAULT_MAX_SECONDS = 120.0
+DEFAULT_ROUND_BUDGET_SECONDS = 120.0
 DEFAULT_PROGRESS_INTERVAL_SECONDS = 30.0
 DEFAULT_RANK_KEYS = ("selection_score", "sharpe", "total_return")
 DEFAULT_TIMEOUT_BEHAVIOR = "stop"
@@ -207,6 +208,7 @@ class ScoutRun:
         timeout_behavior: str = DEFAULT_TIMEOUT_BEHAVIOR,
         continue_on_candidate_error: bool = True,
         progress_interval_seconds: float = DEFAULT_PROGRESS_INTERVAL_SECONDS,
+        round_budget_seconds: float | None = DEFAULT_ROUND_BUDGET_SECONDS,
         rank_keys: Sequence[str] = DEFAULT_RANK_KEYS,
         top_k: int = 5,
     ) -> None:
@@ -219,6 +221,9 @@ class ScoutRun:
         self.timeout_behavior = timeout_behavior
         self.continue_on_candidate_error = bool(continue_on_candidate_error)
         self.progress_interval_seconds = float(progress_interval_seconds)
+        self.round_budget_seconds = (
+            None if round_budget_seconds is None else float(round_budget_seconds)
+        )
         self.rank_keys = tuple(rank_keys)
         self.top_k = int(top_k)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -239,16 +244,23 @@ class ScoutRun:
     def summary_path(self) -> Path:
         return self.output_dir / f"{self.name}.summary.json"
 
+    @property
+    def round_budget_path(self) -> Path:
+        return self.output_dir / "scout_budget_state.json"
+
     def write_dry_run(self, estimate: ScoutEstimate) -> dict[str, Any]:
         payload = estimate.to_dict()
         payload["artifacts"] = self._artifact_paths()
+        payload["round_budget"] = self._round_budget_snapshot()
         self._write_json(self.dry_run_path, payload)
+        round_budget = payload["round_budget"]
         print(
             "scout_dry_run "
             f"name={estimate.name} target={estimate.target} "
             f"candidate_count={estimate.candidate_count} "
             f"budget_seconds={payload['budget_seconds']} "
             f"max_seconds={payload['max_seconds']} "
+            f"round_budget_remaining={round_budget['remaining_seconds']} "
             f"within_budget={str(payload['within_budget']).lower()}"
         )
         if payload["reduction_hint"]:
@@ -273,7 +285,14 @@ class ScoutRun:
         max_seconds: float | None = None,
         max_candidate_seconds: float | None = None,
     ) -> dict[str, Any]:
-        budget = self.max_seconds if max_seconds is None else float(max_seconds)
+        requested_budget = self.max_seconds if max_seconds is None else float(max_seconds)
+        round_budget = self._round_budget_snapshot()
+        round_remaining = round_budget["remaining_seconds"]
+        budget = requested_budget
+        budget_limited_by_round = False
+        if round_remaining is not None:
+            budget = min(requested_budget, float(round_remaining))
+            budget_limited_by_round = budget < requested_budget
         candidate_budget = (
             self.max_candidate_seconds
             if max_candidate_seconds is None
@@ -288,14 +307,48 @@ class ScoutRun:
         status = "completed"
         timeout_scope = ""
 
+        if budget <= 0:
+            next_index = max(completed_indices) + 1 if completed_indices else 0
+            state = self._write_state(
+                status="budget_exhausted",
+                next_candidate_index=next_index,
+                completed_count=len(completed_indices),
+                skipped_count=0,
+                elapsed_seconds=0.0,
+                max_seconds=0.0,
+                max_candidate_seconds=candidate_budget,
+                timeout_scope="round_budget",
+                timeout_enforcement=enforcement_mode,
+                round_budget=round_budget,
+            )
+            summary = self.write_summary(status="budget_exhausted", round_budget=round_budget)
+            print(
+                "scout_complete "
+                f"name={self.name} status=budget_exhausted "
+                f"completed=0 total_completed={len(completed_indices)} "
+                "elapsed_seconds=0.0"
+            )
+            print(
+                "round_budget_exhausted "
+                f"round_key={round_budget['round_key']} "
+                f"used_seconds={round_budget['used_seconds']} "
+                f"budget_seconds={round_budget['budget_seconds']}"
+            )
+            print(
+                "artifacts "
+                f"results={self.results_path} state={self.state_path} "
+                f"summary={self.summary_path} round_budget={self.round_budget_path}"
+            )
+            return {"state": state, "summary": summary}
+
         for index, candidate in enumerate(candidates):
             if index in completed_indices:
                 skipped += 1
                 continue
             elapsed = time.monotonic() - start_time
             if elapsed >= budget:
-                status = "timeout"
-                timeout_scope = "run"
+                status = "budget_exhausted" if budget_limited_by_round else "timeout"
+                timeout_scope = "round_budget" if budget_limited_by_round else "run"
                 break
             try:
                 with _candidate_timeout(candidate_budget):
@@ -371,8 +424,9 @@ class ScoutRun:
                     max_candidate_seconds=candidate_budget,
                     timeout_scope="",
                     timeout_enforcement=enforcement_mode,
+                    round_budget=round_budget,
                 )
-                self.write_summary(status="running")
+                self.write_summary(status="running", round_budget=round_budget)
                 print(
                     "scout_progress "
                     f"name={self.name} completed={len(completed_indices)} "
@@ -385,6 +439,12 @@ class ScoutRun:
             next_index = len(completed_indices)
         else:
             next_index = max(completed_indices) + 1 if completed_indices else 0
+        final_round_budget = self._record_round_budget(
+            elapsed_seconds=elapsed,
+            status=status,
+            requested_max_seconds=requested_budget,
+            effective_max_seconds=budget,
+        )
         state = self._write_state(
             status=status,
             next_candidate_index=next_index,
@@ -395,13 +455,20 @@ class ScoutRun:
             max_candidate_seconds=candidate_budget,
             timeout_scope=timeout_scope,
             timeout_enforcement=enforcement_mode,
+            round_budget=final_round_budget,
         )
-        summary = self.write_summary(status=status)
+        summary = self.write_summary(status=status, round_budget=final_round_budget)
         print(
             "scout_complete "
             f"name={self.name} status={status} "
             f"completed={completed_this_run} total_completed={len(completed_indices)} "
             f"elapsed_seconds={round(elapsed, 3)}"
+        )
+        print(
+            "round_budget "
+            f"round_key={final_round_budget['round_key']} "
+            f"used_seconds={final_round_budget['used_seconds']} "
+            f"remaining_seconds={final_round_budget['remaining_seconds']}"
         )
         for rank, row in enumerate(summary.get("top", [])[: self.top_k], start=1):
             result = row.get("result") or {}
@@ -414,11 +481,16 @@ class ScoutRun:
         print(
             "artifacts "
             f"results={self.results_path} state={self.state_path} "
-            f"summary={self.summary_path}"
+            f"summary={self.summary_path} round_budget={self.round_budget_path}"
         )
         return {"state": state, "summary": summary}
 
-    def write_summary(self, *, status: str) -> dict[str, Any]:
+    def write_summary(
+        self,
+        *,
+        status: str,
+        round_budget: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         rows = self._read_results()
         ranked = sorted(
             rows,
@@ -449,6 +521,7 @@ class ScoutRun:
             "family_best": family_best,
             "family_stats": family_stats,
             "artifacts": self._artifact_paths(),
+            "round_budget": round_budget or self._round_budget_snapshot(),
         }
         self._write_json(self.summary_path, payload)
         return payload
@@ -459,6 +532,7 @@ class ScoutRun:
             "results": str(self.results_path),
             "state": str(self.state_path),
             "summary": str(self.summary_path),
+            "round_budget": str(self.round_budget_path),
         }
 
     def _completed_indices(self) -> set[int]:
@@ -492,6 +566,7 @@ class ScoutRun:
         max_candidate_seconds: float | None,
         timeout_scope: str,
         timeout_enforcement: str,
+        round_budget: dict[str, Any],
     ) -> dict[str, Any]:
         payload = {
             "name": self.name,
@@ -508,11 +583,111 @@ class ScoutRun:
             ),
             "timeout_scope": timeout_scope,
             "timeout_enforcement": timeout_enforcement,
+            "round_budget": round_budget,
             "artifacts": self._artifact_paths(),
             "updated_at": _now_epoch(),
         }
         self._write_json(self.state_path, payload)
         return payload
+
+    def _round_budget_snapshot(self) -> dict[str, Any]:
+        recorded_rounds = self._recorded_round_count()
+        key = f"recorded_rounds:{recorded_rounds}"
+        budget_seconds = self.round_budget_seconds
+        state = self._read_round_budget_state()
+        round_state = (state.get("rounds") or {}).get(key) or {}
+        used = round(float(round_state.get("used_seconds") or 0.0), 3)
+        remaining = (
+            None
+            if budget_seconds is None
+            else max(round(float(budget_seconds) - used, 3), 0.0)
+        )
+        return {
+            "round_key": key,
+            "recorded_rounds": recorded_rounds,
+            "budget_seconds": None if budget_seconds is None else round(float(budget_seconds), 3),
+            "used_seconds": used,
+            "remaining_seconds": remaining,
+            "state_path": str(self.round_budget_path),
+        }
+
+    def _record_round_budget(
+        self,
+        *,
+        elapsed_seconds: float,
+        status: str,
+        requested_max_seconds: float,
+        effective_max_seconds: float,
+    ) -> dict[str, Any]:
+        snapshot = self._round_budget_snapshot()
+        if self.round_budget_seconds is None:
+            return snapshot
+        state = self._read_round_budget_state()
+        rounds = state.setdefault("rounds", {})
+        round_state = rounds.setdefault(
+            snapshot["round_key"],
+            {
+                "recorded_rounds": snapshot["recorded_rounds"],
+                "budget_seconds": snapshot["budget_seconds"],
+                "used_seconds": 0.0,
+                "runs": [],
+            },
+        )
+        elapsed = max(float(elapsed_seconds), 0.0)
+        used = round(float(round_state.get("used_seconds") or 0.0) + elapsed, 3)
+        budget = float(self.round_budget_seconds)
+        round_state["used_seconds"] = used
+        round_state["remaining_seconds"] = max(round(budget - used, 3), 0.0)
+        round_state["runs"] = list(round_state.get("runs") or [])
+        round_state["runs"].append(
+            {
+                "name": self.name,
+                "status": status,
+                "elapsed_seconds": round(elapsed, 3),
+                "requested_max_seconds": round(float(requested_max_seconds), 3),
+                "effective_max_seconds": round(float(effective_max_seconds), 3),
+                "results": str(self.results_path),
+                "state": str(self.state_path),
+                "summary": str(self.summary_path),
+                "updated_at": _now_epoch(),
+            }
+        )
+        state["round_budget_seconds"] = round(budget, 3)
+        state["updated_at"] = _now_epoch()
+        self._write_json(self.round_budget_path, state)
+        return self._round_budget_snapshot()
+
+    def _read_round_budget_state(self) -> dict[str, Any]:
+        if not self.round_budget_path.exists():
+            return {"rounds": {}}
+        try:
+            payload = json.loads(self.round_budget_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {"rounds": {}}
+        if not isinstance(payload, dict):
+            return {"rounds": {}}
+        payload.setdefault("rounds", {})
+        return payload
+
+    def _recorded_round_count(self) -> int:
+        session_dir = self._infer_session_dir()
+        if session_dir is None:
+            return 0
+        count = 0
+        for results_path in sorted((session_dir / "branches").glob("*/results.tsv")):
+            try:
+                lines = results_path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            count += sum(1 for line in lines[1:] if line.strip())
+        return count
+
+    def _infer_session_dir(self) -> Path | None:
+        if self.output_dir.name == "scratch" and (self.output_dir.parent / "branches").exists():
+            return self.output_dir.parent
+        if (self.output_dir / "branches").exists():
+            return self.output_dir
+        return None
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:

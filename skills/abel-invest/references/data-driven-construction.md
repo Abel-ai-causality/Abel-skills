@@ -67,13 +67,13 @@ predictions. Use them to expose oversized plans before execution; rely on
 runtime timeout, streamed artifacts, and actual family stats for enforcement
 and follow-up decisions.
 
-Do not let scratch scouting become the main research loop. After the first-look
-scout and one narrow refinement, use the recorded ledger to choose fixed
-branches, controls, fixed model/ensemble constructions, or a stop/pivot report.
-The same scout phase has at most one non-control continuation slot after that
-refinement. Expanded graph facts and model-capacity ideas remain valid, but use
-one as the explicit continuation or stop/report; do not chain graph expansion,
-model-family, or mechanism branches without a user-requested new phase.
+Do not let scratch scouting become the main research loop. `ScoutRun` tracks one
+cumulative scout runtime budget per recorded-round interval, then `run-branch`
+resets that budget by recording a result. Use scout to choose direction quickly,
+then promote the strongest scored shape into recorded branch work. Expanded
+graph facts and model-capacity ideas remain valid, but they should be shaped by
+bounded scout artifacts or recorded branch evidence rather than an open-ended
+private search chain.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable

@@ -68,10 +68,11 @@ such as Sharpe, total return, drawdown, and turnover.
 
 If the scout reaches its runtime boundary, use its streamed artifacts and state
 instead of manually finding and killing processes or restarting from scratch.
-Treat a timeout as a stopping boundary for that scout phase: promote a top
-completed result, record a control, or pivot; do not resume, widen, or open a
-new scratch grid in the same phase unless the user explicitly asks for that
-extra private search.
+Treat a timeout as a stopping boundary for private scout in the current
+recorded-round interval: promote a top completed result or useful control into
+a concrete branch and continue through `prepare-branch`, `debug-branch`, and
+`run-branch`. Decide whether to continue, stop, or report after that recorded
+branch result.
 
 Scout scripts should be bounded, resumable, and quiet on stdout. Before full
 execution, run a dry-run budget declaration that reports candidate count, row
@@ -154,17 +155,18 @@ remains available. Do not abandon the graph-derived universe unless graph
 subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
 
-Scout phase budget is part of the research budget. A normal session gets the
-first-look scout plus at most one narrow refinement scout tied to one recorded
-blocker or top family. After that, the same scout phase has at most one
-non-control continuation slot: submit one fixed branch, one fixed graph/model/
-ensemble construction, or stop/report. Controls are fine for comparison, but
-they do not reopen the phase. Once the continuation slot is used, run
-`best-strategy --session ... --json` and report the current ledger; do not open
-more graph expansion, model-family, or mechanism branches unless the user
-explicitly asks for a new exploration phase. A near-pass, graph expansion, or
-model-capacity idea can justify that one continuation slot, but not a chain of
-additional fixed probes or another scratch-grid scout.
+Scout phase budget is part of the research budget. `ScoutRun` tracks one
+cumulative scout runtime budget per recorded-round interval. A `run-branch`
+result starts the next interval with a fresh scout budget. The budget constrains
+runtime mechanics, not strategy families: graph expansion, model-capacity
+probes, controls, and refinements remain valid when the current evidence makes
+them useful.
+
+When the per-round scout budget is exhausted, or when scout has produced enough
+directional evidence, stop private scout for that interval. Use the streamed
+artifacts to author a concrete branch, then continue through `prepare-branch`,
+`debug-branch`, and `run-branch`. Make strategic continue, stop, or final-report
+decisions after `run-branch` records a result, not at scout completion.
 
 Heavy model families such as random forests, boosted trees, HGBT, ExtraTrees, or
 large nested walk-forward scans remain valid exploration tools, but they are
@@ -181,13 +183,13 @@ necessary, it should still write equivalent `results.jsonl`, `state.json`, and
 work, and account for any selection width that materially chose the submitted
 candidate.
 
-Do not let scout chain into unbounded private search. After the first-look scout,
-normally record a candidate, a control, or a stop/pivot reason. One narrow
-refinement scout may run only when it targets a specific recorded blocker or
-top first-look family. After that, use at most one non-control continuation
-branch in the same phase, then final-report or stop/pivot. Do not start another
-scratch grid, graph expansion chain, model-family probe, or mechanism branch
-just because a later branch is near-pass or the graph frontier expanded.
+Do not let scout chain into unbounded private search. Use scout to choose
+direction quickly, then promote the strongest scored shape into recorded branch
+work. Additional scout is acceptable while the current recorded-round budget
+remains and the agent needs more direction, but it should not replace formal
+branch validation. If the budget is exhausted, build the next concrete branch
+from the existing streamed artifacts and run it before deciding the next
+strategic move.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.

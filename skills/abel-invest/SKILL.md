@@ -140,17 +140,14 @@ Always:
   the minimal `ScoutRun` pattern in `experiment-loop.md`; do not inspect
   `scout_runtime.py` or probe helper signatures unless the helper import fails
   or you are debugging the helper. Put temporary scout scripts or summaries under
-  `research/<ticker>/<session_id>/scratch/` when files are useful. The session
-  scout budget is the first-look scout plus at most one narrow refinement tied
-  to one recorded blocker or top family. After that, the same scout phase has at
-  most one non-control continuation slot: a fixed branch, fixed graph/model/
-  ensemble construction, or stop/report. Controls may be recorded for comparison,
-  but they do not reopen the phase. Once that continuation is used, do not open
-  more graph expansion, model-family, or mechanism branches in the same phase;
-  run `best-strategy --session ... --json` and report the current ledger, unless
-  the user explicitly asks for a new exploration phase. A near-pass, graph
-  expansion, or model-capacity idea can justify the one continuation slot, but
-  not a chain of additional fixed probes or another scratch-grid scout.
+  `research/<ticker>/<session_id>/scratch/` when files are useful. `ScoutRun`
+  tracks one cumulative scout runtime budget per recorded-round interval; after
+  `run-branch` records a result, the next interval starts with a fresh budget.
+  Within that budget the agent chooses whether more scout is useful. When the
+  budget is exhausted or scout is done, stop private scout for that interval and
+  turn the current artifacts into a concrete branch, then `prepare-branch`,
+  `debug-branch`, and `run-branch`. Strategic continue/stop/report decisions
+  happen after `run-branch`, not at scout completion.
 
 Never:
 

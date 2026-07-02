@@ -6,6 +6,7 @@ from pathlib import Path
 
 from abel_invest.narrative_core.scout_runtime import (
     DEFAULT_MAX_SECONDS,
+    DEFAULT_ROUND_BUDGET_SECONDS,
     ScoutEstimate,
     ScoutFamilyBudget,
     ScoutFamilyEstimate,
@@ -16,6 +17,25 @@ from abel_invest.narrative_core.scout_runtime import (
 
 def _jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def _session_scratch(tmp_path: Path) -> tuple[Path, Path]:
+    session = tmp_path / "research" / "TSLA" / "demo-session"
+    scratch = session / "scratch"
+    (session / "branches").mkdir(parents=True)
+    scratch.mkdir(parents=True)
+    return session, scratch
+
+
+def _record_round(session: Path, branch_id: str = "candidate") -> None:
+    branch_dir = session / "branches" / branch_id
+    branch_dir.mkdir(parents=True, exist_ok=True)
+    results_path = branch_dir / "results.tsv"
+    results_path.write_text(
+        "round_id\tverdict\tscore\n"
+        "round-001\tFAIL\t4/9\n",
+        encoding="utf-8",
+    )
 
 
 def test_scout_dry_run_writes_estimate_without_executing_candidates(tmp_path, capsys):
@@ -46,8 +66,10 @@ def test_scout_dry_run_writes_estimate_without_executing_candidates(tmp_path, ca
 
 def test_default_scout_budget_is_120_seconds():
     assert DEFAULT_MAX_SECONDS == 120.0
+    assert DEFAULT_ROUND_BUDGET_SECONDS == 120.0
     assert ScoutEstimate(name="first_look", target="AAPL", candidate_count=1).max_seconds == 120.0
     assert ScoutRun(name="first_look", output_dir=Path.cwd()).max_seconds == 120.0
+    assert ScoutRun(name="first_look", output_dir=Path.cwd()).round_budget_seconds == 120.0
 
 
 def test_scout_dry_run_records_free_form_family_budget(tmp_path, capsys):
@@ -96,6 +118,70 @@ def test_scout_dry_run_records_free_form_family_budget(tmp_path, capsys):
     assert "scout_family label=sfi_graph_thresholds" in output
     assert "budget_seconds=18.0" in output
     assert "scout_family label=nonlinear_walk_forward_models" in output
+
+
+def test_scout_dry_run_records_round_budget_for_session_scratch(tmp_path, capsys):
+    _, scratch = _session_scratch(tmp_path)
+    scout = ScoutRun(name="first_look", output_dir=scratch, round_budget_seconds=7.5)
+    estimate = ScoutEstimate(name="first_look", target="TSLA", candidate_count=3)
+
+    payload = scout.write_dry_run(estimate)
+
+    assert payload["round_budget"]["round_key"] == "recorded_rounds:0"
+    assert payload["round_budget"]["budget_seconds"] == 7.5
+    assert payload["round_budget"]["used_seconds"] == 0.0
+    assert payload["round_budget"]["remaining_seconds"] == 7.5
+    output = capsys.readouterr().out
+    assert "round_budget_remaining=7.5" in output
+
+
+def test_scout_runtime_exhausts_shared_round_budget_without_reexecuting(tmp_path):
+    _, scratch = _session_scratch(tmp_path)
+    first = ScoutRun(name="first_look", output_dir=scratch, round_budget_seconds=0.001)
+
+    first.run(
+        [{"name": "slow"}],
+        lambda candidate: (time.sleep(0.003) or {"name": candidate["name"], "sharpe": 1.0}),
+        max_seconds=1,
+    )
+    budget_state = json.loads(first.round_budget_path.read_text(encoding="utf-8"))
+    round_state = budget_state["rounds"]["recorded_rounds:0"]
+    assert round_state["used_seconds"] > 0.001
+    assert round_state["remaining_seconds"] == 0.0
+
+    executed = {"count": 0}
+    second = ScoutRun(name="second_look", output_dir=scratch, round_budget_seconds=0.001)
+
+    result = second.run(
+        [{"name": "should_not_run"}],
+        lambda candidate: executed.__setitem__("count", executed["count"] + 1) or {},
+        max_seconds=1,
+    )
+
+    assert executed["count"] == 0
+    assert result["state"]["status"] == "budget_exhausted"
+    assert result["state"]["round_budget"]["round_key"] == "recorded_rounds:0"
+    assert result["state"]["round_budget"]["remaining_seconds"] == 0.0
+
+
+def test_scout_round_budget_resets_after_recorded_round(tmp_path):
+    session, scratch = _session_scratch(tmp_path)
+    scout = ScoutRun(name="first_look", output_dir=scratch, round_budget_seconds=0.001)
+    scout.run(
+        [{"name": "slow"}],
+        lambda candidate: (time.sleep(0.003) or {"name": candidate["name"], "sharpe": 1.0}),
+        max_seconds=1,
+    )
+
+    _record_round(session)
+    next_scout = ScoutRun(name="after_branch", output_dir=scratch, round_budget_seconds=0.001)
+    payload = next_scout.write_dry_run(
+        ScoutEstimate(name="after_branch", target="TSLA", candidate_count=1)
+    )
+
+    assert payload["round_budget"]["round_key"] == "recorded_rounds:1"
+    assert payload["round_budget"]["used_seconds"] == 0.0
+    assert payload["round_budget"]["remaining_seconds"] == 0.001
 
 
 def test_legacy_scout_family_estimate_alias_still_accepts_estimated_seconds():
@@ -246,5 +332,7 @@ def test_experiment_loop_documents_minimal_scout_runtime_pattern():
     assert "max_candidate_seconds=args.max_candidate_seconds" in text
     assert "do not inspect the helper source" in text
     assert "do not run signature probes" in text
-    assert "at most one" in text
-    assert "non-control continuation slot" in text
+    assert "cumulative scout runtime budget" in text
+    assert "recorded-round interval" in text
+    assert "strategic continue, stop, or final-report" in text
+    assert "after `run-branch` records a result" in text
