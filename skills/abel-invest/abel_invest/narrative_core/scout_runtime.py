@@ -3,21 +3,93 @@
 from __future__ import annotations
 
 import json
+import signal
 import time
 from collections.abc import Callable, Iterable, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import current_thread, main_thread
 from typing import Any
 
 
-DEFAULT_MAX_SECONDS = 300.0
+DEFAULT_MAX_SECONDS = 120.0
 DEFAULT_PROGRESS_INTERVAL_SECONDS = 30.0
 DEFAULT_RANK_KEYS = ("selection_score", "sharpe", "total_return")
+DEFAULT_TIMEOUT_BEHAVIOR = "stop"
+
+
+class ScoutCandidateTimeout(TimeoutError):
+    """Raised when runtime enforcement stops one slow scout candidate."""
+
+
+@dataclass(frozen=True)
+class ScoutFamilyBudget:
+    """Free-form budget declaration for one planned scout candidate group.
+
+    The agent-authored seconds are not trusted timing facts. They are a compact
+    declaration of intended search width so the runtime can gate obvious budget
+    violations before execution and record how the declaration compared with
+    actual streamed results afterward.
+
+    The label and traits are deliberately not enums. They describe computation
+    shape for budget accounting without constraining strategy direction.
+    """
+
+    label: str
+    candidate_count: int
+    budget_seconds: float
+    max_candidate_seconds: float | None = None
+    cost_traits: Sequence[str] = field(default_factory=tuple)
+    reduction_axes: Sequence[str] = field(default_factory=tuple)
+    stage: str = ""
+
+    def __init__(
+        self,
+        *,
+        label: str,
+        candidate_count: int,
+        budget_seconds: float | None = None,
+        estimated_seconds: float | None = None,
+        max_candidate_seconds: float | None = None,
+        cost_traits: Sequence[str] = (),
+        reduction_axes: Sequence[str] = (),
+        stage: str = "",
+    ) -> None:
+        if budget_seconds is None:
+            budget_seconds = 0.0 if estimated_seconds is None else estimated_seconds
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "candidate_count", candidate_count)
+        object.__setattr__(self, "budget_seconds", budget_seconds)
+        object.__setattr__(self, "max_candidate_seconds", max_candidate_seconds)
+        object.__setattr__(self, "cost_traits", tuple(cost_traits))
+        object.__setattr__(self, "reduction_axes", tuple(reduction_axes))
+        object.__setattr__(self, "stage", stage)
+
+    def to_dict(self) -> dict[str, Any]:
+        budget_seconds = round(float(self.budget_seconds), 3)
+        return {
+            "label": str(self.label),
+            "candidate_count": int(self.candidate_count),
+            "budget_seconds": budget_seconds,
+            "estimated_seconds": budget_seconds,
+            "max_candidate_seconds": (
+                None
+                if self.max_candidate_seconds is None
+                else round(float(self.max_candidate_seconds), 3)
+            ),
+            "cost_traits": [str(item) for item in self.cost_traits],
+            "reduction_axes": [str(item) for item in self.reduction_axes],
+            "stage": str(self.stage),
+        }
+
+
+ScoutFamilyEstimate = ScoutFamilyBudget
 
 
 @dataclass(frozen=True)
 class ScoutEstimate:
-    """Dry-run estimate for a bounded scout run."""
+    """Dry-run budget declaration for a bounded scout run."""
 
     name: str
     target: str
@@ -25,18 +97,68 @@ class ScoutEstimate:
     row_count: int | None = None
     feed_symbols: Sequence[str] = field(default_factory=tuple)
     planned_families: Sequence[str] = field(default_factory=tuple)
+    family_breakdown: Sequence[ScoutFamilyBudget | dict[str, Any]] = field(default_factory=tuple)
+    budget_seconds: float | None = None
     estimated_seconds: float = 0.0
     max_seconds: float = DEFAULT_MAX_SECONDS
+    max_family_seconds: float | None = None
+    max_candidate_seconds: float | None = None
     reduction_hint: str = ""
 
     @property
+    def declared_budget_seconds(self) -> float:
+        if self.budget_seconds is not None:
+            return float(self.budget_seconds)
+        return float(self.estimated_seconds)
+
+    @property
     def within_budget(self) -> bool:
-        return self.estimated_seconds <= self.max_seconds
+        return (
+            self.declared_budget_seconds <= self.max_seconds
+            and not self.over_budget_families
+            and not self.slow_candidate_families
+        )
+
+    @property
+    def normalized_family_breakdown(self) -> list[dict[str, Any]]:
+        return [_normalize_family_budget(item) for item in self.family_breakdown]
+
+    @property
+    def slowest_family(self) -> dict[str, Any] | None:
+        families = self.normalized_family_breakdown
+        if not families:
+            return None
+        return max(families, key=lambda item: float(item.get("budget_seconds") or 0.0))
+
+    @property
+    def over_budget_families(self) -> list[dict[str, Any]]:
+        if self.max_family_seconds is None:
+            return []
+        budget = float(self.max_family_seconds)
+        return [
+            item
+            for item in self.normalized_family_breakdown
+            if float(item.get("budget_seconds") or 0.0) > budget
+        ]
+
+    @property
+    def slow_candidate_families(self) -> list[dict[str, Any]]:
+        if self.max_candidate_seconds is None:
+            return []
+        budget = float(self.max_candidate_seconds)
+        return [
+            item
+            for item in self.normalized_family_breakdown
+            if item.get("max_candidate_seconds") is not None
+            and float(item.get("max_candidate_seconds") or 0.0) > budget
+        ]
 
     def to_dict(self) -> dict[str, Any]:
         hint = self.reduction_hint
         if not hint and not self.within_budget:
             hint = default_reduction_hint()
+        family_breakdown = self.normalized_family_breakdown
+        slowest = self.slowest_family
         return {
             "name": self.name,
             "target": self.target,
@@ -45,8 +167,23 @@ class ScoutEstimate:
             "feed_count": len(self.feed_symbols),
             "feed_symbols": list(self.feed_symbols),
             "planned_families": list(self.planned_families),
-            "estimated_seconds": round(float(self.estimated_seconds), 3),
+            "family_breakdown": family_breakdown,
+            "slowest_family": slowest,
+            "over_budget_families": self.over_budget_families,
+            "slow_candidate_families": self.slow_candidate_families,
+            "budget_seconds": round(self.declared_budget_seconds, 3),
+            "estimated_seconds": round(self.declared_budget_seconds, 3),
             "max_seconds": round(float(self.max_seconds), 3),
+            "max_family_seconds": (
+                None
+                if self.max_family_seconds is None
+                else round(float(self.max_family_seconds), 3)
+            ),
+            "max_candidate_seconds": (
+                None
+                if self.max_candidate_seconds is None
+                else round(float(self.max_candidate_seconds), 3)
+            ),
             "within_budget": self.within_budget,
             "reduction_hint": hint,
         }
@@ -56,7 +193,7 @@ class ScoutRun:
     """Small execution contract for agent-authored first-look scouts.
 
     The helper intentionally does not prescribe alpha families or scoring logic.
-    It only standardizes dry-run estimates, streaming result persistence,
+    It only standardizes dry-run budget declarations, streaming result persistence,
     resumability, and compact stdout.
     """
 
@@ -66,6 +203,9 @@ class ScoutRun:
         name: str,
         output_dir: str | Path,
         max_seconds: float = DEFAULT_MAX_SECONDS,
+        max_candidate_seconds: float | None = None,
+        timeout_behavior: str = DEFAULT_TIMEOUT_BEHAVIOR,
+        continue_on_candidate_error: bool = True,
         progress_interval_seconds: float = DEFAULT_PROGRESS_INTERVAL_SECONDS,
         rank_keys: Sequence[str] = DEFAULT_RANK_KEYS,
         top_k: int = 5,
@@ -73,6 +213,11 @@ class ScoutRun:
         self.name = name
         self.output_dir = Path(output_dir)
         self.max_seconds = float(max_seconds)
+        self.max_candidate_seconds = (
+            None if max_candidate_seconds is None else float(max_candidate_seconds)
+        )
+        self.timeout_behavior = timeout_behavior
+        self.continue_on_candidate_error = bool(continue_on_candidate_error)
         self.progress_interval_seconds = float(progress_interval_seconds)
         self.rank_keys = tuple(rank_keys)
         self.top_k = int(top_k)
@@ -102,12 +247,20 @@ class ScoutRun:
             "scout_dry_run "
             f"name={estimate.name} target={estimate.target} "
             f"candidate_count={estimate.candidate_count} "
-            f"estimated_seconds={payload['estimated_seconds']} "
+            f"budget_seconds={payload['budget_seconds']} "
             f"max_seconds={payload['max_seconds']} "
             f"within_budget={str(payload['within_budget']).lower()}"
         )
         if payload["reduction_hint"]:
             print(f"reduction_hint={payload['reduction_hint']}")
+        for family in payload["family_breakdown"]:
+            print(
+                "scout_family "
+                f"label={family.get('label')} "
+                f"candidates={family.get('candidate_count')} "
+                f"budget_seconds={family.get('budget_seconds')} "
+                f"max_candidate_seconds={family.get('max_candidate_seconds')}"
+            )
         print(f"artifacts dry_run={self.dry_run_path}")
         return payload
 
@@ -118,14 +271,22 @@ class ScoutRun:
         *,
         resume: bool = False,
         max_seconds: float | None = None,
+        max_candidate_seconds: float | None = None,
     ) -> dict[str, Any]:
         budget = self.max_seconds if max_seconds is None else float(max_seconds)
+        candidate_budget = (
+            self.max_candidate_seconds
+            if max_candidate_seconds is None
+            else float(max_candidate_seconds)
+        )
+        enforcement_mode = _timeout_enforcement_mode(candidate_budget)
         completed_indices = self._completed_indices() if resume else set()
         start_time = time.monotonic()
         last_progress = start_time
         completed_this_run = 0
         skipped = 0
         status = "completed"
+        timeout_scope = ""
 
         for index, candidate in enumerate(candidates):
             if index in completed_indices:
@@ -134,8 +295,56 @@ class ScoutRun:
             elapsed = time.monotonic() - start_time
             if elapsed >= budget:
                 status = "timeout"
+                timeout_scope = "run"
                 break
-            result = scorer(candidate)
+            try:
+                with _candidate_timeout(candidate_budget):
+                    result = scorer(candidate)
+            except ScoutCandidateTimeout:
+                status = "timeout"
+                timeout_scope = "candidate"
+                result = {
+                    "name": _candidate_name(candidate, index),
+                    "family": _candidate_family(candidate),
+                    "status": "timeout",
+                    "error": "candidate_timeout",
+                    "timeout_seconds": candidate_budget,
+                }
+                row = {
+                    "candidate_index": index,
+                    "candidate": _json_safe(candidate),
+                    "result": _json_safe(result),
+                    "elapsed_seconds": round(time.monotonic() - start_time, 3),
+                    "completed_at": _now_epoch(),
+                }
+                self._append_jsonl(self.results_path, row)
+                completed_indices.add(index)
+                completed_this_run += 1
+                if self.timeout_behavior == "continue":
+                    continue
+                break
+            except Exception as exc:
+                if not self.continue_on_candidate_error:
+                    raise
+                result = {
+                    "name": _candidate_name(candidate, index),
+                    "family": _candidate_family(candidate),
+                    "status": "error",
+                    "error": "candidate_error",
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                }
+                row = {
+                    "candidate_index": index,
+                    "candidate": _json_safe(candidate),
+                    "result": _json_safe(result),
+                    "elapsed_seconds": round(time.monotonic() - start_time, 3),
+                    "completed_at": _now_epoch(),
+                }
+                self._append_jsonl(self.results_path, row)
+                completed_indices.add(index)
+                completed_this_run += 1
+                continue
             if not isinstance(result, dict):
                 raise TypeError("Scout scorer must return a dict.")
             row = {
@@ -159,6 +368,9 @@ class ScoutRun:
                     skipped_count=skipped,
                     elapsed_seconds=now - start_time,
                     max_seconds=budget,
+                    max_candidate_seconds=candidate_budget,
+                    timeout_scope="",
+                    timeout_enforcement=enforcement_mode,
                 )
                 self.write_summary(status="running")
                 print(
@@ -180,6 +392,9 @@ class ScoutRun:
             skipped_count=skipped,
             elapsed_seconds=elapsed,
             max_seconds=budget,
+            max_candidate_seconds=candidate_budget,
+            timeout_scope=timeout_scope,
+            timeout_enforcement=enforcement_mode,
         )
         summary = self.write_summary(status=status)
         print(
@@ -211,9 +426,19 @@ class ScoutRun:
             reverse=True,
         )
         family_best: dict[str, dict[str, Any]] = {}
+        family_stats: dict[str, dict[str, Any]] = {}
         for row in ranked:
             result = row.get("result") or {}
             family = str(result.get("family") or "unknown")
+            stats = family_stats.setdefault(
+                family,
+                {"completed_count": 0, "timeout_count": 0, "error_count": 0},
+            )
+            stats["completed_count"] += 1
+            if result.get("status") == "timeout":
+                stats["timeout_count"] += 1
+            if result.get("error"):
+                stats["error_count"] += 1
             if family not in family_best:
                 family_best[family] = row
         payload = {
@@ -222,6 +447,7 @@ class ScoutRun:
             "completed_count": len(rows),
             "top": ranked[: self.top_k],
             "family_best": family_best,
+            "family_stats": family_stats,
             "artifacts": self._artifact_paths(),
         }
         self._write_json(self.summary_path, payload)
@@ -263,6 +489,9 @@ class ScoutRun:
         skipped_count: int,
         elapsed_seconds: float,
         max_seconds: float,
+        max_candidate_seconds: float | None,
+        timeout_scope: str,
+        timeout_enforcement: str,
     ) -> dict[str, Any]:
         payload = {
             "name": self.name,
@@ -272,6 +501,13 @@ class ScoutRun:
             "skipped_count": int(skipped_count),
             "elapsed_seconds": round(float(elapsed_seconds), 3),
             "max_seconds": round(float(max_seconds), 3),
+            "max_candidate_seconds": (
+                None
+                if max_candidate_seconds is None
+                else round(float(max_candidate_seconds), 3)
+            ),
+            "timeout_scope": timeout_scope,
+            "timeout_enforcement": timeout_enforcement,
             "artifacts": self._artifact_paths(),
             "updated_at": _now_epoch(),
         }
@@ -298,7 +534,88 @@ def estimate_seconds(
 
 
 def default_reduction_hint() -> str:
-    return "reduce candidate families, then lag/window grid, graph feed count, model families, and ensemble variants"
+    return "drop over-budget slow families first, then reduce lag/window grid, feed count, model settings, and ensemble variants"
+
+
+def _normalize_family_budget(item: ScoutFamilyBudget | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(item, ScoutFamilyBudget):
+        return item.to_dict()
+    if not isinstance(item, dict):
+        raise TypeError("family_breakdown items must be ScoutFamilyBudget or dict.")
+    label = str(item.get("label") or item.get("name") or "unknown")
+    max_candidate = item.get("max_candidate_seconds")
+    budget_seconds = round(
+        float(item.get("budget_seconds", item.get("estimated_seconds")) or 0.0),
+        3,
+    )
+    return {
+        "label": label,
+        "candidate_count": int(item.get("candidate_count") or 0),
+        "budget_seconds": budget_seconds,
+        "estimated_seconds": budget_seconds,
+        "max_candidate_seconds": (
+            None if max_candidate is None else round(float(max_candidate), 3)
+        ),
+        "cost_traits": [str(value) for value in item.get("cost_traits") or ()],
+        "reduction_axes": [str(value) for value in item.get("reduction_axes") or ()],
+        "stage": str(item.get("stage") or ""),
+    }
+
+
+def _candidate_family(candidate: Any) -> str:
+    if isinstance(candidate, dict):
+        return str(candidate.get("family") or candidate.get("label") or "unknown")
+    return str(getattr(candidate, "family", "") or getattr(candidate, "label", "") or "unknown")
+
+
+def _candidate_name(candidate: Any, index: int) -> str:
+    if isinstance(candidate, dict):
+        return str(candidate.get("name") or candidate.get("label") or index)
+    return str(getattr(candidate, "name", "") or getattr(candidate, "label", "") or index)
+
+
+def _timeout_enforcement_mode(max_candidate_seconds: float | None) -> str:
+    if max_candidate_seconds is None:
+        return "none"
+    if _signal_timeout_available():
+        return "signal"
+    return "cooperative"
+
+
+def _signal_timeout_available() -> bool:
+    return (
+        current_thread() is main_thread()
+        and hasattr(signal, "SIGALRM")
+        and hasattr(signal, "setitimer")
+    )
+
+
+@contextmanager
+def _candidate_timeout(seconds: float | None):
+    if seconds is None or seconds <= 0 or not _signal_timeout_available():
+        yield
+        return
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    try:
+        previous_timer = signal.setitimer(signal.ITIMER_REAL, 0)
+    except (AttributeError, ValueError):
+        yield
+        return
+
+    def _raise_timeout(signum, frame):  # noqa: ARG001
+        raise ScoutCandidateTimeout(f"candidate exceeded {seconds} seconds")
+
+    signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, float(seconds))
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        delay, interval = previous_timer
+        if delay > 0:
+            signal.setitimer(signal.ITIMER_REAL, delay, interval)
 
 
 def _rank_value(result: dict[str, Any], rank_keys: Sequence[str]) -> float:

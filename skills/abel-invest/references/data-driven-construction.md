@@ -48,14 +48,30 @@ outputs are not validation evidence; they help choose what is worth formal,
 audited validation.
 
 Use scratch to compare construction axes, not to create paperwork. A compact
-first-look scout should usually take roughly 5 minutes while scoring plausible
-target, graph, and construction shapes closely enough to choose what deserves
-formal validation. If the scout script is still making progress, let it finish
-naturally before deciding what to validate. Prefer a ranked table over a
-prose-only memo: target baselines, graph single-feature shapes, feature
-factories, model-family variants, ensembles, filters, or sizing variants should
-be compared with objective metrics such as Sharpe, total return, drawdown, and
+first-look scout should usually fit about 120 seconds while scoring plausible
+target, graph, and lightweight construction shapes closely enough to choose what
+deserves formal validation. Prefer a ranked table over a prose-only memo: target
+baselines, graph single-feature shapes, feature factories, lightweight
+linear/ridge comparisons, ensembles, filters, or sizing variants should be
+compared with objective metrics such as Sharpe, total return, drawdown, and
 turnover when feasible.
+
+Heavy tree, boosted, or large walk-forward model families remain valid, but
+they are second-stage probes after a lightweight scout or recorded branch
+indicates that model capacity is the useful next axis. They should be
+family-budgeted and protected by per-candidate timeout rather than bundled into
+the default first-look scout.
+
+Scout family budget seconds are search-space declarations, not trusted runtime
+predictions. Use them to expose oversized plans before execution; rely on
+runtime timeout, streamed artifacts, and actual family stats for enforcement
+and follow-up decisions.
+
+Do not let scratch scouting become the main research loop. After the first-look
+scout and one narrow refinement, use the recorded ledger to choose fixed
+branches, controls, fixed model/ensemble constructions, or a stop/pivot report.
+Expanded graph facts and model-capacity ideas remain valid, but they should
+normally become recorded candidate work instead of another private grid.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable

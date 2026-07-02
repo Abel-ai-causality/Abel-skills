@@ -70,11 +70,14 @@ def test_run_doctor_ready_reports_alpha_managed_strategy_search(
     assert "alpha-managed strategy search" in str(result["summary"])
     assert "init-session" in str(result["next_step"])
     assert "prepare-branch" in str(result["next_step"])
+    assert "120 seconds" in str(result["next_step"])
+    assert "5-minute" not in str(result["next_step"])
 
     report = doctor.render_doctor_report(result)
     assert "Workspace mode: alpha-managed strategy search" in report
     assert "Effective profile: sit (shared_auth_file)" in report
     assert "Effective CAP base URL: https://cap-sit.abel.ai/api" in report
+    assert "5-minute" not in report
     assert "Edge install target:" not in report
 
 

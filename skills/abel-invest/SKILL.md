@@ -128,17 +128,26 @@ Always:
   as audit/debug surfaces, not the standard loop.
 - On a fresh or unfamiliar ticker, use the compact first-look data scout in
   `experiment-loop.md` before the first serious recorded alpha candidate unless
-  the user gave a narrow path or continuation. Expect the scout to take roughly
-  5 minutes: score plausible target, graph, and construction shapes, then rank
-  what looks worth formal validation before broad recorded work. If the scout
-  script is still making progress, let it finish naturally before deciding what
-  to validate. Scout scripts should be bounded and resumable: run a dry-run
-  estimate before full execution, stream completed candidates to disk, resume
-  after interruption instead of restarting, and keep stdout to compact progress
-  plus top results. Use the minimal `ScoutRun` pattern in `experiment-loop.md`;
-  do not inspect `scout_runtime.py` unless the helper import fails or you are
-  debugging the helper. Put temporary scout scripts or summaries under
-  `research/<ticker>/<session_id>/scratch/` when files are useful.
+  the user gave a narrow path or continuation. The first-look scout should
+  normally fit about 120 seconds and choose a direction, not become open-ended
+  private search. Run a dry-run budget declaration with free-form family cost
+  breakdown; treat declared budget seconds as search-space disclosure, not
+  trusted timing. Reduce over-budget or slow-candidate families before execution,
+  stream completed candidates to disk, and let `ScoutRun` enforce runtime
+  boundaries where possible. Heavy tree/GBDT/HGBT/large walk-forward families
+  are valid second-stage probes when lightweight scout or recorded-branch
+  evidence justifies model capacity; do not make them first-look defaults. Use
+  the minimal `ScoutRun` pattern in `experiment-loop.md`; do not inspect
+  `scout_runtime.py` or probe helper signatures unless the helper import fails
+  or you are debugging the helper. Put temporary scout scripts or summaries under
+  `research/<ticker>/<session_id>/scratch/` when files are useful. The session
+  scout budget is the first-look scout plus at most one narrow refinement tied
+  to one recorded blocker or top family. After that, stop scouting and move to
+  recorded work: submit a fixed branch, control, fixed model/ensemble
+  construction, or stop/report why the ledger supports stopping. A near-pass,
+  graph expansion, or model-capacity idea can justify a recorded branch, but it
+  should not start another scratch-grid scout unless the user explicitly asks
+  for extra private search.
 
 Never:
 

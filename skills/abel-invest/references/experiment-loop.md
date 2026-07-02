@@ -60,19 +60,28 @@ Do not run a flat or no-signal materialization branch just to warm cache or make
 the scout official. A prepared branch may be prepare-only; `run-branch` is for
 meaningful candidates, controls, diagnostics, or ablations.
 
-Use a compact scored scout to choose, not just describe. Expect the first-look
-scout to take roughly 5 minutes: score plausible target, graph, and construction
-shapes, then rank what looks worth formal validation before broad recorded work. Use
-objective metrics such as
-Sharpe, total return, drawdown, and turnover:
+Use a compact scored scout to choose a direction, not to run open-ended private
+search. A first-look scout should normally fit about 120 seconds: score
+plausible target, graph, and lightweight construction shapes, then rank what
+looks worth formal validation before broad recorded work. Use objective metrics
+such as Sharpe, total return, drawdown, and turnover.
 
-If the scout script is still making progress, let it finish naturally before
-deciding what to validate.
+If the scout reaches its runtime boundary, use its streamed artifacts and state
+instead of manually finding and killing processes or restarting from scratch.
+Treat a timeout as a stopping boundary for that scout phase: promote a top
+completed result, record a control, or pivot; do not resume, widen, or open a
+new scratch grid in the same phase unless the user explicitly asks for that
+extra private search.
 
 Scout scripts should be bounded, resumable, and quiet on stdout. Before full
-execution, run a dry-run estimate that reports candidate count, row count, feed
-count, estimated seconds, max seconds, planned families, and any reduction hint.
-If the estimate exceeds the budget, reduce the search space before running.
+execution, run a dry-run budget declaration that reports candidate count, row
+count, feed count, declared budget seconds, max seconds, planned families, free-form
+family budget breakdown, slowest family, per-candidate timeout risk, and any
+reduction hint. The declared family budget seconds are not trusted predictions;
+they are search-space declarations that help expose obviously oversized plans before the
+runtime enforces the real 120-second boundary. If the declaration exceeds the
+budget or a single family/candidate dominates the budget, reduce the search
+space before running.
 During execution, stream completed candidates to `scratch/<scout>.results.jsonl`,
 update `scratch/<scout>.state.json` and `scratch/<scout>.summary.json`, and use
 `--resume` after interruption instead of discarding completed work. Print only
@@ -80,41 +89,88 @@ dry-run summary, periodic progress, final top results, and artifact paths; keep
 complete ranked tables on disk. The helper
 `abel_invest.narrative_core.scout_runtime` is available for this contract.
 Use this minimal pattern; do not inspect the helper source unless the import
-fails or you are debugging the helper itself:
+fails or you are debugging the helper itself, and do not run signature probes
+for the helper API during ordinary scout authoring:
 
 ```python
-from abel_invest.narrative_core.scout_runtime import ScoutEstimate, ScoutRun
+from abel_invest.narrative_core.scout_runtime import (
+    ScoutEstimate,
+    ScoutFamilyBudget,
+    ScoutRun,
+)
 
-scout = ScoutRun(name="first_look_scout", output_dir=scratch_dir, top_k=10)
+scout = ScoutRun(
+    name="first_look_scout",
+    output_dir=scratch_dir,
+    top_k=10,
+    max_candidate_seconds=args.max_candidate_seconds,
+)
 estimate = ScoutEstimate(
     name=scout.name,
     target=TARGET,
     candidate_count=len(candidates),
     row_count=len(panel),
     feed_symbols=feed_symbols,
-    planned_families=["target", "graph", "model"],
-    estimated_seconds=estimated_seconds,
+    planned_families=["target", "graph", "lightweight_linear"],
+    family_breakdown=[
+        ScoutFamilyBudget(
+            label="graph_lag_and_vote",
+            candidate_count=len(graph_candidates),
+            budget_seconds=graph_seconds,
+            max_candidate_seconds=0.5,
+            cost_traits=["vectorized", "graph"],
+            reduction_axes=["feeds", "lags", "windows"],
+        ),
+    ],
+    budget_seconds=scout_budget_seconds,
     max_seconds=args.max_seconds,
-    reduction_hint="reduce feeds, lag grid, or model windows",
+    max_family_seconds=args.max_family_seconds,
+    max_candidate_seconds=args.max_candidate_seconds,
+    reduction_hint="drop over-budget slow families before running",
 )
 if args.dry_run or not estimate.within_budget:
     scout.write_dry_run(estimate)
     raise SystemExit(0 if estimate.within_budget else 2)
-scout.run(candidates, score_candidate, resume=args.resume, max_seconds=args.max_seconds)
+scout.run(
+    candidates,
+    score_candidate,
+    resume=args.resume,
+    max_seconds=args.max_seconds,
+    max_candidate_seconds=args.max_candidate_seconds,
+)
 ```
 
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime
 - graph candidate shapes: lead/lag/sign, node subset, transformation, spread,
   horizon, and single-feature threshold/vote variants
-- construction choices: feature factories, model-family comparisons, ensembles,
-  filters, and sizing rules that can be locally scored before formal validation
+- construction choices: feature factories, lightweight linear/ridge comparisons,
+  ensembles, filters, and sizing rules that can be locally scored before formal
+  validation
 
 Diagnostic tables such as IC, correlation, and feature importance are useful raw
 material, not the completed first-look scout when graph/model construction
 remains available. Do not abandon the graph-derived universe unless graph
 subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
+
+Scout phase budget is part of the research budget. A normal session gets the
+first-look scout plus at most one narrow refinement scout tied to one recorded
+blocker or top family. After that, stop scouting and move to recorded work:
+submit a fixed branch, a control, a fixed model/ensemble construction, or stop
+and report why the ledger supports stopping. A near-pass, graph expansion, or
+model-capacity idea is not by itself permission to open another scratch-grid
+scout; choose a small auditable candidate directly or make the construction a
+recorded branch. If a later branch materially changes the frontier, write the
+new facts to `exploration_path.md` and pick the next recorded branch from those
+facts rather than starting another private search loop.
+
+Heavy model families such as random forests, boosted trees, HGBT, ExtraTrees, or
+large nested walk-forward scans remain valid exploration tools, but they are
+second-stage construction families. Use them when a lightweight scout or
+recorded branch indicates that extra model capacity is the next useful axis.
+They should be family-budgeted, protected by per-candidate timeout, and promoted
+to recorded branch work or dropped after one bounded probe.
 
 Store temporary scripts or summaries in `research/<ticker>/<exp_id>/scratch/`
 when useful. Prefer files for scouts so dry-run, streaming artifacts, and resume
@@ -123,6 +179,13 @@ necessary, it should still write equivalent `results.jsonl`, `state.json`, and
 `summary.json` artifacts. Promote the strongest shapes into recorded branch
 work, and account for any selection width that materially chose the submitted
 candidate.
+
+Do not let scout chain into unbounded private search. After the first-look scout,
+normally record a candidate, a control, or a stop/pivot reason. One narrow
+refinement scout may run only when it targets a specific recorded blocker or
+top first-look family. After that, choose fixed recorded branches, controls,
+fixed model/ensemble construction, or stop/report; do not start another scratch
+grid just because a later branch is near-pass or the graph frontier expanded.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.
