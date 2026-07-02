@@ -135,7 +135,9 @@ Always:
   to validate. Scout scripts should be bounded and resumable: run a dry-run
   estimate before full execution, stream completed candidates to disk, resume
   after interruption instead of restarting, and keep stdout to compact progress
-  plus top results. Put temporary scout scripts or summaries under
+  plus top results. Use the minimal `ScoutRun` pattern in `experiment-loop.md`;
+  do not inspect `scout_runtime.py` unless the helper import fails or you are
+  debugging the helper. Put temporary scout scripts or summaries under
   `research/<ticker>/<session_id>/scratch/` when files are useful.
 
 Never:

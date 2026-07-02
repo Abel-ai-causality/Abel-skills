@@ -120,6 +120,7 @@ def render_data_led_start_lines(session: Path) -> list[str]:
         "expect the first-look scout to take roughly 5 minutes: score plausible target, graph, and construction shapes, then rank what looks worth formal validation before broad recorded work",
         "if the scout script is still making progress, let it finish naturally before deciding what to validate",
         "make scout scripts bounded and resumable: run --dry-run first, reduce scope if over budget, stream results to scratch/*.results.jsonl, keep scratch/*.state.json and scratch/*.summary.json current, and resume interrupted work instead of restarting",
+        "use the minimal ScoutRun pattern in experiment-loop.md; do not inspect scout_runtime.py unless the helper import fails or you are debugging the helper",
         "keep scout stdout compact: dry-run summary, periodic progress, final top results, and artifact paths only; full rankings stay on disk",
         "let data decide how to express graph-derived information: features, models, subsets, lags, regimes, sizing, filters, or ensembles",
         "use target-only as baseline, seed, ablation, or competitor; simple hand-written rules are diagnostics or refinements, not the default main lane",

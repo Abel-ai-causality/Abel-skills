@@ -649,6 +649,7 @@ def build_context_guide_markdown(
         "- expect the first-look scout to take roughly 5 minutes: score plausible target, graph, and construction shapes, then rank what looks worth formal validation before broad recorded work",
         "- if the scout script is still making progress, let it finish naturally before deciding what to validate",
         "- make scout scripts bounded and resumable: run `--dry-run` first, reduce scope if over budget, stream completed candidates to `scratch/*.results.jsonl`, keep `scratch/*.state.json` and `scratch/*.summary.json` current, and use `--resume` after interruption instead of restarting",
+        "- use the minimal `ScoutRun` pattern in `experiment-loop.md`; do not inspect `scout_runtime.py` unless the helper import fails or you are debugging the helper",
         "- keep scout stdout compact: dry-run summary, periodic progress, final top results, and artifact paths only; full ranked tables stay on disk",
         "- a prepared scout branch can be prepare-only; do not run a flat/no-signal materialization round",
         "- IC/correlation/feature-importance tables are diagnostics; a first-look scout should rank scored candidate-shaped variants when graph/model construction is available",

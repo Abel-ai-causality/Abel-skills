@@ -100,3 +100,14 @@ def test_scout_summary_tracks_family_best(tmp_path):
     assert summary["family_best"]["target"]["result"]["name"] == "a"
     assert summary["family_best"]["graph"]["result"]["name"] == "c"
     assert [row["result"]["name"] for row in summary["top"]] == ["c", "a"]
+
+
+def test_experiment_loop_documents_minimal_scout_runtime_pattern():
+    repo_root = Path(__file__).resolve().parents[2]
+    reference = repo_root / "skills" / "abel-invest" / "references" / "experiment-loop.md"
+    text = reference.read_text(encoding="utf-8")
+
+    assert "from abel_invest.narrative_core.scout_runtime import ScoutEstimate, ScoutRun" in text
+    assert "scout.write_dry_run(estimate)" in text
+    assert "scout.run(candidates, score_candidate, resume=args.resume" in text
+    assert "do not inspect the helper source" in text

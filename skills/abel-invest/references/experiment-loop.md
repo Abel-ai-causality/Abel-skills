@@ -79,6 +79,29 @@ update `scratch/<scout>.state.json` and `scratch/<scout>.summary.json`, and use
 dry-run summary, periodic progress, final top results, and artifact paths; keep
 complete ranked tables on disk. The helper
 `abel_invest.narrative_core.scout_runtime` is available for this contract.
+Use this minimal pattern; do not inspect the helper source unless the import
+fails or you are debugging the helper itself:
+
+```python
+from abel_invest.narrative_core.scout_runtime import ScoutEstimate, ScoutRun
+
+scout = ScoutRun(name="first_look_scout", output_dir=scratch_dir, top_k=10)
+estimate = ScoutEstimate(
+    name=scout.name,
+    target=TARGET,
+    candidate_count=len(candidates),
+    row_count=len(panel),
+    feed_symbols=feed_symbols,
+    planned_families=["target", "graph", "model"],
+    estimated_seconds=estimated_seconds,
+    max_seconds=args.max_seconds,
+    reduction_hint="reduce feeds, lag grid, or model windows",
+)
+if args.dry_run or not estimate.within_budget:
+    scout.write_dry_run(estimate)
+    raise SystemExit(0 if estimate.within_budget else 2)
+scout.run(candidates, score_candidate, resume=args.resume, max_seconds=args.max_seconds)
+```
 
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime

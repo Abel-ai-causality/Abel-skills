@@ -316,6 +316,8 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "expect the first-look scout to take roughly 5 minutes" in rendered
     assert "score plausible target, graph, and construction shapes" in rendered
     assert "let it finish naturally before deciding what to validate" in rendered
+    assert "minimal ScoutRun pattern" in rendered
+    assert "do not inspect scout_runtime.py" in rendered
     assert "run broad candidates only after data/cache are prepared" in rendered
     assert "simple hand-written rules are diagnostics or refinements" in rendered
     assert "validation gates estimate reliability" in rendered
