@@ -132,7 +132,10 @@ Always:
   5 minutes: score plausible target, graph, and construction shapes, then rank
   what looks worth formal validation before broad recorded work. If the scout
   script is still making progress, let it finish naturally before deciding what
-  to validate. Put temporary scout scripts or summaries under
+  to validate. Scout scripts should be bounded and resumable: run a dry-run
+  estimate before full execution, stream completed candidates to disk, resume
+  after interruption instead of restarting, and keep stdout to compact progress
+  plus top results. Put temporary scout scripts or summaries under
   `research/<ticker>/<session_id>/scratch/` when files are useful.
 
 Never:

@@ -69,6 +69,17 @@ Sharpe, total return, drawdown, and turnover:
 If the scout script is still making progress, let it finish naturally before
 deciding what to validate.
 
+Scout scripts should be bounded, resumable, and quiet on stdout. Before full
+execution, run a dry-run estimate that reports candidate count, row count, feed
+count, estimated seconds, max seconds, planned families, and any reduction hint.
+If the estimate exceeds the budget, reduce the search space before running.
+During execution, stream completed candidates to `scratch/<scout>.results.jsonl`,
+update `scratch/<scout>.state.json` and `scratch/<scout>.summary.json`, and use
+`--resume` after interruption instead of discarding completed work. Print only
+dry-run summary, periodic progress, final top results, and artifact paths; keep
+complete ranked tables on disk. The helper
+`abel_invest.narrative_core.scout_runtime` is available for this contract.
+
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime
 - graph candidate shapes: lead/lag/sign, node subset, transformation, spread,
@@ -83,10 +94,12 @@ subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
 
 Store temporary scripts or summaries in `research/<ticker>/<exp_id>/scratch/`
-when useful. If the runtime discourages files, use an equivalent one-off shell
-heredoc, notebook cell, or query cell. Promote the strongest shapes into
-recorded branch work, and account for any selection width that materially chose
-the submitted candidate.
+when useful. Prefer files for scouts so dry-run, streaming artifacts, and resume
+state survive interruptions. If a heredoc, notebook cell, or query cell is truly
+necessary, it should still write equivalent `results.jsonl`, `state.json`, and
+`summary.json` artifacts. Promote the strongest shapes into recorded branch
+work, and account for any selection width that materially chose the submitted
+candidate.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.
