@@ -133,6 +133,8 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     assert "not validation evidence" in context_guide
     assert "minimal `ScoutRun` pattern" in context_guide
     assert "do not inspect `scout_runtime.py`" in context_guide
+    assert "at most one non-control continuation branch before best-strategy/report" in context_guide
+    assert "chain of fixed graph/model/mechanism probes" in context_guide
 
 
 def test_default_branch_spec_starts_with_graph_enriched_candidate_context(tmp_path) -> None:

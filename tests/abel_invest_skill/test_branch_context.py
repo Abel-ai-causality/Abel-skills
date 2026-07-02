@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ._branch_runtime_helpers import *  # noqa: F401,F403
+from abel_invest.narrative_core.command_handlers.branch import phase_boundary_snapshot
 
 def test_path_coverage_and_input_realization_for_empty_workspace_9_shape(tmp_path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-empty-workspace-9-shape", tmp_path / "research")
@@ -320,7 +321,8 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "slow-candidate families" in rendered
     assert "evidence-triggered second-stage probes" in rendered
     assert "session scout budget is first-look plus at most one narrow refinement" in rendered
-    assert "should not start another scratch-grid scout" in rendered
+    assert "at most one non-control continuation branch before best-strategy/report" in rendered
+    assert "should not start another scratch grid or chain of fixed graph/model/mechanism probes" in rendered
     assert "do not inspect scout_runtime.py or probe helper signatures" in rendered
     assert "minimal ScoutRun pattern" in rendered
     assert "do not inspect scout_runtime.py" in rendered
@@ -329,6 +331,66 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "validation gates estimate reliability" in rendered
     assert "exploration_path.md" in rendered
     assert "research_journal.md" not in rendered
+
+
+def test_phase_boundary_snapshot_stops_after_one_continuation_slot(tmp_path) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-phase-boundary", tmp_path / "research")
+    ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
+    ni.write_readiness(session, _sample_readiness())
+
+    first = ni.init_branch_dir(session, "first_scout_pick")
+    first_spec = _complete_candidate_spec(first, exploration_role="candidate")
+    _record_synthetic_round(
+        session,
+        first,
+        spec=first_spec,
+        result=_edge_result(verdict="FAIL"),
+        decision="discard",
+    )
+    assert phase_boundary_snapshot(session)["state"] == "one_result"
+
+    refinement = ni.init_branch_dir(session, "risk_refined_guard")
+    refinement_spec = _complete_candidate_spec(refinement, exploration_role="refinement")
+    _record_synthetic_round(
+        session,
+        refinement,
+        spec=refinement_spec,
+        result=_edge_result(verdict="FAIL"),
+        decision="discard",
+    )
+    snapshot = phase_boundary_snapshot(session)
+    assert snapshot["state"] == "last_continuation_slot"
+    assert snapshot["allowed_next"] == "one_fixed_continuation|control|final_report"
+
+    control = ni.init_branch_dir(session, "target_control")
+    control_spec = _complete_candidate_spec(control, exploration_role="control")
+    _record_synthetic_round(
+        session,
+        control,
+        spec=control_spec,
+        result=_edge_result(verdict="FAIL"),
+        decision="discard",
+    )
+    assert phase_boundary_snapshot(session)["state"] == "last_continuation_slot"
+
+    continuation = ni.init_branch_dir(session, "fixed_graph_model")
+    continuation_spec = _complete_candidate_spec(
+        continuation,
+        model_family="linear_model",
+        complexity_class="learned_model",
+        exploration_role="candidate",
+    )
+    _record_synthetic_round(
+        session,
+        continuation,
+        spec=continuation_spec,
+        result=_edge_result(verdict="FAIL"),
+        decision="discard",
+    )
+    snapshot = phase_boundary_snapshot(session)
+    assert snapshot["state"] == "phase_stop"
+    assert snapshot["allowed_next"] == "final_report|stop_or_user_confirm_new_phase"
+    assert snapshot["controls"] == 1
 
 
 def test_tsla_replay_fixture_keeps_broad_failed_search_as_frontier_facts(tmp_path) -> None:

@@ -156,14 +156,15 @@ been scored or intentionally ruled out.
 
 Scout phase budget is part of the research budget. A normal session gets the
 first-look scout plus at most one narrow refinement scout tied to one recorded
-blocker or top family. After that, stop scouting and move to recorded work:
-submit a fixed branch, a control, a fixed model/ensemble construction, or stop
-and report why the ledger supports stopping. A near-pass, graph expansion, or
-model-capacity idea is not by itself permission to open another scratch-grid
-scout; choose a small auditable candidate directly or make the construction a
-recorded branch. If a later branch materially changes the frontier, write the
-new facts to `exploration_path.md` and pick the next recorded branch from those
-facts rather than starting another private search loop.
+blocker or top family. After that, the same scout phase has at most one
+non-control continuation slot: submit one fixed branch, one fixed graph/model/
+ensemble construction, or stop/report. Controls are fine for comparison, but
+they do not reopen the phase. Once the continuation slot is used, run
+`best-strategy --session ... --json` and report the current ledger; do not open
+more graph expansion, model-family, or mechanism branches unless the user
+explicitly asks for a new exploration phase. A near-pass, graph expansion, or
+model-capacity idea can justify that one continuation slot, but not a chain of
+additional fixed probes or another scratch-grid scout.
 
 Heavy model families such as random forests, boosted trees, HGBT, ExtraTrees, or
 large nested walk-forward scans remain valid exploration tools, but they are
@@ -183,9 +184,10 @@ candidate.
 Do not let scout chain into unbounded private search. After the first-look scout,
 normally record a candidate, a control, or a stop/pivot reason. One narrow
 refinement scout may run only when it targets a specific recorded blocker or
-top first-look family. After that, choose fixed recorded branches, controls,
-fixed model/ensemble construction, or stop/report; do not start another scratch
-grid just because a later branch is near-pass or the graph frontier expanded.
+top first-look family. After that, use at most one non-control continuation
+branch in the same phase, then final-report or stop/pivot. Do not start another
+scratch grid, graph expansion chain, model-family probe, or mechanism branch
+just because a later branch is near-pass or the graph frontier expanded.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.

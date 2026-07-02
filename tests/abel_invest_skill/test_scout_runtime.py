@@ -246,3 +246,5 @@ def test_experiment_loop_documents_minimal_scout_runtime_pattern():
     assert "max_candidate_seconds=args.max_candidate_seconds" in text
     assert "do not inspect the helper source" in text
     assert "do not run signature probes" in text
+    assert "at most one" in text
+    assert "non-control continuation slot" in text

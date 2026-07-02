@@ -70,8 +70,10 @@ and follow-up decisions.
 Do not let scratch scouting become the main research loop. After the first-look
 scout and one narrow refinement, use the recorded ledger to choose fixed
 branches, controls, fixed model/ensemble constructions, or a stop/pivot report.
-Expanded graph facts and model-capacity ideas remain valid, but they should
-normally become recorded candidate work instead of another private grid.
+The same scout phase has at most one non-control continuation slot after that
+refinement. Expanded graph facts and model-capacity ideas remain valid, but use
+one as the explicit continuation or stop/report; do not chain graph expansion,
+model-family, or mechanism branches without a user-requested new phase.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable

@@ -250,6 +250,69 @@ def latest_best_snapshot(session) -> dict[str, str]:
     return best
 
 
+def branch_phase_bucket(branch_dir: Path) -> str:
+    spec = load_branch_spec(branch_dir)
+    role = str(spec.get("exploration_role") or "").strip().lower()
+    intent = str(spec.get("evidence_intent") or "").strip().lower()
+    if role in {"control", "ablation", "diagnostic"} or intent in {
+        "control",
+        "diagnostic",
+    }:
+        return "control"
+    if role == "refinement" or intent == "refinement":
+        return "local_refinement"
+    branch_id = branch_dir.name.lower()
+    if any(token in branch_id for token in ("refine", "refined", "guard", "scaled")):
+        return "local_refinement"
+    return "alpha_candidate"
+
+
+def phase_boundary_snapshot(session: Path) -> dict[str, object]:
+    recorded_rounds = 0
+    controls = 0
+    local_refinements = 0
+    alpha_candidates = 0
+    for branch in load_branches(session):
+        rows = [row for row in branch.get("rows", []) if isinstance(row, dict)]
+        if not rows:
+            continue
+        recorded_rounds += len(rows)
+        bucket = branch_phase_bucket(Path(branch["branch_dir"]))
+        if bucket == "control":
+            controls += len(rows)
+        elif bucket == "local_refinement":
+            local_refinements += len(rows)
+        else:
+            alpha_candidates += len(rows)
+    non_control = alpha_candidates + local_refinements
+    if non_control == 0:
+        state = "initial"
+        allowed = "first_recorded_candidate|control|stop_report"
+        guidance = "run_first_candidate_or_report_blocker"
+    elif non_control == 1:
+        state = "one_result"
+        allowed = "one_blocker_refinement_or_one_fixed_continuation|control|final_report"
+        guidance = "choose_one_specific_next_axis_then_report"
+    elif non_control == 2:
+        state = "last_continuation_slot"
+        allowed = "one_fixed_continuation|control|final_report"
+        guidance = "use_last_slot_only_for_preselected_fixed_branch_otherwise_report"
+    else:
+        state = "phase_stop"
+        allowed = "final_report|stop_or_user_confirm_new_phase"
+        guidance = "do_not_open_more_graph_model_expansion_branches_in_this_phase"
+    return {
+        "recorded_rounds": recorded_rounds,
+        "non_control_rounds": non_control,
+        "alpha_candidates": alpha_candidates,
+        "local_refinements": local_refinements,
+        "controls": controls,
+        "state": state,
+        "allowed_next": allowed,
+        "guidance": guidance,
+    }
+
+
 def print_prepare_checkpoint(
     *,
     branch,
@@ -403,6 +466,19 @@ def print_loop_checkpoint(
         f'final_report_source="{final_report_command}" '
         "final_report_allowed_when=objective_met_or_ledger_supports_stop "
         "forbidden_final=incomplete_report_with_next_experiment"
+    )
+    phase = phase_boundary_snapshot(session)
+    print(
+        "phase_boundary "
+        f"state={phase['state']} "
+        f"recorded_rounds={phase['recorded_rounds']} "
+        f"non_control_rounds={phase['non_control_rounds']} "
+        f"alpha_candidates={phase['alpha_candidates']} "
+        f"local_refinements={phase['local_refinements']} "
+        f"controls={phase['controls']} "
+        f"allowed_next={phase['allowed_next']} "
+        f"guidance={phase['guidance']} "
+        "new_phase_requires=user_request_or_explicit_stop_pivot"
     )
 
 

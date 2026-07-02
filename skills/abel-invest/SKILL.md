@@ -142,12 +142,15 @@ Always:
   or you are debugging the helper. Put temporary scout scripts or summaries under
   `research/<ticker>/<session_id>/scratch/` when files are useful. The session
   scout budget is the first-look scout plus at most one narrow refinement tied
-  to one recorded blocker or top family. After that, stop scouting and move to
-  recorded work: submit a fixed branch, control, fixed model/ensemble
-  construction, or stop/report why the ledger supports stopping. A near-pass,
-  graph expansion, or model-capacity idea can justify a recorded branch, but it
-  should not start another scratch-grid scout unless the user explicitly asks
-  for extra private search.
+  to one recorded blocker or top family. After that, the same scout phase has at
+  most one non-control continuation slot: a fixed branch, fixed graph/model/
+  ensemble construction, or stop/report. Controls may be recorded for comparison,
+  but they do not reopen the phase. Once that continuation is used, do not open
+  more graph expansion, model-family, or mechanism branches in the same phase;
+  run `best-strategy --session ... --json` and report the current ledger, unless
+  the user explicitly asks for a new exploration phase. A near-pass, graph
+  expansion, or model-capacity idea can justify the one continuation slot, but
+  not a chain of additional fixed probes or another scratch-grid scout.
 
 Never:
 
