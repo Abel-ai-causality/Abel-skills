@@ -60,29 +60,31 @@ Do not run a flat or no-signal materialization branch just to warm cache or make
 the scout official. A prepared branch may be prepare-only; `run-branch` is for
 meaningful candidates, controls, diagnostics, or ablations.
 
-Use a compact scored scout to choose a direction, not to run open-ended private
-search. A first-look scout should normally fit about 120 seconds: score
-plausible target, graph, and lightweight construction shapes, then rank what
-looks worth formal validation before broad recorded work. Use objective metrics
-such as Sharpe, total return, drawdown, and turnover.
+Use scout as optional scratch research to choose a direction, not as a required
+branch phase or open-ended private search. A fresh ticker often benefits from a
+compact first-look scout that fits about 120 seconds: score plausible target,
+graph, and lightweight construction shapes, then rank what looks worth formal
+validation before broad recorded work. Use objective metrics such as Sharpe,
+total return, drawdown, and turnover.
 
-If the scout reaches its runtime boundary, use its streamed artifacts and state
+If a scout reaches its runtime boundary, use its streamed artifacts and state
 instead of manually finding and killing processes or restarting from scratch.
-Treat a timeout as a stopping boundary for private scout in the current
-recorded-round interval: promote a top completed result or useful control into
-a concrete branch and continue through `prepare-branch`, `debug-branch`, and
-`run-branch`. Decide whether to continue, stop, or report after that recorded
-branch result.
+Treat a timeout as enough private search for that scout attempt: promote a top
+completed result or useful control into a concrete branch when the artifacts are
+directional, or choose a direct recorded branch/control from the existing
+evidence. Decide whether to continue, stop, or report after a recorded
+`run-branch` result.
 
 Scout scripts should be bounded, resumable, and quiet on stdout. Before full
-execution, run a dry-run budget declaration that reports candidate count, row
-count, feed count, declared budget seconds, max seconds, planned families, free-form
-family budget breakdown, slowest family, per-candidate timeout risk, and any
-reduction hint. The declared family budget seconds are not trusted predictions;
-they are search-space declarations that help expose obviously oversized plans before the
-runtime enforces the real 120-second boundary. If the declaration exceeds the
-budget or a single family/candidate dominates the budget, reduce the search
-space before running.
+execution, run a dry-run search-shape declaration that reports candidate count,
+row count, feed count, declared budget seconds, max seconds, planned families,
+free-form family budget breakdown, slowest family, per-candidate timeout risk,
+and any prioritization or reduction hint. The declared family budget seconds are
+not trusted predictions and should not hard-block execution; they disclose
+search shape before the runtime enforces the real 120-second boundary. If the
+declaration looks oversized, prefer ordering the most promising candidates first
+or narrowing clearly slow axes, but it is valid to execute and let runtime
+stream partial results when broader coverage is useful.
 During execution, stream completed candidates to `scratch/<scout>.results.jsonl`,
 update `scratch/<scout>.state.json` and `scratch/<scout>.summary.json`, and use
 `--resume` after interruption instead of discarding completed work. Print only
@@ -127,11 +129,11 @@ estimate = ScoutEstimate(
     max_seconds=args.max_seconds,
     max_family_seconds=args.max_family_seconds,
     max_candidate_seconds=args.max_candidate_seconds,
-    reduction_hint="drop over-budget slow families before running",
+    reduction_hint="prioritize likely useful families first; runtime will stop safely",
 )
-if args.dry_run or not estimate.within_budget:
+if args.dry_run:
     scout.write_dry_run(estimate)
-    raise SystemExit(0 if estimate.within_budget else 2)
+    raise SystemExit(0)
 scout.run(
     candidates,
     score_candidate,
@@ -155,18 +157,18 @@ remains available. Do not abandon the graph-derived universe unless graph
 subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
 
-Scout phase budget is part of the research budget. `ScoutRun` tracks one
-cumulative scout runtime budget per recorded-round interval. A `run-branch`
-result starts the next interval with a fresh scout budget. The budget constrains
-runtime mechanics, not strategy families: graph expansion, model-capacity
-probes, controls, and refinements remain valid when the current evidence makes
-them useful.
+Scout runtime budget is an execution guardrail, not a cadence recommendation.
+`ScoutRun` tracks cumulative scout runtime for the current recorded-evidence
+state so repeated private scout attempts cannot replace formal branch
+validation. The budget constrains runtime mechanics, not strategy families:
+graph expansion, model-capacity probes, controls, and refinements remain valid
+when the current evidence makes them useful.
 
-When the per-round scout budget is exhausted, or when scout has produced enough
-directional evidence, stop private scout for that interval. Use the streamed
-artifacts to author a concrete branch, then continue through `prepare-branch`,
-`debug-branch`, and `run-branch`. Make strategic continue, stop, or final-report
-decisions after `run-branch` records a result, not at scout completion.
+When the runtime budget is exhausted, or when scout has produced enough
+directional evidence, stop private scout and use the streamed artifacts plus the
+recorded ledger to author a concrete branch, control, fixed construction, or
+stop/pivot reason. Make strategic continue, stop, or final-report decisions
+after `run-branch` records a result, not at scout completion.
 
 Heavy model families such as random forests, boosted trees, HGBT, ExtraTrees, or
 large nested walk-forward scans remain valid exploration tools, but they are
@@ -183,13 +185,12 @@ necessary, it should still write equivalent `results.jsonl`, `state.json`, and
 work, and account for any selection width that materially chose the submitted
 candidate.
 
-Do not let scout chain into unbounded private search. Use scout to choose
-direction quickly, then promote the strongest scored shape into recorded branch
-work. Additional scout is acceptable while the current recorded-round budget
-remains and the agent needs more direction, but it should not replace formal
-branch validation. If the budget is exhausted, build the next concrete branch
-from the existing streamed artifacts and run it before deciding the next
-strategic move.
+Do not let scout chain into unbounded private search or become a fixed step for
+each branch. Use scout when it helps resolve uncertainty, then promote the
+strongest scored shape, control, or fixed construction into recorded branch
+work. Additional scout is acceptable only when new evidence, a changed frontier,
+or a genuinely unclear construction axis needs quick ranking; otherwise prefer
+formal branch validation or a stop/pivot report.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.

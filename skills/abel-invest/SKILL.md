@@ -126,28 +126,30 @@ Always:
   for resume, blocker detail, branch backtrack, or insufficient checkpoint
   state. Treat full digest `--json`, raw artifacts, `--verbose`, and `--audit`
   as audit/debug surfaces, not the standard loop.
-- On a fresh or unfamiliar ticker, use the compact first-look data scout in
-  `experiment-loop.md` before the first serious recorded alpha candidate unless
-  the user gave a narrow path or continuation. The first-look scout should
-  normally fit about 120 seconds and choose a direction, not become open-ended
-  private search. Run a dry-run budget declaration with free-form family cost
-  breakdown; treat declared budget seconds as search-space disclosure, not
-  trusted timing. Reduce over-budget or slow-candidate families before execution,
-  stream completed candidates to disk, and let `ScoutRun` enforce runtime
-  boundaries where possible. Heavy tree/GBDT/HGBT/large walk-forward families
-  are valid second-stage probes when lightweight scout or recorded-branch
-  evidence justifies model capacity; do not make them first-look defaults. Use
-  the minimal `ScoutRun` pattern in `experiment-loop.md`; do not inspect
+- On a fresh or unfamiliar ticker, a compact first-look data scout in
+  `experiment-loop.md` is often useful before the first serious recorded alpha
+  candidate unless the user gave a narrow path or continuation. Scout is
+  optional scratch research, not a required branch phase. It should normally fit
+  about 120 seconds and choose a direction, not become open-ended private
+  search. Run a dry-run search-shape declaration with free-form family cost
+  breakdown; treat declared budget seconds as search-space disclosure and
+  warning, not trusted timing or an execution gate. If the declaration looks
+  oversized, prioritize the candidate order or narrow clearly slow axes when
+  that improves feedback, but it is valid to execute a broader ordered scout and
+  let `ScoutRun` enforce runtime boundaries while streaming completed candidates
+  to disk. Heavy tree/GBDT/HGBT/large walk-forward families are valid
+  second-stage probes when lightweight scout or recorded-branch evidence
+  justifies model capacity; do not make them first-look defaults. Use the
+  minimal `ScoutRun` pattern in `experiment-loop.md`; do not inspect
   `scout_runtime.py` or probe helper signatures unless the helper import fails
-  or you are debugging the helper. Put temporary scout scripts or summaries under
-  `research/<ticker>/<session_id>/scratch/` when files are useful. `ScoutRun`
-  tracks one cumulative scout runtime budget per recorded-round interval; after
-  `run-branch` records a result, the next interval starts with a fresh budget.
-  Within that budget the agent chooses whether more scout is useful. When the
-  budget is exhausted or scout is done, stop private scout for that interval and
-  turn the current artifacts into a concrete branch, then `prepare-branch`,
-  `debug-branch`, and `run-branch`. Strategic continue/stop/report decisions
-  happen after `run-branch`, not at scout completion.
+  or you are debugging the helper. Put temporary scout scripts or summaries
+  under `research/<ticker>/<session_id>/scratch/` when files are useful.
+  `ScoutRun` tracks cumulative scout runtime as an execution guardrail so
+  repeated private scout cannot replace formal branch validation. When scout has
+  enough directional evidence or runtime stops it, turn current artifacts into a
+  concrete branch, control, fixed construction, or stop/pivot reason. Strategic
+  continue/stop/report decisions happen after `run-branch`, not at scout
+  completion.
 
 Never:
 

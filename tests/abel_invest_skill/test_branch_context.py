@@ -313,14 +313,14 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "prepare-only scout branches are fine" in rendered
     assert "do not run flat/no-signal rounds" in rendered
     assert "after prepare-branch, disposable probes may live" in rendered
-    assert "expect the first-look scout to fit about 120 seconds" in rendered
-    assert "not become open-ended private search" in rendered
+    assert "use scout as optional scratch research" in rendered
+    assert "first-look scout often fits about 120 seconds" in rendered
     assert "free-form family budget declaration" in rendered
-    assert "declared budget seconds as search-space disclosure" in rendered
-    assert "slow-candidate families" in rendered
+    assert "advisory search-shape disclosure" in rendered
+    assert "execution gate" in rendered
     assert "evidence-triggered second-stage probes" in rendered
-    assert "ScoutRun tracks one cumulative scout runtime budget per recorded-round interval" in rendered
-    assert "turn current artifacts into a concrete branch" in rendered
+    assert "ScoutRun tracks cumulative scout runtime as an execution guardrail" in rendered
+    assert "concrete branch, control, fixed construction, or stop/pivot reason" in rendered
     assert "make strategic continue/stop/report decisions only after run-branch" in rendered
     assert "do not inspect scout_runtime.py or probe helper signatures" in rendered
     assert "minimal ScoutRun pattern" in rendered

@@ -54,13 +54,17 @@ def test_scout_dry_run_writes_estimate_without_executing_candidates(tmp_path, ca
     payload = scout.write_dry_run(estimate)
 
     assert payload["within_budget"] is False
-    assert "drop over-budget slow families" in payload["reduction_hint"]
+    assert payload["budget_warning"] is True
+    assert payload["execution_blocked"] is False
+    assert payload["budget_policy"] == "advisory_runtime_enforced"
+    assert "budget declaration is advisory" in payload["reduction_hint"]
     assert json.loads(scout.dry_run_path.read_text(encoding="utf-8"))["candidate_count"] == 120
     output = capsys.readouterr().out
     assert "scout_dry_run name=first_look target=AAPL" in output
     assert "budget_seconds=60.0" in output
     assert "estimated_seconds=" not in output
-    assert "within_budget=false" in output
+    assert "budget_warning=true" in output
+    assert "execution_blocked=false" in output
     assert not scout.results_path.exists()
 
 
@@ -107,6 +111,8 @@ def test_scout_dry_run_records_free_form_family_budget(tmp_path, capsys):
     payload = scout.write_dry_run(estimate)
 
     assert payload["within_budget"] is False
+    assert payload["budget_warning"] is True
+    assert payload["execution_blocked"] is False
     assert payload["slowest_family"]["label"] == "nonlinear_walk_forward_models"
     assert payload["over_budget_families"][0]["label"] == "nonlinear_walk_forward_models"
     assert payload["slow_candidate_families"][0]["label"] == "nonlinear_walk_forward_models"
@@ -326,13 +332,12 @@ def test_experiment_loop_documents_minimal_scout_runtime_pattern():
     text = reference.read_text(encoding="utf-8")
 
     assert "ScoutFamilyBudget" in text
-    assert "search-space declaration" in text
+    assert "search-shape declaration" in text
     assert "scout.write_dry_run(estimate)" in text
     assert "scout.run(" in text
     assert "max_candidate_seconds=args.max_candidate_seconds" in text
     assert "do not inspect the helper source" in text
     assert "do not run signature probes" in text
-    assert "cumulative scout runtime budget" in text
-    assert "recorded-round interval" in text
+    assert "runtime budget is an execution guardrail" in text
     assert "strategic continue, stop, or final-report" in text
     assert "after `run-branch` records a result" in text

@@ -249,7 +249,7 @@ def run_doctor(start: Path | None = None) -> dict[str, object]:
             ),
             "next_step": (
                 f"{workspace_command(root, manifest, 'init-session')} --ticker <TICKER> --exp-id <session-id>  "
-                "# runs live graph discovery; then init a scout/candidate branch -> prepare-branch -> bounded first-look scout, normally within about 120 seconds, before any broad run"
+                "# runs live graph discovery; then choose a direct candidate/control or optional first-look scout bounded by runtime 120 seconds; prepare-branch before trusting data"
             ),
         }
     )

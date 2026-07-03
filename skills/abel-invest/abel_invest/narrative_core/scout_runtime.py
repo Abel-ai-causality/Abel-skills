@@ -29,9 +29,9 @@ class ScoutFamilyBudget:
     """Free-form budget declaration for one planned scout candidate group.
 
     The agent-authored seconds are not trusted timing facts. They are a compact
-    declaration of intended search width so the runtime can gate obvious budget
-    violations before execution and record how the declaration compared with
-    actual streamed results afterward.
+    declaration of intended search width so oversized or slow axes are visible
+    before execution. They do not block execution; the runtime enforces actual
+    wall-clock and per-candidate boundaries while preserving streamed results.
 
     The label and traits are deliberately not enums. They describe computation
     shape for budget accounting without constraining strategy direction.
@@ -90,7 +90,7 @@ ScoutFamilyEstimate = ScoutFamilyBudget
 
 @dataclass(frozen=True)
 class ScoutEstimate:
-    """Dry-run budget declaration for a bounded scout run."""
+    """Dry-run search-shape declaration for a bounded scout run."""
 
     name: str
     target: str
@@ -186,6 +186,9 @@ class ScoutEstimate:
                 else round(float(self.max_candidate_seconds), 3)
             ),
             "within_budget": self.within_budget,
+            "budget_warning": not self.within_budget,
+            "execution_blocked": False,
+            "budget_policy": "advisory_runtime_enforced",
             "reduction_hint": hint,
         }
 
@@ -261,7 +264,8 @@ class ScoutRun:
             f"budget_seconds={payload['budget_seconds']} "
             f"max_seconds={payload['max_seconds']} "
             f"round_budget_remaining={round_budget['remaining_seconds']} "
-            f"within_budget={str(payload['within_budget']).lower()}"
+            f"budget_warning={str(payload['budget_warning']).lower()} "
+            f"execution_blocked=false"
         )
         if payload["reduction_hint"]:
             print(f"reduction_hint={payload['reduction_hint']}")
@@ -709,7 +713,11 @@ def estimate_seconds(
 
 
 def default_reduction_hint() -> str:
-    return "drop over-budget slow families first, then reduce lag/window grid, feed count, model settings, and ensemble variants"
+    return (
+        "budget declaration is advisory; runtime can stream and stop safely. "
+        "For faster feedback, consider prioritizing candidate order or narrowing "
+        "slow families, lag/window grids, feed count, model settings, or ensemble variants."
+    )
 
 
 def _normalize_family_budget(item: ScoutFamilyBudget | dict[str, Any]) -> dict[str, Any]:
