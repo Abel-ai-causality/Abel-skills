@@ -128,17 +128,15 @@ Always:
   as audit/debug surfaces, not the standard loop.
 - On a fresh or unfamiliar ticker, use the compact first-look data scout in
   `experiment-loop.md` before the first serious recorded alpha candidate unless
-  the user gave a narrow path or continuation. Use scout as quick direction
-  finding: score plausible target, graph, and construction shapes, then rank
-  what looks worth formal validation before broad recorded work. When graph
-  leads rank as a group, consider whether that group supports vote, average,
-  ensemble, confidence, or sizing constructions. When a scratch script scores
-  or ranks multiple candidate variants to choose what to validate, import
-  `from abel_invest.narrative_core.scout_runtime import ScoutRun` and use
-  `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so results
-  stream to disk and resumable artifacts survive interruptions. Put short-lived
-  scout scripts under `research/<ticker>/<session_id>/scratch/` when files are
-  useful.
+  the user gave a narrow path or continuation. Expect the scout to be a
+  few-minute scratch search: score plausible target, graph, and construction
+  shapes, then rank what looks worth formal validation before broad recorded
+  work. When scratch work evaluates a set of candidate variants to choose what
+  to validate, import `from abel_invest.narrative_core.scout_runtime import
+  ScoutRun` and wrap that evaluation with
+  `ScoutRun(name, scratch).run(candidates, scorer)` so result rows stream to
+  disk and the run can timeout/resume safely. Promote the strongest shapes into
+  recorded branch work and account for material selection width.
 
 Never:
 
@@ -196,10 +194,9 @@ Core search invariants:
 - Fresh or unfamiliar tickers should normally use the prepared first-look scout
   sequence in `experiment-loop.md` before the first broad recorded candidate.
   Its practical output is scored target, graph, and construction shapes ranked
-  by what looks worth formal validation, not only an analysis memo. When graph
-  leads rank as a group, consider whether they support vote, average, ensemble,
-  confidence, or sizing constructions. Direct recorded branches remain valid for
-  user-specified strategies, existing leads, baselines, controls,
+  by what looks worth formal validation, not only an analysis memo. Direct
+  recorded branches remain valid for user-specified strategies, existing leads,
+  baselines, controls,
   continuations, or very narrow diagnostics.
 - Live graph discovery is the default high-value alpha universe when available.
   Use `discovery-protocol.md` for graph semantics and expansion; use

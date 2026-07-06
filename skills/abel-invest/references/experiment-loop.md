@@ -60,12 +60,11 @@ Do not run a flat or no-signal materialization branch just to warm cache or make
 the scout official. A prepared branch may be prepare-only; `run-branch` is for
 meaningful candidates, controls, diagnostics, or ablations.
 
-Use a compact scored scout to choose, not just describe. For first look, score
-plausible target, graph, and construction shapes, then rank what looks worth
-formal validation before broad recorded work. Use objective metrics such as
-Sharpe, total return, drawdown, and turnover. When graph leads rank as a group,
-consider whether that group supports vote, average, ensemble, confidence, or
-sizing constructions.
+Use a compact scored scout to choose, not just describe. Expect the first-look
+scout to be a few-minute scratch search: score plausible target, graph, and
+construction shapes, then rank what looks worth formal validation before broad
+recorded work. Use objective metrics such as Sharpe, total return, drawdown,
+and turnover.
 
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime
@@ -80,12 +79,16 @@ remains available. Do not abandon the graph-derived universe unless graph
 subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
 
-Store short-lived scout scripts in `research/<ticker>/<exp_id>/scratch/` when
-useful. When a scratch script scores or ranks multiple candidate variants to
-choose what to validate, import
-`from abel_invest.narrative_core.scout_runtime import ScoutRun` and use
-`ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so results
-stream to disk and resumable artifacts survive interruptions.
+Store temporary scripts or summaries in `research/<ticker>/<exp_id>/scratch/`
+when useful. If the runtime discourages files, use an equivalent one-off shell
+heredoc, notebook cell, or query cell. When scratch work evaluates a set of
+candidate variants to choose what to validate, import
+`from abel_invest.narrative_core.scout_runtime import ScoutRun` and wrap that
+evaluation with `ScoutRun(name, scratch).run(candidates, scorer)` so result rows
+stream to disk and the run can timeout/resume safely. Promote the strongest
+shapes into recorded branch work, and account for any selection width that
+materially chose the submitted candidate. Reading back or reordering already
+scored results does not need another `ScoutRun`.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.

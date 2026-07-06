@@ -130,14 +130,18 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     assert "diagnostics" in context_guide
     assert "not validation evidence" in context_guide
     assert "inline heredoc" in context_guide
-    assert "use a compact scored scout as quick direction finding" in context_guide
-    assert "scores or ranks multiple candidate variants" in context_guide
+    assert "few-minute scratch search" in context_guide
+    assert "score plausible target, graph, and construction shapes" in context_guide
+    assert "scratch work evaluates a set of candidate variants" in context_guide
     assert "choose what to validate" in context_guide
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in context_guide
-    assert "ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)" in context_guide
-    assert "resumable artifacts survive interruptions" in context_guide
+    assert "ScoutRun(name, scratch).run(candidates, scorer)" in context_guide
+    assert "result rows stream to disk" in context_guide
+    assert "promote the strongest shapes into recorded branch work" in context_guide
+    assert "script still owns ranking, projection, and branch-candidate selection" not in context_guide
     assert "rank what looks worth formal validation before broad recorded work" in context_guide
-    assert "consider whether that group supports vote, average, ensemble" in context_guide
+    assert "sort_key" not in context_guide
+    assert "ranked set of graph leads can itself be construction material" not in context_guide
     assert "scored candidate-shaped variants" in context_guide
 
 

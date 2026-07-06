@@ -306,21 +306,24 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "Sharpe > 2 and all required Abel Edge gates passing" in rendered
     assert "stay in Exploring until the objective is met" in rendered
     assert "render/status/check are audit actions only" in rendered
-    assert "disposable probes may live in research/tsla/demo/scratch" in rendered
+    assert "temporary scripts or summaries may live in research/tsla/demo/scratch" in rendered
     assert "equivalent heredoc/notebook/query cell" in rendered
     assert "first serious recorded alpha candidate should normally be probe-informed" in rendered
     assert "prepare a scout/candidate branch before measuring market data" in rendered
     assert "prepare-only scout branches are fine" in rendered
     assert "do not run flat/no-signal rounds" in rendered
-    assert "after prepare-branch, disposable probes may live" in rendered
-    assert "use a compact scored scout as quick direction finding" in rendered
+    assert "after prepare-branch, temporary scripts or summaries may live" in rendered
+    assert "few-minute scratch search" in rendered
     assert "rank what looks worth formal validation before broad recorded work" in rendered
-    assert "scores or ranks multiple candidate variants" in rendered
+    assert "scratch work evaluates a set of candidate variants" in rendered
     assert "choose what to validate" in rendered
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in rendered
-    assert "ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)" in rendered
-    assert "resumable artifacts survive interruptions" in rendered
-    assert "consider whether that group supports vote, average, ensemble" in rendered
+    assert "ScoutRun(name, scratch).run(candidates, scorer)" in rendered
+    assert "result rows stream to disk" in rendered
+    assert "promote the strongest shapes into recorded branch work" in rendered
+    assert "script still owns ranking, projection, and branch-candidate selection" not in rendered
+    assert "sort_key" not in rendered
+    assert "ranked set of graph leads can itself be construction material" not in rendered
     assert "run broad candidates only after data/cache are prepared" in rendered
     assert "simple hand-written rules are diagnostics, controls, ablations, or refinements" in rendered
     assert "validation gates estimate reliability" in rendered
