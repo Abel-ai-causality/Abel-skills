@@ -128,16 +128,17 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     assert "prepare-only" in context_guide
     assert "flat/no-signal materialization round" in context_guide
     assert "diagnostics" in context_guide
-    assert "scored candidate-shaped variants" in context_guide
-    assert "inline heredoc" in context_guide
     assert "not validation evidence" in context_guide
-    assert "use a compact scored scout to choose, not just describe" in context_guide
+    assert "inline heredoc" in context_guide
+    assert "use a compact scored scout as quick direction finding" in context_guide
+    assert "scores or ranks multiple candidate variants" in context_guide
+    assert "choose what to validate" in context_guide
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in context_guide
     assert "ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)" in context_guide
-    assert "explicit strategy criterion" in context_guide
     assert "resumable artifacts survive interruptions" in context_guide
-    assert "not a separate research phase or strategy constraint" in context_guide
-    assert "promote the strongest ranked shapes into recorded branch work" in context_guide
+    assert "rank what looks worth formal validation before broad recorded work" in context_guide
+    assert "consider whether that group supports vote, average, ensemble" in context_guide
+    assert "scored candidate-shaped variants" in context_guide
 
 
 def test_default_branch_spec_starts_with_graph_enriched_candidate_context(tmp_path) -> None:

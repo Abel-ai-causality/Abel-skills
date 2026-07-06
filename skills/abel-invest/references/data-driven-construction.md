@@ -41,28 +41,22 @@ evolves.
 
 ## Disposable Search Workbench
 
-Temporary scripts, feature screens, quick model comparisons, CSV/JSON summaries,
-notebook cells, query cells, or one-off shell heredocs are normal Abel Invest
-research. Prefer `research/<ticker>/<session_id>/scratch/` for files. Scratch
-outputs are not validation evidence; they help choose what is worth formal,
-audited validation.
+Scratch is for quick direction finding before formal, audited branch validation.
+Prefer `research/<ticker>/<session_id>/scratch/` for short-lived files. Scratch
+outputs are not validation evidence; they help choose what is worth validating.
 
-When a scout or scratch batch scores multiple candidate variants, import the
-packaged helper with
-`from abel_invest.narrative_core.scout_runtime import ScoutRun`, then use
-`ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so compact
-result rows stream to disk, resumable artifacts survive interruptions, and the
-top summary is ranked by your explicit strategy criterion. `ScoutRun` is a
-stability helper for batch scout execution, not a separate research phase or
-strategy constraint.
+When a scratch script scores or ranks multiple candidate variants to choose what
+to validate, import
+`from abel_invest.narrative_core.scout_runtime import ScoutRun` and use
+`ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so results
+stream to disk and resumable artifacts survive interruptions.
 
 Use scratch to compare construction axes, not to create paperwork. A compact
 first-look scout should score plausible target, graph, and construction shapes
-closely enough to choose what deserves formal validation. Prefer a ranked table
-over a prose-only memo: target baselines, graph single-feature shapes, feature
-factories, model-family variants, ensembles, filters, or sizing variants should
-be compared with objective metrics such as Sharpe, total return, drawdown, and
-turnover when feasible.
+closely enough to choose what deserves formal validation. Target baselines,
+graph single-feature shapes, feature factories, model-family variants,
+ensembles, filters, or sizing variants can be compared with objective metrics
+such as Sharpe, total return, drawdown, and turnover when feasible.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable
@@ -77,6 +71,9 @@ Useful construction surfaces include:
   volatility or regime context, not only one-day shifted returns
 - model-family comparisons such as rolling linear/ridge, tree or GBDT, hybrid
   models, and lightweight ensembles when the feature set justifies them
+
+When many graph leads score similarly, treat the ranked group itself as
+construction material for vote, average, confidence, or sizing branches.
 
 These are examples, not a fixed route or minimum count. For prepared-data
 ordering, prepare-only scout branches, and promotion into recorded rounds,

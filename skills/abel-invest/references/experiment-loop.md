@@ -63,25 +63,16 @@ meaningful candidates, controls, diagnostics, or ablations.
 Use a compact scored scout to choose, not just describe. For first look, score
 plausible target, graph, and construction shapes, then rank what looks worth
 formal validation before broad recorded work. Use objective metrics such as
-Sharpe, total return, drawdown, and turnover.
-
-When a scout or scratch batch scores multiple candidate variants, import the
-packaged helper with
-`from abel_invest.narrative_core.scout_runtime import ScoutRun`, then wrap the
-batch with `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so
-compact result rows stream to disk, resumable artifacts survive interruptions,
-and the top summary is ranked by your explicit strategy criterion. `ScoutRun` is
-a stability helper for scout execution, not a separate research phase or
-strategy constraint.
+Sharpe, total return, drawdown, and turnover. When graph leads rank as a group,
+consider whether that group supports vote, average, ensemble, confidence, or
+sizing constructions.
 
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime
 - graph candidate shapes: lead/lag/sign, node subset, transformation, spread,
-  horizon, graph vote families, graph ensemble families, expanded-neighborhood
-  candidates, and single-feature threshold variants
-- construction choices: feature factories, lightweight linear/ridge comparisons,
-  ensembles, filters, and sizing rules that can be locally scored before formal
-  validation
+  horizon, and single-feature threshold/vote variants
+- construction choices: feature factories, model-family comparisons, ensembles,
+  filters, and sizing rules that can be locally scored before formal validation
 
 Diagnostic tables such as IC, correlation, and feature importance are useful raw
 material, not the completed first-look scout when graph/model construction
@@ -89,14 +80,12 @@ remains available. Do not abandon the graph-derived universe unless graph
 subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
 
-Store temporary scripts or summaries in `research/<ticker>/<exp_id>/scratch/`
-when useful. If scratch work is run from a heredoc, notebook cell, or query
-cell, the same batch scratch search rule applies: multiple candidate variants
-go through `ScoutRun` with an agent-owned scorer and required `sort_key` so
-compact result rows stream to disk and resumable artifacts survive
-interruptions.
-Promote the strongest shapes into recorded branch work, and account for any
-selection width that materially chose the submitted candidate.
+Store short-lived scout scripts in `research/<ticker>/<exp_id>/scratch/` when
+useful. When a scratch script scores or ranks multiple candidate variants to
+choose what to validate, import
+`from abel_invest.narrative_core.scout_runtime import ScoutRun` and use
+`ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so results
+stream to disk and resumable artifacts survive interruptions.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.
@@ -115,12 +104,10 @@ Each round should push toward the user's objective.
 3. For a fresh or unfamiliar ticker, begin serious search with a compact
    first-look scout before the first broad recorded run unless the path is
    user-specified, a continuation, a baseline/control, or a very narrow
-   diagnostic. The scout should preserve broad graph-vote, graph-ensemble, and
-   expanded-neighborhood options alongside controls before narrowing. When that
-   scout needs market data, materialize it through a prepared scout/candidate
-   branch first; the branch can stop at prepare if its job is data/cache
-   materialization. Probes are search workbench material, not validation
-   evidence.
+   diagnostic. When that scout needs market data, materialize it through a
+   prepared scout/candidate branch first; the branch can stop at prepare if
+   its job is data/cache materialization. Probes are search workbench material,
+   not validation evidence.
 4. Keep graph-enriched ideas active early and throughout the search when live
    graph candidates exist. Use target-only candidates as baselines, seeds,
    ablations, and competitors, not as the default escape from graph search.

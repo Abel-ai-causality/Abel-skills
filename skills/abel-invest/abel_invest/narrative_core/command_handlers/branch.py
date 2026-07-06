@@ -405,6 +405,7 @@ def print_loop_checkpoint(
         "forbidden_final=incomplete_report_with_next_experiment"
     )
 
+
 def print_round_decision_checkpoint(
     *,
     session: Path,

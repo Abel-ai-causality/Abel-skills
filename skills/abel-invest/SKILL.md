@@ -128,19 +128,17 @@ Always:
   as audit/debug surfaces, not the standard loop.
 - On a fresh or unfamiliar ticker, use the compact first-look data scout in
   `experiment-loop.md` before the first serious recorded alpha candidate unless
-  the user gave a narrow path or continuation. Use scout to score plausible
-  target, graph, and construction shapes, then rank what looks worth formal
-  validation before broad recorded work. When a scout or scratch batch scores
-  multiple candidate variants, import the packaged helper with
-  `from abel_invest.narrative_core.scout_runtime import ScoutRun`, then use
-  `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so compact
-  result rows stream to disk, resumable artifacts survive interruptions, and the
-  top summary is ranked by your explicit strategy criterion. `ScoutRun` is a
-  stability helper for batch scout execution, not a separate research phase or
-  strategy constraint. Put temporary scout scripts or summaries under
-  `research/<ticker>/<session_id>/scratch/` when files are useful. Promote the
-  strongest ranked shapes into recorded branch work, and account for any
-  selection width that materially chose the submitted candidate.
+  the user gave a narrow path or continuation. Use scout as quick direction
+  finding: score plausible target, graph, and construction shapes, then rank
+  what looks worth formal validation before broad recorded work. When graph
+  leads rank as a group, consider whether that group supports vote, average,
+  ensemble, confidence, or sizing constructions. When a scratch script scores
+  or ranks multiple candidate variants to choose what to validate, import
+  `from abel_invest.narrative_core.scout_runtime import ScoutRun` and use
+  `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so results
+  stream to disk and resumable artifacts survive interruptions. Put short-lived
+  scout scripts under `research/<ticker>/<session_id>/scratch/` when files are
+  useful.
 
 Never:
 
@@ -197,10 +195,10 @@ Core search invariants:
   are degrees of freedom, not a scripted route.
 - Fresh or unfamiliar tickers should normally use the prepared first-look scout
   sequence in `experiment-loop.md` before the first broad recorded candidate.
-  Its practical output is scored target controls, broad graph vote/ensemble or
-  expanded-neighborhood families, and other construction shapes ranked by what
-  looks worth formal validation, not only an analysis memo or a single best
-  lead. Direct recorded branches remain valid for
+  Its practical output is scored target, graph, and construction shapes ranked
+  by what looks worth formal validation, not only an analysis memo. When graph
+  leads rank as a group, consider whether they support vote, average, ensemble,
+  confidence, or sizing constructions. Direct recorded branches remain valid for
   user-specified strategies, existing leads, baselines, controls,
   continuations, or very narrow diagnostics.
 - Live graph discovery is the default high-value alpha universe when available.
@@ -209,9 +207,10 @@ Core search invariants:
   denoise, node subsets, lags, regimes, sizing, filters, and ensembles.
 - Target-only work is a baseline, seed, ablation, or competitor. A
   graph-supported branch is not automatically data-driven: runtime graph reads
-  prove input realization, not construction breadth. Hand-written single-mechanism branches are diagnostics,
-  controls, ablations, or refinements around empirical construction, not the
-  default search posture when live graph-derived data is available.
+  prove input realization, not construction breadth. Hand-written
+  single-mechanism branches are diagnostics, controls, ablations, or refinements
+  around empirical construction, not the default search posture when live
+  graph-derived data is available.
 - A hard user metric target (Sharpe / MaxDD / PnL) is an optimization request.
   Search is expected: use target/baseline context, graph-derived features,
   feature factories, ensembles, parameter search, model-family comparison, HPO,

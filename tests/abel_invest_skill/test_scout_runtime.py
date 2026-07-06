@@ -316,19 +316,21 @@ def test_scout_results_persist_explicit_params_only(tmp_path):
     assert "params" in top
 
 
-def test_experiment_loop_documents_required_scorer_sort_key_pattern():
+def test_experiment_loop_documents_minimal_scout_runtime_hook():
     repo_root = Path(__file__).resolve().parents[2]
     reference = repo_root / "skills" / "abel-invest" / "references" / "experiment-loop.md"
     text = reference.read_text(encoding="utf-8")
 
     assert "Use a compact scored scout to choose, not just describe" in text
+    assert "rank what looks worth formal validation before broad recorded work" in text
+    assert "scores or ranks multiple candidate variants" in text
+    assert "choose what to validate" in text
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in text
-    assert "`ScoutRun` with an agent-owned scorer" in text
-    assert "compact result rows stream to disk" in text
+    assert "ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)" in text
+    assert "results stream to disk" in text
     assert "resumable artifacts" in text
     assert "survive interruptions" in text
-    assert "sort_key" in text
-    assert "agent-owned" in text
+    assert "continuing private" not in text
     assert "max_seconds" not in text
     assert "round_budget_seconds" not in text
     assert "ScoutEstimate" not in text

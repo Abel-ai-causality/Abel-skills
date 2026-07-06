@@ -394,7 +394,7 @@ checks auth/runtime readiness through its internal runtime doctor; and prints
 the command prefix for strategy work.
 
 - `ready`: you can start alpha search
-- `ready` means continue with `init-session`, then choose a direct candidate/control or an optional first-look scout when more direction is needed; first-look should rank plausible target, graph, and construction shapes, while `from abel_invest.narrative_core.scout_runtime import ScoutRun` plus `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` only helps stream compact results, keep resumable artifacts, and summarize the top rows by your explicit strategy criterion
+- `ready` means continue with `init-session`, then prepare data before trusting a direct candidate, control, or first-look scout
 - `auth_missing`: no reusable auth was found; use `abel-auth`, then rerun the
   active bootstrap shim
 - `scaffold_stale`, `runtime_stale`, `env_missing`, `edge_missing`, or

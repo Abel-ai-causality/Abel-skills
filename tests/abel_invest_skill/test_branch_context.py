@@ -313,15 +313,16 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "prepare-only scout branches are fine" in rendered
     assert "do not run flat/no-signal rounds" in rendered
     assert "after prepare-branch, disposable probes may live" in rendered
-    assert "use a compact scored scout to choose, not just describe" in rendered
+    assert "use a compact scored scout as quick direction finding" in rendered
+    assert "rank what looks worth formal validation before broad recorded work" in rendered
+    assert "scores or ranks multiple candidate variants" in rendered
+    assert "choose what to validate" in rendered
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in rendered
     assert "ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)" in rendered
-    assert "explicit strategy criterion" in rendered
     assert "resumable artifacts survive interruptions" in rendered
-    assert "not a separate research phase or strategy constraint" in rendered
-    assert "promote the strongest ranked shapes into recorded branch work" in rendered
+    assert "consider whether that group supports vote, average, ensemble" in rendered
     assert "run broad candidates only after data/cache are prepared" in rendered
-    assert "simple hand-written rules are diagnostics or refinements" in rendered
+    assert "simple hand-written rules are diagnostics, controls, ablations, or refinements" in rendered
     assert "validation gates estimate reliability" in rendered
     assert "exploration_path.md" in rendered
     assert "research_journal.md" not in rendered
