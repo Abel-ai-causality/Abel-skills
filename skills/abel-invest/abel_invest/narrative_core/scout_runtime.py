@@ -1,239 +1,118 @@
-"""Bounded, resumable helper for disposable Abel Invest scout scripts."""
+"""Small runtime helper for resumable Abel Invest scratch scouts."""
 
 from __future__ import annotations
 
 import json
 import signal
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from pathlib import Path
-from threading import current_thread, main_thread
 from typing import Any
 
 
 DEFAULT_MAX_SECONDS = 120.0
 DEFAULT_ROUND_BUDGET_SECONDS = 120.0
 DEFAULT_PROGRESS_INTERVAL_SECONDS = 30.0
-DEFAULT_RANK_KEYS = ("selection_score", "sharpe", "total_return")
-DEFAULT_TIMEOUT_BEHAVIOR = "stop"
+DEFAULT_TOP_K = 20
+MAX_PARAM_VALUE_JSON_BYTES = 4096
+SCOUT_IDENTITY_KEYS = ("name", "family", "category", "group", "label")
+SCOUT_METRIC_KEYS = (
+    "selection_score",
+    "score",
+    "sharpe",
+    "sortino",
+    "total_return",
+    "ann_return",
+    "test_total_return",
+    "max_drawdown",
+    "turnover",
+    "exposure",
+    "avg_abs_position",
+    "mean_abs_exposure",
+    "hit_rate",
+    "rows",
+    "bars",
+    "days",
+    "n_days",
+    "trading_days",
+    "selection_width",
+    "width",
+    "train_sharpe",
+    "test_sharpe",
+)
+SCOUT_STATUS_KEYS = (
+    "status",
+    "error",
+    "error_type",
+    "error_message",
+    "timeout_seconds",
+)
+SUMMARY_ROW_KEYS = (
+    "candidate_index",
+    "name",
+    "family",
+    "sort_value",
+    "selection_score",
+    "score",
+    "sharpe",
+    "sortino",
+    "total_return",
+    "ann_return",
+    "test_total_return",
+    "max_drawdown",
+    "turnover",
+    "exposure",
+    "avg_abs_position",
+    "mean_abs_exposure",
+    "hit_rate",
+    "rows",
+    "bars",
+    "days",
+    "n_days",
+    "trading_days",
+    "selection_width",
+    "width",
+    "train_sharpe",
+    "test_sharpe",
+    "params",
+)
+FAMILY_BEST_ROW_KEYS = (
+    "candidate_index",
+    "name",
+    "family",
+    "sort_value",
+    "selection_score",
+    "score",
+    "sharpe",
+    "total_return",
+    "test_total_return",
+    "max_drawdown",
+)
+
+SortKey = str | Callable[[dict[str, Any]], Any]
 
 
-class ScoutCandidateTimeout(TimeoutError):
-    """Raised when runtime enforcement stops one slow scout candidate."""
-
-
-@dataclass(frozen=True)
-class ScoutFamilyBudget:
-    """Free-form budget declaration for one planned scout candidate group.
-
-    The agent-authored seconds are not trusted timing facts. They are a compact
-    declaration of intended search width so oversized or slow axes are visible
-    before execution. They do not block execution; the runtime enforces actual
-    wall-clock and per-candidate boundaries while preserving streamed results.
-
-    The label and traits are deliberately not enums. They describe computation
-    shape for budget accounting without constraining strategy direction.
-    """
-
-    label: str
-    candidate_count: int
-    budget_seconds: float
-    max_candidate_seconds: float | None = None
-    cost_traits: Sequence[str] = field(default_factory=tuple)
-    reduction_axes: Sequence[str] = field(default_factory=tuple)
-    stage: str = ""
-
-    def __init__(
-        self,
-        *,
-        label: str,
-        candidate_count: int,
-        budget_seconds: float | None = None,
-        estimated_seconds: float | None = None,
-        max_candidate_seconds: float | None = None,
-        cost_traits: Sequence[str] = (),
-        reduction_axes: Sequence[str] = (),
-        stage: str = "",
-    ) -> None:
-        if budget_seconds is None:
-            budget_seconds = 0.0 if estimated_seconds is None else estimated_seconds
-        object.__setattr__(self, "label", label)
-        object.__setattr__(self, "candidate_count", candidate_count)
-        object.__setattr__(self, "budget_seconds", budget_seconds)
-        object.__setattr__(self, "max_candidate_seconds", max_candidate_seconds)
-        object.__setattr__(self, "cost_traits", tuple(cost_traits))
-        object.__setattr__(self, "reduction_axes", tuple(reduction_axes))
-        object.__setattr__(self, "stage", stage)
-
-    def to_dict(self) -> dict[str, Any]:
-        budget_seconds = round(float(self.budget_seconds), 3)
-        return {
-            "label": str(self.label),
-            "candidate_count": int(self.candidate_count),
-            "budget_seconds": budget_seconds,
-            "estimated_seconds": budget_seconds,
-            "max_candidate_seconds": (
-                None
-                if self.max_candidate_seconds is None
-                else round(float(self.max_candidate_seconds), 3)
-            ),
-            "cost_traits": [str(item) for item in self.cost_traits],
-            "reduction_axes": [str(item) for item in self.reduction_axes],
-            "stage": str(self.stage),
-        }
-
-
-ScoutFamilyEstimate = ScoutFamilyBudget
-
-
-@dataclass(frozen=True)
-class ScoutEstimate:
-    """Dry-run search-shape declaration for a bounded scout run."""
-
-    name: str
-    target: str
-    candidate_count: int
-    row_count: int | None = None
-    feed_symbols: Sequence[str] = field(default_factory=tuple)
-    planned_families: Sequence[str] = field(default_factory=tuple)
-    family_breakdown: Sequence[ScoutFamilyBudget | dict[str, Any]] = field(default_factory=tuple)
-    budget_seconds: float | None = None
-    estimated_seconds: float = 0.0
-    max_seconds: float = DEFAULT_MAX_SECONDS
-    max_family_seconds: float | None = None
-    max_candidate_seconds: float | None = None
-    reduction_hint: str = ""
-
-    @property
-    def declared_budget_seconds(self) -> float:
-        if self.budget_seconds is not None:
-            return float(self.budget_seconds)
-        return float(self.estimated_seconds)
-
-    @property
-    def within_budget(self) -> bool:
-        return (
-            self.declared_budget_seconds <= self.max_seconds
-            and not self.over_budget_families
-            and not self.slow_candidate_families
-        )
-
-    @property
-    def normalized_family_breakdown(self) -> list[dict[str, Any]]:
-        return [_normalize_family_budget(item) for item in self.family_breakdown]
-
-    @property
-    def slowest_family(self) -> dict[str, Any] | None:
-        families = self.normalized_family_breakdown
-        if not families:
-            return None
-        return max(families, key=lambda item: float(item.get("budget_seconds") or 0.0))
-
-    @property
-    def over_budget_families(self) -> list[dict[str, Any]]:
-        if self.max_family_seconds is None:
-            return []
-        budget = float(self.max_family_seconds)
-        return [
-            item
-            for item in self.normalized_family_breakdown
-            if float(item.get("budget_seconds") or 0.0) > budget
-        ]
-
-    @property
-    def slow_candidate_families(self) -> list[dict[str, Any]]:
-        if self.max_candidate_seconds is None:
-            return []
-        budget = float(self.max_candidate_seconds)
-        return [
-            item
-            for item in self.normalized_family_breakdown
-            if item.get("max_candidate_seconds") is not None
-            and float(item.get("max_candidate_seconds") or 0.0) > budget
-        ]
-
-    def to_dict(self) -> dict[str, Any]:
-        hint = self.reduction_hint
-        if not hint and not self.within_budget:
-            hint = default_reduction_hint()
-        family_breakdown = self.normalized_family_breakdown
-        slowest = self.slowest_family
-        return {
-            "name": self.name,
-            "target": self.target,
-            "candidate_count": self.candidate_count,
-            "row_count": self.row_count,
-            "feed_count": len(self.feed_symbols),
-            "feed_symbols": list(self.feed_symbols),
-            "planned_families": list(self.planned_families),
-            "family_breakdown": family_breakdown,
-            "slowest_family": slowest,
-            "over_budget_families": self.over_budget_families,
-            "slow_candidate_families": self.slow_candidate_families,
-            "budget_seconds": round(self.declared_budget_seconds, 3),
-            "estimated_seconds": round(self.declared_budget_seconds, 3),
-            "max_seconds": round(float(self.max_seconds), 3),
-            "max_family_seconds": (
-                None
-                if self.max_family_seconds is None
-                else round(float(self.max_family_seconds), 3)
-            ),
-            "max_candidate_seconds": (
-                None
-                if self.max_candidate_seconds is None
-                else round(float(self.max_candidate_seconds), 3)
-            ),
-            "within_budget": self.within_budget,
-            "budget_warning": not self.within_budget,
-            "execution_blocked": False,
-            "budget_policy": "advisory_runtime_enforced",
-            "reduction_hint": hint,
-        }
+class _ScoutRuntimeTimeout(TimeoutError):
+    """Internal timeout used to return control to ScoutRun."""
 
 
 class ScoutRun:
-    """Small execution contract for agent-authored first-look scouts.
+    """Runtime contract for agent-authored batch scratch scouts.
 
-    The helper intentionally does not prescribe alpha families or scoring logic.
-    It only standardizes dry-run budget declarations, streaming result persistence,
-    resumability, and compact stdout.
+    Strategy remains in the caller's candidates, scorer, and required
+    ``sort_key``. The helper only owns streaming persistence, automatic resume,
+    runtime limits, and compact summaries.
     """
 
-    def __init__(
-        self,
-        *,
-        name: str,
-        output_dir: str | Path,
-        max_seconds: float = DEFAULT_MAX_SECONDS,
-        max_candidate_seconds: float | None = None,
-        timeout_behavior: str = DEFAULT_TIMEOUT_BEHAVIOR,
-        continue_on_candidate_error: bool = True,
-        progress_interval_seconds: float = DEFAULT_PROGRESS_INTERVAL_SECONDS,
-        round_budget_seconds: float | None = DEFAULT_ROUND_BUDGET_SECONDS,
-        rank_keys: Sequence[str] = DEFAULT_RANK_KEYS,
-        top_k: int = 5,
-    ) -> None:
-        self.name = name
+    def __init__(self, name: str, output_dir: str | Path, /) -> None:
+        self.name = str(name)
         self.output_dir = Path(output_dir)
-        self.max_seconds = float(max_seconds)
-        self.max_candidate_seconds = (
-            None if max_candidate_seconds is None else float(max_candidate_seconds)
-        )
-        self.timeout_behavior = timeout_behavior
-        self.continue_on_candidate_error = bool(continue_on_candidate_error)
-        self.progress_interval_seconds = float(progress_interval_seconds)
-        self.round_budget_seconds = (
-            None if round_budget_seconds is None else float(round_budget_seconds)
-        )
-        self.rank_keys = tuple(rank_keys)
-        self.top_k = int(top_k)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     @property
-    def dry_run_path(self) -> Path:
-        return self.output_dir / f"{self.name}.dry_run.json"
+    def manifest_path(self) -> Path:
+        return self.output_dir / f"{self.name}.manifest.json"
 
     @property
     def results_path(self) -> Path:
@@ -249,61 +128,31 @@ class ScoutRun:
 
     @property
     def round_budget_path(self) -> Path:
+        shared_dir = self._infer_shared_scratch_dir()
+        if shared_dir is not None:
+            return shared_dir / "scout_budget_state.json"
         return self.output_dir / "scout_budget_state.json"
-
-    def write_dry_run(self, estimate: ScoutEstimate) -> dict[str, Any]:
-        payload = estimate.to_dict()
-        payload["artifacts"] = self._artifact_paths()
-        payload["round_budget"] = self._round_budget_snapshot()
-        self._write_json(self.dry_run_path, payload)
-        round_budget = payload["round_budget"]
-        print(
-            "scout_dry_run "
-            f"name={estimate.name} target={estimate.target} "
-            f"candidate_count={estimate.candidate_count} "
-            f"budget_seconds={payload['budget_seconds']} "
-            f"max_seconds={payload['max_seconds']} "
-            f"round_budget_remaining={round_budget['remaining_seconds']} "
-            f"budget_warning={str(payload['budget_warning']).lower()} "
-            f"execution_blocked=false"
-        )
-        if payload["reduction_hint"]:
-            print(f"reduction_hint={payload['reduction_hint']}")
-        for family in payload["family_breakdown"]:
-            print(
-                "scout_family "
-                f"label={family.get('label')} "
-                f"candidates={family.get('candidate_count')} "
-                f"budget_seconds={family.get('budget_seconds')} "
-                f"max_candidate_seconds={family.get('max_candidate_seconds')}"
-            )
-        print(f"artifacts dry_run={self.dry_run_path}")
-        return payload
 
     def run(
         self,
         candidates: Iterable[Any],
         scorer: Callable[[Any], dict[str, Any]],
         *,
-        resume: bool = False,
-        max_seconds: float | None = None,
-        max_candidate_seconds: float | None = None,
+        sort_key: SortKey,
     ) -> dict[str, Any]:
-        requested_budget = self.max_seconds if max_seconds is None else float(max_seconds)
+        if sort_key is None:
+            raise TypeError("ScoutRun.run() requires sort_key.")
+
         round_budget = self._round_budget_snapshot()
         round_remaining = round_budget["remaining_seconds"]
-        budget = requested_budget
+        budget = DEFAULT_MAX_SECONDS
         budget_limited_by_round = False
         if round_remaining is not None:
-            budget = min(requested_budget, float(round_remaining))
-            budget_limited_by_round = budget < requested_budget
-        candidate_budget = (
-            self.max_candidate_seconds
-            if max_candidate_seconds is None
-            else float(max_candidate_seconds)
-        )
-        enforcement_mode = _timeout_enforcement_mode(candidate_budget)
-        completed_indices = self._completed_indices() if resume else set()
+            budget = min(DEFAULT_MAX_SECONDS, float(round_remaining))
+            budget_limited_by_round = budget < DEFAULT_MAX_SECONDS
+
+        self._write_manifest(candidates, sort_key=sort_key, round_budget=round_budget)
+        completed_indices = self._completed_indices()
         start_time = time.monotonic()
         last_progress = start_time
         completed_this_run = 0
@@ -319,13 +168,14 @@ class ScoutRun:
                 completed_count=len(completed_indices),
                 skipped_count=0,
                 elapsed_seconds=0.0,
-                max_seconds=0.0,
-                max_candidate_seconds=candidate_budget,
+                effective_max_seconds=0.0,
                 timeout_scope="round_budget",
-                timeout_enforcement=enforcement_mode,
                 round_budget=round_budget,
             )
-            summary = self.write_summary(status="budget_exhausted", round_budget=round_budget)
+            summary = self._write_summary(
+                status="budget_exhausted",
+                sort_key=sort_key,
+            )
             print(
                 "scout_complete "
                 f"name={self.name} status=budget_exhausted "
@@ -338,11 +188,7 @@ class ScoutRun:
                 f"used_seconds={round_budget['used_seconds']} "
                 f"budget_seconds={round_budget['budget_seconds']}"
             )
-            print(
-                "artifacts "
-                f"results={self.results_path} state={self.state_path} "
-                f"summary={self.summary_path} round_budget={self.round_budget_path}"
-            )
+            self._print_artifacts()
             return {"state": state, "summary": summary}
 
         for index, candidate in enumerate(candidates):
@@ -354,69 +200,21 @@ class ScoutRun:
                 status = "budget_exhausted" if budget_limited_by_round else "timeout"
                 timeout_scope = "round_budget" if budget_limited_by_round else "run"
                 break
+
+            remaining_seconds = max(budget - elapsed, 0.0)
             try:
-                with _candidate_timeout(candidate_budget):
-                    result = scorer(candidate)
-            except ScoutCandidateTimeout:
-                status = "timeout"
-                timeout_scope = "candidate"
-                result = {
-                    "name": _candidate_name(candidate, index),
-                    "family": _candidate_family(candidate),
-                    "status": "timeout",
-                    "error": "candidate_timeout",
-                    "timeout_seconds": candidate_budget,
-                }
-                row = {
-                    "candidate_index": index,
-                    "candidate": _json_safe(candidate),
-                    "result": _json_safe(result),
-                    "elapsed_seconds": round(time.monotonic() - start_time, 3),
-                    "completed_at": _now_epoch(),
-                }
-                self._append_jsonl(self.results_path, row)
-                completed_indices.add(index)
-                completed_this_run += 1
-                if self.timeout_behavior == "continue":
-                    continue
+                with _candidate_deadline(remaining_seconds):
+                    row = self._score_candidate(index, candidate, scorer, sort_key)
+            except _ScoutRuntimeTimeout:
+                status = "budget_exhausted" if budget_limited_by_round else "timeout"
+                timeout_scope = "round_budget" if budget_limited_by_round else "run"
                 break
-            except Exception as exc:
-                if not self.continue_on_candidate_error:
-                    raise
-                result = {
-                    "name": _candidate_name(candidate, index),
-                    "family": _candidate_family(candidate),
-                    "status": "error",
-                    "error": "candidate_error",
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                }
-                row = {
-                    "candidate_index": index,
-                    "candidate": _json_safe(candidate),
-                    "result": _json_safe(result),
-                    "elapsed_seconds": round(time.monotonic() - start_time, 3),
-                    "completed_at": _now_epoch(),
-                }
-                self._append_jsonl(self.results_path, row)
-                completed_indices.add(index)
-                completed_this_run += 1
-                continue
-            if not isinstance(result, dict):
-                raise TypeError("Scout scorer must return a dict.")
-            row = {
-                "candidate_index": index,
-                "candidate": _json_safe(candidate),
-                "result": _json_safe(result),
-                "elapsed_seconds": round(time.monotonic() - start_time, 3),
-                "completed_at": _now_epoch(),
-            }
             self._append_jsonl(self.results_path, row)
             completed_indices.add(index)
             completed_this_run += 1
 
             now = time.monotonic()
-            if now - last_progress >= self.progress_interval_seconds:
+            if now - last_progress >= DEFAULT_PROGRESS_INTERVAL_SECONDS:
                 last_progress = now
                 self._write_state(
                     status="running",
@@ -424,13 +222,11 @@ class ScoutRun:
                     completed_count=len(completed_indices),
                     skipped_count=skipped,
                     elapsed_seconds=now - start_time,
-                    max_seconds=budget,
-                    max_candidate_seconds=candidate_budget,
+                    effective_max_seconds=budget,
                     timeout_scope="",
-                    timeout_enforcement=enforcement_mode,
                     round_budget=round_budget,
                 )
-                self.write_summary(status="running", round_budget=round_budget)
+                self._write_summary(status="running", sort_key=sort_key)
                 print(
                     "scout_progress "
                     f"name={self.name} completed={len(completed_indices)} "
@@ -439,14 +235,12 @@ class ScoutRun:
                 )
 
         elapsed = time.monotonic() - start_time
-        if status == "completed":
-            next_index = len(completed_indices)
-        else:
-            next_index = max(completed_indices) + 1 if completed_indices else 0
+        next_index = len(completed_indices) if status == "completed" else (
+            max(completed_indices) + 1 if completed_indices else 0
+        )
         final_round_budget = self._record_round_budget(
             elapsed_seconds=elapsed,
             status=status,
-            requested_max_seconds=requested_budget,
             effective_max_seconds=budget,
         )
         state = self._write_state(
@@ -455,13 +249,14 @@ class ScoutRun:
             completed_count=len(completed_indices),
             skipped_count=skipped,
             elapsed_seconds=elapsed,
-            max_seconds=budget,
-            max_candidate_seconds=candidate_budget,
+            effective_max_seconds=budget,
             timeout_scope=timeout_scope,
-            timeout_enforcement=enforcement_mode,
             round_budget=final_round_budget,
         )
-        summary = self.write_summary(status=status, round_budget=final_round_budget)
+        summary = self._write_summary(
+            status=status,
+            sort_key=sort_key,
+        )
         print(
             "scout_complete "
             f"name={self.name} status={status} "
@@ -474,65 +269,132 @@ class ScoutRun:
             f"used_seconds={final_round_budget['used_seconds']} "
             f"remaining_seconds={final_round_budget['remaining_seconds']}"
         )
-        for rank, row in enumerate(summary.get("top", [])[: self.top_k], start=1):
-            result = row.get("result") or {}
+        for rank, row in enumerate(summary.get("top", []), start=1):
             print(
                 "scout_top "
-                f"rank={rank} name={result.get('name', row.get('candidate_index'))} "
-                f"family={result.get('family', '')} "
-                f"score={_rank_value(result, self.rank_keys)}"
+                f"rank={rank} name={row.get('name', row.get('candidate_index'))} "
+                f"family={row.get('family', '')} "
+                f"score={row.get('sort_value')}"
             )
-        print(
-            "artifacts "
-            f"results={self.results_path} state={self.state_path} "
-            f"summary={self.summary_path} round_budget={self.round_budget_path}"
-        )
+        self._print_artifacts()
         return {"state": state, "summary": summary}
 
-    def write_summary(
+    def _write_summary(
         self,
         *,
         status: str,
-        round_budget: dict[str, Any] | None = None,
+        sort_key: SortKey,
     ) -> dict[str, Any]:
         rows = self._read_results()
-        ranked = sorted(
-            rows,
-            key=lambda row: _rank_value(row.get("result") or {}, self.rank_keys),
-            reverse=True,
-        )
+        ranked = _rank_rows(rows, sort_key)
         family_best: dict[str, dict[str, Any]] = {}
         family_stats: dict[str, dict[str, Any]] = {}
-        for row in ranked:
-            result = row.get("result") or {}
-            family = str(result.get("family") or "unknown")
+        for row in rows:
+            family = str(row.get("family") or "unknown")
             stats = family_stats.setdefault(
                 family,
-                {"completed_count": 0, "timeout_count": 0, "error_count": 0},
+                {"completed_count": 0, "sort_error_count": 0, "error_count": 0},
             )
             stats["completed_count"] += 1
-            if result.get("status") == "timeout":
-                stats["timeout_count"] += 1
-            if result.get("error"):
+            if row.get("status") == "sort_error":
+                stats["sort_error_count"] += 1
+            if row.get("error"):
                 stats["error_count"] += 1
+        for row in ranked:
+            family = str(row.get("family") or "unknown")
             if family not in family_best:
-                family_best[family] = row
+                family_best[family] = _summary_row(row, keys=FAMILY_BEST_ROW_KEYS)
         payload = {
             "name": self.name,
             "status": status,
             "completed_count": len(rows),
-            "top": ranked[: self.top_k],
+            "sortable_count": len(ranked),
+            "sort_key": _sort_key_label(sort_key),
+            "top": [
+                {"rank": rank, **_summary_row(row, keys=SUMMARY_ROW_KEYS)}
+                for rank, row in enumerate(ranked[:DEFAULT_TOP_K], start=1)
+            ],
             "family_best": family_best,
             "family_stats": family_stats,
-            "artifacts": self._artifact_paths(),
-            "round_budget": round_budget or self._round_budget_snapshot(),
         }
         self._write_json(self.summary_path, payload)
         return payload
 
+    def _score_candidate(
+        self,
+        index: int,
+        candidate: Any,
+        scorer: Callable[[Any], dict[str, Any]],
+        sort_key: SortKey,
+    ) -> dict[str, Any]:
+        try:
+            result = scorer(candidate)
+            if not isinstance(result, dict):
+                raise TypeError("Scout scorer must return a dict.")
+        except _ScoutRuntimeTimeout:
+            raise
+        except Exception as exc:
+            result = {
+                "name": _candidate_name(candidate, index),
+                "family": _candidate_family(candidate),
+                "status": "error",
+                "error": "candidate_error",
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
+        row = _compact_result_row(
+            candidate_index=index,
+            candidate=candidate,
+            result=result,
+        )
+        if row.get("status") == "error":
+            return row
+        try:
+            row["sort_value"] = _json_safe_scalar(_sort_value(row, sort_key))
+        except _ScoutRuntimeTimeout:
+            raise
+        except Exception as exc:
+            row["status"] = "sort_error"
+            row["error"] = "sort_key_error"
+            row["error_type"] = type(exc).__name__
+            row["error_message"] = str(exc)
+        return row
+
+    def _write_manifest(
+        self,
+        candidates: Iterable[Any],
+        *,
+        sort_key: SortKey,
+        round_budget: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload = {
+            "name": self.name,
+            "candidate_count": _candidate_count(candidates),
+            "runtime_policy": {
+                "max_seconds": DEFAULT_MAX_SECONDS,
+                "round_budget_seconds": DEFAULT_ROUND_BUDGET_SECONDS,
+                "top_k": DEFAULT_TOP_K,
+                "sort_key": _sort_key_label(sort_key),
+            },
+            "artifacts": self._artifact_paths(),
+            "round_budget": round_budget,
+            "started_at": _now_epoch(),
+        }
+        self.results_path.touch(exist_ok=True)
+        self._write_json(self.manifest_path, payload)
+        print(
+            "scout_manifest "
+            f"name={self.name} candidate_count={payload['candidate_count']} "
+            f"max_seconds={DEFAULT_MAX_SECONDS} "
+            f"round_budget_remaining={round_budget['remaining_seconds']} "
+            f"sort_key={payload['runtime_policy']['sort_key']}"
+        )
+        print(f"artifacts manifest={self.manifest_path}")
+        return payload
+
     def _artifact_paths(self) -> dict[str, str]:
         return {
-            "dry_run": str(self.dry_run_path),
+            "manifest": str(self.manifest_path),
             "results": str(self.results_path),
             "state": str(self.state_path),
             "summary": str(self.summary_path),
@@ -566,10 +428,8 @@ class ScoutRun:
         completed_count: int,
         skipped_count: int,
         elapsed_seconds: float,
-        max_seconds: float,
-        max_candidate_seconds: float | None,
+        effective_max_seconds: float,
         timeout_scope: str,
-        timeout_enforcement: str,
         round_budget: dict[str, Any],
     ) -> dict[str, Any]:
         payload = {
@@ -579,14 +439,8 @@ class ScoutRun:
             "completed_count": int(completed_count),
             "skipped_count": int(skipped_count),
             "elapsed_seconds": round(float(elapsed_seconds), 3),
-            "max_seconds": round(float(max_seconds), 3),
-            "max_candidate_seconds": (
-                None
-                if max_candidate_seconds is None
-                else round(float(max_candidate_seconds), 3)
-            ),
+            "effective_max_seconds": round(float(effective_max_seconds), 3),
             "timeout_scope": timeout_scope,
-            "timeout_enforcement": timeout_enforcement,
             "round_budget": round_budget,
             "artifacts": self._artifact_paths(),
             "updated_at": _now_epoch(),
@@ -597,19 +451,14 @@ class ScoutRun:
     def _round_budget_snapshot(self) -> dict[str, Any]:
         recorded_rounds = self._recorded_round_count()
         key = f"recorded_rounds:{recorded_rounds}"
-        budget_seconds = self.round_budget_seconds
         state = self._read_round_budget_state()
         round_state = (state.get("rounds") or {}).get(key) or {}
         used = round(float(round_state.get("used_seconds") or 0.0), 3)
-        remaining = (
-            None
-            if budget_seconds is None
-            else max(round(float(budget_seconds) - used, 3), 0.0)
-        )
+        remaining = max(round(DEFAULT_ROUND_BUDGET_SECONDS - used, 3), 0.0)
         return {
             "round_key": key,
             "recorded_rounds": recorded_rounds,
-            "budget_seconds": None if budget_seconds is None else round(float(budget_seconds), 3),
+            "budget_seconds": round(DEFAULT_ROUND_BUDGET_SECONDS, 3),
             "used_seconds": used,
             "remaining_seconds": remaining,
             "state_path": str(self.round_budget_path),
@@ -620,12 +469,9 @@ class ScoutRun:
         *,
         elapsed_seconds: float,
         status: str,
-        requested_max_seconds: float,
         effective_max_seconds: float,
     ) -> dict[str, Any]:
         snapshot = self._round_budget_snapshot()
-        if self.round_budget_seconds is None:
-            return snapshot
         state = self._read_round_budget_state()
         rounds = state.setdefault("rounds", {})
         round_state = rounds.setdefault(
@@ -639,16 +485,17 @@ class ScoutRun:
         )
         elapsed = max(float(elapsed_seconds), 0.0)
         used = round(float(round_state.get("used_seconds") or 0.0) + elapsed, 3)
-        budget = float(self.round_budget_seconds)
         round_state["used_seconds"] = used
-        round_state["remaining_seconds"] = max(round(budget - used, 3), 0.0)
+        round_state["remaining_seconds"] = max(
+            round(DEFAULT_ROUND_BUDGET_SECONDS - used, 3),
+            0.0,
+        )
         round_state["runs"] = list(round_state.get("runs") or [])
         round_state["runs"].append(
             {
                 "name": self.name,
                 "status": status,
                 "elapsed_seconds": round(elapsed, 3),
-                "requested_max_seconds": round(float(requested_max_seconds), 3),
                 "effective_max_seconds": round(float(effective_max_seconds), 3),
                 "results": str(self.results_path),
                 "state": str(self.state_path),
@@ -656,7 +503,7 @@ class ScoutRun:
                 "updated_at": _now_epoch(),
             }
         )
-        state["round_budget_seconds"] = round(budget, 3)
+        state["round_budget_seconds"] = round(DEFAULT_ROUND_BUDGET_SECONDS, 3)
         state["updated_at"] = _now_epoch()
         self._write_json(self.round_budget_path, state)
         return self._round_budget_snapshot()
@@ -687,11 +534,35 @@ class ScoutRun:
         return count
 
     def _infer_session_dir(self) -> Path | None:
-        if self.output_dir.name == "scratch" and (self.output_dir.parent / "branches").exists():
-            return self.output_dir.parent
-        if (self.output_dir / "branches").exists():
-            return self.output_dir
+        for path in (self.output_dir, *self.output_dir.parents):
+            if (
+                (path / "branches").is_dir()
+                and (path / "events.tsv").exists()
+                and (path / "exploration_path.md").exists()
+            ):
+                return path
+        for path in (self.output_dir, *self.output_dir.parents):
+            if (path / "branches").is_dir() and path.name != "scratch":
+                return path
         return None
+
+    def _infer_shared_scratch_dir(self) -> Path | None:
+        session_dir = self._infer_session_dir()
+        if session_dir is None:
+            return None
+        scratch_dir = session_dir / "scratch"
+        if scratch_dir.exists() or self.output_dir == scratch_dir or scratch_dir in self.output_dir.parents:
+            scratch_dir.mkdir(parents=True, exist_ok=True)
+            return scratch_dir
+        return None
+
+    def _print_artifacts(self) -> None:
+        print(
+            "artifacts "
+            f"manifest={self.manifest_path} results={self.results_path} "
+            f"state={self.state_path} summary={self.summary_path} "
+            f"round_budget={self.round_budget_path}"
+        )
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -703,125 +574,266 @@ class ScoutRun:
             handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
-def estimate_seconds(
-    candidate_count: int,
-    *,
-    seconds_per_candidate: float,
-    fixed_seconds: float = 0.0,
-) -> float:
-    return float(fixed_seconds) + int(candidate_count) * float(seconds_per_candidate)
-
-
-def default_reduction_hint() -> str:
-    return (
-        "budget declaration is advisory; runtime can stream and stop safely. "
-        "For faster feedback, consider prioritizing candidate order or narrowing "
-        "slow families, lag/window grids, feed count, model settings, or ensemble variants."
-    )
-
-
-def _normalize_family_budget(item: ScoutFamilyBudget | dict[str, Any]) -> dict[str, Any]:
-    if isinstance(item, ScoutFamilyBudget):
-        return item.to_dict()
-    if not isinstance(item, dict):
-        raise TypeError("family_breakdown items must be ScoutFamilyBudget or dict.")
-    label = str(item.get("label") or item.get("name") or "unknown")
-    max_candidate = item.get("max_candidate_seconds")
-    budget_seconds = round(
-        float(item.get("budget_seconds", item.get("estimated_seconds")) or 0.0),
-        3,
-    )
-    return {
-        "label": label,
-        "candidate_count": int(item.get("candidate_count") or 0),
-        "budget_seconds": budget_seconds,
-        "estimated_seconds": budget_seconds,
-        "max_candidate_seconds": (
-            None if max_candidate is None else round(float(max_candidate), 3)
-        ),
-        "cost_traits": [str(value) for value in item.get("cost_traits") or ()],
-        "reduction_axes": [str(value) for value in item.get("reduction_axes") or ()],
-        "stage": str(item.get("stage") or ""),
-    }
-
-
-def _candidate_family(candidate: Any) -> str:
-    if isinstance(candidate, dict):
-        return str(candidate.get("family") or candidate.get("label") or "unknown")
-    return str(getattr(candidate, "family", "") or getattr(candidate, "label", "") or "unknown")
-
-
-def _candidate_name(candidate: Any, index: int) -> str:
-    if isinstance(candidate, dict):
-        return str(candidate.get("name") or candidate.get("label") or index)
-    return str(getattr(candidate, "name", "") or getattr(candidate, "label", "") or index)
-
-
-def _timeout_enforcement_mode(max_candidate_seconds: float | None) -> str:
-    if max_candidate_seconds is None:
-        return "none"
-    if _signal_timeout_available():
-        return "signal"
-    return "cooperative"
-
-
-def _signal_timeout_available() -> bool:
-    return (
-        current_thread() is main_thread()
-        and hasattr(signal, "SIGALRM")
-        and hasattr(signal, "setitimer")
-    )
+def _rank_rows(rows: list[dict[str, Any]], sort_key: SortKey) -> list[dict[str, Any]]:
+    sortable = [
+        dict(row)
+        for row in rows
+        if row.get("status") != "sort_error" and not row.get("error")
+    ]
+    sortable.sort(key=lambda row: _sort_value(row, sort_key), reverse=True)
+    return sortable
 
 
 @contextmanager
-def _candidate_timeout(seconds: float | None):
-    if seconds is None or seconds <= 0 or not _signal_timeout_available():
+def _candidate_deadline(seconds: float):
+    if seconds <= 0:
+        raise _ScoutRuntimeTimeout("scout runtime budget exhausted")
+    if not hasattr(signal, "SIGALRM") or not hasattr(signal, "setitimer"):
         yield
         return
 
     previous_handler = signal.getsignal(signal.SIGALRM)
-    try:
-        previous_timer = signal.setitimer(signal.ITIMER_REAL, 0)
-    except (AttributeError, ValueError):
-        yield
-        return
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, 0.0)
 
-    def _raise_timeout(signum, frame):  # noqa: ARG001
-        raise ScoutCandidateTimeout(f"candidate exceeded {seconds} seconds")
+    def _handle_timeout(signum, frame):  # noqa: ARG001
+        raise _ScoutRuntimeTimeout("scout runtime budget exhausted")
 
-    signal.signal(signal.SIGALRM, _raise_timeout)
-    signal.setitimer(signal.ITIMER_REAL, float(seconds))
+    signal.signal(signal.SIGALRM, _handle_timeout)
+    signal.setitimer(signal.ITIMER_REAL, max(float(seconds), 0.001))
     try:
         yield
     finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
         signal.signal(signal.SIGALRM, previous_handler)
-        delay, interval = previous_timer
-        if delay > 0:
-            signal.setitimer(signal.ITIMER_REAL, delay, interval)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, previous_timer[0], previous_timer[1])
 
 
-def _rank_value(result: dict[str, Any], rank_keys: Sequence[str]) -> float:
-    for key in rank_keys:
-        value = result.get(key)
-        if isinstance(value, (int, float)):
-            return float(value)
-        try:
-            if value is not None:
-                return float(value)
-        except (TypeError, ValueError):
-            continue
-    return float("-inf")
+def _sort_value(row: dict[str, Any], sort_key: SortKey) -> Any:
+    if isinstance(sort_key, str):
+        if sort_key not in row:
+            raise KeyError(f"sort_key field missing: {sort_key}")
+        value = row[sort_key]
+    else:
+        value = sort_key(row)
+    if value is None:
+        raise ValueError("sort_key returned None")
+    return value
 
 
-def _json_safe(value: Any) -> Any:
+def _sort_key_label(sort_key: SortKey) -> str:
+    if isinstance(sort_key, str):
+        return sort_key
+    name = getattr(sort_key, "__name__", "")
+    return name or "callable"
+
+
+def _candidate_count(candidates: Iterable[Any]) -> int | None:
     try:
-        json.dumps(value)
-        return value
+        return len(candidates)  # type: ignore[arg-type]
     except TypeError:
-        if hasattr(value, "to_dict"):
-            return value.to_dict()
-        return repr(value)
+        return None
+
+
+def _candidate_family(candidate: Any) -> str:
+    mapping = _object_mapping(candidate)
+    return str(
+        mapping.get("family")
+        or mapping.get("category")
+        or mapping.get("group")
+        or mapping.get("label")
+        or "unknown"
+    )
+
+
+def _candidate_name(candidate: Any, index: int) -> str:
+    mapping = _object_mapping(candidate)
+    return str(mapping.get("name") or mapping.get("label") or index)
+
+
+def _compact_result_row(
+    *,
+    candidate_index: int,
+    candidate: Any,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    candidate_dict = _object_mapping(candidate)
+    result_dict = _object_mapping(result)
+    row: dict[str, Any] = {
+        "candidate_index": int(candidate_index),
+        "name": str(
+            result_dict.get("name")
+            or candidate_dict.get("name")
+            or result_dict.get("label")
+            or candidate_dict.get("label")
+            or candidate_index
+        ),
+        "family": str(
+            result_dict.get("family")
+            or result_dict.get("category")
+            or result_dict.get("group")
+            or candidate_dict.get("family")
+            or candidate_dict.get("category")
+            or candidate_dict.get("group")
+            or candidate_dict.get("label")
+            or "unknown"
+        ),
+    }
+    for key in SCOUT_STATUS_KEYS:
+        if key in result_dict:
+            row[key] = _compact_value(result_dict[key])
+
+    for key in SCOUT_METRIC_KEYS:
+        value = result_dict.get(key)
+        if value is None and key in candidate_dict:
+            value = candidate_dict.get(key)
+        if value is not None:
+            row[key] = _compact_metric(value)
+
+    params, omitted_keys = _extract_explicit_params(candidate_dict, result_dict)
+    if params:
+        row["params"] = params
+    if omitted_keys:
+        row["omitted_param_keys"] = omitted_keys
+    return row
+
+
+def _extract_explicit_params(
+    candidate: dict[str, Any],
+    result: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    params: dict[str, Any] = {}
+    omitted: set[str] = set()
+    _merge_explicit_params(params, omitted, candidate.get("params"), source="candidate.params")
+    _merge_explicit_params(params, omitted, result.get("params"), source="result.params")
+    _record_omitted_runtime_fields(omitted, candidate, source="candidate")
+    _record_omitted_runtime_fields(omitted, result, source="result")
+    return params, sorted(omitted)
+
+
+def _merge_explicit_params(
+    target: dict[str, Any],
+    omitted: set[str],
+    source_params: Any,
+    *,
+    source: str,
+) -> None:
+    if source_params is None:
+        return
+    if not isinstance(source_params, dict):
+        omitted.add(source)
+        return
+    for key, value in source_params.items():
+        compact = _param_value(value)
+        if compact is None:
+            omitted.add(str(key))
+            continue
+        target[str(key)] = compact
+
+
+def _record_omitted_runtime_fields(
+    omitted: set[str],
+    source_dict: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    for key, value in source_dict.items():
+        if key in SCOUT_IDENTITY_KEYS or key in SCOUT_METRIC_KEYS or key in SCOUT_STATUS_KEYS:
+            continue
+        if key in {"candidate", "result", "params"}:
+            continue
+        omitted_key = str(key)
+        if omitted_key in omitted:
+            omitted_key = f"{source}.{omitted_key}"
+        omitted.add(omitted_key)
+
+
+def _object_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "to_dict"):
+        mapped = value.to_dict()
+        return mapped if isinstance(mapped, dict) else {}
+    return {}
+
+
+def _summary_row(row: dict[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key in keys:
+        if key not in row:
+            continue
+        value = row[key]
+        if key == "params":
+            value = _compact_value(value)
+        payload[key] = value
+    return payload
+
+
+def _compact_metric(value: Any) -> Any:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return round(value, 6)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return _compact_value(value)
+    return round(parsed, 6)
+
+
+def _param_value(value: Any) -> Any:
+    if hasattr(value, "item"):
+        try:
+            value = value.item()
+        except (TypeError, ValueError):
+            pass
+    try:
+        encoded = json.dumps(value, sort_keys=True)
+    except (TypeError, ValueError):
+        return None
+    if len(encoded.encode("utf-8")) > MAX_PARAM_VALUE_JSON_BYTES:
+        return None
+    return value
+
+
+def _compact_value(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float):
+        return round(value, 6)
+    if isinstance(value, str):
+        if len(value) <= 160:
+            return value
+        return f"{value[:157]}..."
+    if isinstance(value, (list, tuple)):
+        compact_values = [_compact_value(item) for item in list(value)[:12]]
+        if len(value) > 12:
+            compact_values.append(f"...(+{len(value) - 12})")
+        return compact_values
+    if isinstance(value, dict):
+        compact_dict: dict[str, Any] = {}
+        for key in sorted(value, key=str)[:24]:
+            compact = _compact_value(value[key])
+            if compact is not None:
+                compact_dict[str(key)] = compact
+        if len(value) > 24:
+            compact_dict["_truncated_keys"] = len(value) - 24
+        return compact_dict
+    if hasattr(value, "item"):
+        try:
+            return _compact_value(value.item())
+        except (TypeError, ValueError):
+            pass
+    return repr(value)[:160]
+
+
+def _json_safe_scalar(value: Any) -> Any:
+    compact = _compact_value(value)
+    if isinstance(compact, (bool, int, float, str)):
+        return compact
+    return repr(compact)[:160]
 
 
 def _now_epoch() -> float:

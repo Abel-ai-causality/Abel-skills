@@ -126,30 +126,21 @@ Always:
   for resume, blocker detail, branch backtrack, or insufficient checkpoint
   state. Treat full digest `--json`, raw artifacts, `--verbose`, and `--audit`
   as audit/debug surfaces, not the standard loop.
-- On a fresh or unfamiliar ticker, a compact first-look data scout in
-  `experiment-loop.md` is often useful before the first serious recorded alpha
-  candidate unless the user gave a narrow path or continuation. Scout is
-  optional scratch research, not a required branch phase. It should normally fit
-  about 120 seconds and choose a direction, not become open-ended private
-  search. Run a dry-run search-shape declaration with free-form family cost
-  breakdown; treat declared budget seconds as search-space disclosure and
-  warning, not trusted timing or an execution gate. If the declaration looks
-  oversized, prioritize the candidate order or narrow clearly slow axes when
-  that improves feedback, but it is valid to execute a broader ordered scout and
-  let `ScoutRun` enforce runtime boundaries while streaming completed candidates
-  to disk. Heavy tree/GBDT/HGBT/large walk-forward families are valid
-  second-stage probes when lightweight scout or recorded-branch evidence
-  justifies model capacity; do not make them first-look defaults. Use the
-  minimal `ScoutRun` pattern in `experiment-loop.md`; do not inspect
-  `scout_runtime.py` or probe helper signatures unless the helper import fails
-  or you are debugging the helper. Put temporary scout scripts or summaries
-  under `research/<ticker>/<session_id>/scratch/` when files are useful.
-  `ScoutRun` tracks cumulative scout runtime as an execution guardrail so
-  repeated private scout cannot replace formal branch validation. When scout has
-  enough directional evidence or runtime stops it, turn current artifacts into a
-  concrete branch, control, fixed construction, or stop/pivot reason. Strategic
-  continue/stop/report decisions happen after `run-branch`, not at scout
-  completion.
+- On a fresh or unfamiliar ticker, use the compact first-look data scout in
+  `experiment-loop.md` before the first serious recorded alpha candidate unless
+  the user gave a narrow path or continuation. Use scout to score plausible
+  target, graph, and construction shapes, then rank what looks worth formal
+  validation before broad recorded work. When a scout or scratch batch scores
+  multiple candidate variants, import the packaged helper with
+  `from abel_invest.narrative_core.scout_runtime import ScoutRun`, then use
+  `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so compact
+  result rows stream to disk, resumable artifacts survive interruptions, and the
+  top summary is ranked by your explicit strategy criterion. `ScoutRun` is a
+  stability helper for batch scout execution, not a separate research phase or
+  strategy constraint. Put temporary scout scripts or summaries under
+  `research/<ticker>/<session_id>/scratch/` when files are useful. Promote the
+  strongest ranked shapes into recorded branch work, and account for any
+  selection width that materially chose the submitted candidate.
 
 Never:
 
@@ -206,9 +197,10 @@ Core search invariants:
   are degrees of freedom, not a scripted route.
 - Fresh or unfamiliar tickers should normally use the prepared first-look scout
   sequence in `experiment-loop.md` before the first broad recorded candidate.
-  Its practical output is scored target, graph, and construction shapes ranked
-  by what looks worth formal validation, not only an analysis memo. Direct
-  recorded branches remain valid for
+  Its practical output is scored target controls, broad graph vote/ensemble or
+  expanded-neighborhood families, and other construction shapes ranked by what
+  looks worth formal validation, not only an analysis memo or a single best
+  lead. Direct recorded branches remain valid for
   user-specified strategies, existing leads, baselines, controls,
   continuations, or very narrow diagnostics.
 - Live graph discovery is the default high-value alpha universe when available.

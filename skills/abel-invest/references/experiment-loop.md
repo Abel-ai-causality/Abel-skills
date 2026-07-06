@@ -60,93 +60,25 @@ Do not run a flat or no-signal materialization branch just to warm cache or make
 the scout official. A prepared branch may be prepare-only; `run-branch` is for
 meaningful candidates, controls, diagnostics, or ablations.
 
-Use scout as optional scratch research to choose a direction, not as a required
-branch phase or open-ended private search. A fresh ticker often benefits from a
-compact first-look scout that fits about 120 seconds: score plausible target,
-graph, and lightweight construction shapes, then rank what looks worth formal
-validation before broad recorded work. Use objective metrics such as Sharpe,
-total return, drawdown, and turnover.
+Use a compact scored scout to choose, not just describe. For first look, score
+plausible target, graph, and construction shapes, then rank what looks worth
+formal validation before broad recorded work. Use objective metrics such as
+Sharpe, total return, drawdown, and turnover.
 
-If a scout reaches its runtime boundary, use its streamed artifacts and state
-instead of manually finding and killing processes or restarting from scratch.
-Treat a timeout as enough private search for that scout attempt: promote a top
-completed result or useful control into a concrete branch when the artifacts are
-directional, or choose a direct recorded branch/control from the existing
-evidence. Decide whether to continue, stop, or report after a recorded
-`run-branch` result.
-
-Scout scripts should be bounded, resumable, and quiet on stdout. Before full
-execution, run a dry-run search-shape declaration that reports candidate count,
-row count, feed count, declared budget seconds, max seconds, planned families,
-free-form family budget breakdown, slowest family, per-candidate timeout risk,
-and any prioritization or reduction hint. The declared family budget seconds are
-not trusted predictions and should not hard-block execution; they disclose
-search shape before the runtime enforces the real 120-second boundary. If the
-declaration looks oversized, prefer ordering the most promising candidates first
-or narrowing clearly slow axes, but it is valid to execute and let runtime
-stream partial results when broader coverage is useful.
-During execution, stream completed candidates to `scratch/<scout>.results.jsonl`,
-update `scratch/<scout>.state.json` and `scratch/<scout>.summary.json`, and use
-`--resume` after interruption instead of discarding completed work. Print only
-dry-run summary, periodic progress, final top results, and artifact paths; keep
-complete ranked tables on disk. The helper
-`abel_invest.narrative_core.scout_runtime` is available for this contract.
-Use this minimal pattern; do not inspect the helper source unless the import
-fails or you are debugging the helper itself, and do not run signature probes
-for the helper API during ordinary scout authoring:
-
-```python
-from abel_invest.narrative_core.scout_runtime import (
-    ScoutEstimate,
-    ScoutFamilyBudget,
-    ScoutRun,
-)
-
-scout = ScoutRun(
-    name="first_look_scout",
-    output_dir=scratch_dir,
-    top_k=10,
-    max_candidate_seconds=args.max_candidate_seconds,
-)
-estimate = ScoutEstimate(
-    name=scout.name,
-    target=TARGET,
-    candidate_count=len(candidates),
-    row_count=len(panel),
-    feed_symbols=feed_symbols,
-    planned_families=["target", "graph", "lightweight_linear"],
-    family_breakdown=[
-        ScoutFamilyBudget(
-            label="graph_lag_and_vote",
-            candidate_count=len(graph_candidates),
-            budget_seconds=graph_seconds,
-            max_candidate_seconds=0.5,
-            cost_traits=["vectorized", "graph"],
-            reduction_axes=["feeds", "lags", "windows"],
-        ),
-    ],
-    budget_seconds=scout_budget_seconds,
-    max_seconds=args.max_seconds,
-    max_family_seconds=args.max_family_seconds,
-    max_candidate_seconds=args.max_candidate_seconds,
-    reduction_hint="prioritize likely useful families first; runtime will stop safely",
-)
-if args.dry_run:
-    scout.write_dry_run(estimate)
-    raise SystemExit(0)
-scout.run(
-    candidates,
-    score_candidate,
-    resume=args.resume,
-    max_seconds=args.max_seconds,
-    max_candidate_seconds=args.max_candidate_seconds,
-)
-```
+When a scout or scratch batch scores multiple candidate variants, import the
+packaged helper with
+`from abel_invest.narrative_core.scout_runtime import ScoutRun`, then wrap the
+batch with `ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so
+compact result rows stream to disk, resumable artifacts survive interruptions,
+and the top summary is ranked by your explicit strategy criterion. `ScoutRun` is
+a stability helper for scout execution, not a separate research phase or
+strategy constraint.
 
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime
 - graph candidate shapes: lead/lag/sign, node subset, transformation, spread,
-  horizon, and single-feature threshold/vote variants
+  horizon, graph vote families, graph ensemble families, expanded-neighborhood
+  candidates, and single-feature threshold variants
 - construction choices: feature factories, lightweight linear/ridge comparisons,
   ensembles, filters, and sizing rules that can be locally scored before formal
   validation
@@ -157,40 +89,14 @@ remains available. Do not abandon the graph-derived universe unless graph
 subset, lag/sign, transformation, model, or risk-expression alternatives have
 been scored or intentionally ruled out.
 
-Scout runtime budget is an execution guardrail, not a cadence recommendation.
-`ScoutRun` tracks cumulative scout runtime for the current recorded-evidence
-state so repeated private scout attempts cannot replace formal branch
-validation. The budget constrains runtime mechanics, not strategy families:
-graph expansion, model-capacity probes, controls, and refinements remain valid
-when the current evidence makes them useful.
-
-When the runtime budget is exhausted, or when scout has produced enough
-directional evidence, stop private scout and use the streamed artifacts plus the
-recorded ledger to author a concrete branch, control, fixed construction, or
-stop/pivot reason. Make strategic continue, stop, or final-report decisions
-after `run-branch` records a result, not at scout completion.
-
-Heavy model families such as random forests, boosted trees, HGBT, ExtraTrees, or
-large nested walk-forward scans remain valid exploration tools, but they are
-second-stage construction families. Use them when a lightweight scout or
-recorded branch indicates that extra model capacity is the next useful axis.
-They should be family-budgeted, protected by per-candidate timeout, and promoted
-to recorded branch work or dropped after one bounded probe.
-
 Store temporary scripts or summaries in `research/<ticker>/<exp_id>/scratch/`
-when useful. Prefer files for scouts so dry-run, streaming artifacts, and resume
-state survive interruptions. If a heredoc, notebook cell, or query cell is truly
-necessary, it should still write equivalent `results.jsonl`, `state.json`, and
-`summary.json` artifacts. Promote the strongest shapes into recorded branch
-work, and account for any selection width that materially chose the submitted
-candidate.
-
-Do not let scout chain into unbounded private search or become a fixed step for
-each branch. Use scout when it helps resolve uncertainty, then promote the
-strongest scored shape, control, or fixed construction into recorded branch
-work. Additional scout is acceptable only when new evidence, a changed frontier,
-or a genuinely unclear construction axis needs quick ranking; otherwise prefer
-formal branch validation or a stop/pivot report.
+when useful. If scratch work is run from a heredoc, notebook cell, or query
+cell, the same batch scratch search rule applies: multiple candidate variants
+go through `ScoutRun` with an agent-owned scorer and required `sort_key` so
+compact result rows stream to disk and resumable artifacts survive
+interruptions.
+Promote the strongest shapes into recorded branch work, and account for any
+selection width that materially chose the submitted candidate.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.
@@ -209,10 +115,12 @@ Each round should push toward the user's objective.
 3. For a fresh or unfamiliar ticker, begin serious search with a compact
    first-look scout before the first broad recorded run unless the path is
    user-specified, a continuation, a baseline/control, or a very narrow
-   diagnostic. When that scout needs market data, materialize it through a
-   prepared scout/candidate branch first; the branch can stop at prepare if
-   its job is data/cache materialization. Probes are search workbench material,
-   not validation evidence.
+   diagnostic. The scout should preserve broad graph-vote, graph-ensemble, and
+   expanded-neighborhood options alongside controls before narrowing. When that
+   scout needs market data, materialize it through a prepared scout/candidate
+   branch first; the branch can stop at prepare if its job is data/cache
+   materialization. Probes are search workbench material, not validation
+   evidence.
 4. Keep graph-enriched ideas active early and throughout the search when live
    graph candidates exist. Use target-only candidates as baselines, seeds,
    ablations, and competitors, not as the default escape from graph search.

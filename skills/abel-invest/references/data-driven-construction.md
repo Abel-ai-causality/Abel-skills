@@ -47,33 +47,22 @@ research. Prefer `research/<ticker>/<session_id>/scratch/` for files. Scratch
 outputs are not validation evidence; they help choose what is worth formal,
 audited validation.
 
-Use scratch to compare construction axes, not to create paperwork or a fixed
-per-branch ritual. A compact first-look scout should usually fit about 120
-seconds while scoring plausible target, graph, and lightweight construction
-shapes closely enough to choose what deserves formal validation. Prefer a ranked
-table over a prose-only memo: target baselines, graph single-feature shapes,
-feature factories, lightweight linear/ridge comparisons, ensembles, filters, or
-sizing variants should be compared with objective metrics such as Sharpe, total
-return, drawdown, and turnover when feasible.
+When a scout or scratch batch scores multiple candidate variants, import the
+packaged helper with
+`from abel_invest.narrative_core.scout_runtime import ScoutRun`, then use
+`ScoutRun(name, scratch).run(candidates, scorer, sort_key=...)` so compact
+result rows stream to disk, resumable artifacts survive interruptions, and the
+top summary is ranked by your explicit strategy criterion. `ScoutRun` is a
+stability helper for batch scout execution, not a separate research phase or
+strategy constraint.
 
-Heavy tree, boosted, or large walk-forward model families remain valid, but
-they are second-stage probes after a lightweight scout or recorded branch
-indicates that model capacity is the useful next axis. They should be
-family-budgeted and protected by per-candidate timeout rather than bundled into
-the default first-look scout.
-
-Scout family budget seconds are search-space declarations, not trusted runtime
-predictions or execution gates. Use them to expose oversized plans and prioritize
-candidate order before execution; rely on runtime timeout, streamed artifacts,
-and actual family stats for enforcement and follow-up decisions.
-
-Do not let scratch scouting become the main research loop. `ScoutRun` tracks
-cumulative scout runtime as an execution guardrail so repeated private scout
-cannot replace formal branch validation. Use scout when it resolves uncertainty,
-then promote the strongest scored shape, control, or fixed construction into
-recorded branch work. Expanded graph facts and model-capacity ideas remain valid,
-but they should be shaped by bounded scout artifacts or recorded branch evidence
-rather than an open-ended private search chain.
+Use scratch to compare construction axes, not to create paperwork. A compact
+first-look scout should score plausible target, graph, and construction shapes
+closely enough to choose what deserves formal validation. Prefer a ranked table
+over a prose-only memo: target baselines, graph single-feature shapes, feature
+factories, model-family variants, ensembles, filters, or sizing variants should
+be compared with objective metrics such as Sharpe, total return, drawdown, and
+turnover when feasible.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable

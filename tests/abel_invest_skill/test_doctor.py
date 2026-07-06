@@ -70,7 +70,7 @@ def test_run_doctor_ready_reports_alpha_managed_strategy_search(
     assert "alpha-managed strategy search" in str(result["summary"])
     assert "init-session" in str(result["next_step"])
     assert "prepare-branch" in str(result["next_step"])
-    assert "120 seconds" in str(result["next_step"])
+    assert "plausible target, graph, and construction shapes" in str(result["next_step"])
     assert "5-minute" not in str(result["next_step"])
 
     report = doctor.render_doctor_report(result)
