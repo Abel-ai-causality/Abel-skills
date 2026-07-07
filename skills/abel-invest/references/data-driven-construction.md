@@ -48,9 +48,10 @@ outputs are not validation evidence; they help choose what is worth formal,
 audited validation.
 
 Use scratch to compare construction axes, not to create paperwork. A compact
-first-look scout should usually be a few-minute scratch search while scoring
-plausible target, graph, and construction shapes closely enough to choose what
-deserves formal validation. Prefer a ranked table over a prose-only memo:
+first-look scout should usually take roughly 5 minutes while scoring plausible
+target, graph, and construction shapes closely enough to choose what deserves
+formal validation. If the scout script is still making progress, let it finish
+naturally before deciding what to validate. Prefer a ranked table over a prose-only memo:
 target baselines, graph single-feature shapes, feature factories, model-family
 variants, ensembles, filters, or sizing variants should be compared with
 objective metrics such as Sharpe, total return, drawdown, and turnover when
@@ -59,8 +60,9 @@ feasible.
 When scratch work evaluates a set of candidate variants to choose what to
 validate, wrap that evaluation with
 `ScoutRun(name, scratch).run(candidates, scorer)` so result rows stream to disk
-and the run can timeout/resume safely. Reading back or reordering already scored
-results does not need another `ScoutRun`.
+while the scout runs. If the helper stops after streaming partial rows, use the
+available rows as the current scout output and decide what to validate. Reading
+back or reordering already scored results does not need another `ScoutRun`.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable

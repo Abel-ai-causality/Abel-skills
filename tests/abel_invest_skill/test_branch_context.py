@@ -313,13 +313,15 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "prepare-only scout branches are fine" in rendered
     assert "do not run flat/no-signal rounds" in rendered
     assert "after prepare-branch, temporary scripts or summaries may live" in rendered
-    assert "few-minute scratch search" in rendered
+    assert "roughly 5 minutes" in rendered
+    assert "still making progress" in rendered
     assert "rank what looks worth formal validation before broad recorded work" in rendered
     assert "scratch work evaluates a set of candidate variants" in rendered
     assert "choose what to validate" in rendered
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in rendered
     assert "ScoutRun(name, scratch).run(candidates, scorer)" in rendered
     assert "result rows stream to disk" in rendered
+    assert "available rows as the current scout output" in rendered
     assert "promote the strongest shapes into recorded branch work" in rendered
     assert "script still owns ranking, projection, and branch-candidate selection" not in rendered
     assert "sort_key" not in rendered

@@ -130,13 +130,15 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     assert "diagnostics" in context_guide
     assert "not validation evidence" in context_guide
     assert "inline heredoc" in context_guide
-    assert "few-minute scratch search" in context_guide
+    assert "roughly 5 minutes" in context_guide
+    assert "still making progress" in context_guide
     assert "score plausible target, graph, and construction shapes" in context_guide
     assert "scratch work evaluates a set of candidate variants" in context_guide
     assert "choose what to validate" in context_guide
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in context_guide
     assert "ScoutRun(name, scratch).run(candidates, scorer)" in context_guide
     assert "result rows stream to disk" in context_guide
+    assert "available rows as the current scout output" in context_guide
     assert "promote the strongest shapes into recorded branch work" in context_guide
     assert "script still owns ranking, projection, and branch-candidate selection" not in context_guide
     assert "rank what looks worth formal validation before broad recorded work" in context_guide

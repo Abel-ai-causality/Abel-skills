@@ -394,7 +394,7 @@ checks auth/runtime readiness through its internal runtime doctor; and prints
 the command prefix for strategy work.
 
 - `ready`: you can start alpha search
-- `ready` means continue with `init-session`, then prepare data before trusting a direct candidate, control, or first-look scout
+- `ready` means continue with `init-session`, then init and prepare a scout or candidate branch before any broad recorded run
 - `auth_missing`: no reusable auth was found; use `abel-auth`, then rerun the
   active bootstrap shim
 - `scaffold_stale`, `runtime_stale`, `env_missing`, `edge_missing`, or

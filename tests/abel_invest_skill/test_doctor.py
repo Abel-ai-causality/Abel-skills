@@ -69,15 +69,15 @@ def test_run_doctor_ready_reports_alpha_managed_strategy_search(
     assert result["workspace_mode"] == doctor.WORKSPACE_MODE
     assert "alpha-managed strategy search" in str(result["summary"])
     assert "init-session" in str(result["next_step"])
-    assert "prepare data before trusting" in str(result["next_step"])
-    assert "direct candidate, control, or first-look scout" in str(result["next_step"])
-    assert "5-minute" not in str(result["next_step"])
+    assert "init a scout/candidate branch -> prepare-branch -> first-look scout" in str(result["next_step"])
+    assert "roughly 5-minute expected runtime" in str(result["next_step"])
+    assert "direct candidate, control" not in str(result["next_step"])
 
     report = doctor.render_doctor_report(result)
     assert "Workspace mode: alpha-managed strategy search" in report
     assert "Effective profile: sit (shared_auth_file)" in report
     assert "Effective CAP base URL: https://cap-sit.abel.ai/api" in report
-    assert "5-minute" not in report
+    assert "roughly 5-minute expected runtime" in report
     assert "Edge install target:" not in report
 
 

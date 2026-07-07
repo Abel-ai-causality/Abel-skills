@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from abel_invest.narrative_core import scout_runtime
-from abel_invest.narrative_core.scout_runtime import DEFAULT_MAX_SECONDS, ScoutRun
+from abel_invest.narrative_core.scout_runtime import ScoutRun
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -20,7 +20,7 @@ def test_scout_runtime_exposes_minimal_stability_wrapper_api(tmp_path):
     assert scout.manifest_path.name == "first_look.manifest.json"
     assert scout.results_path.name == "first_look.results.jsonl"
     assert scout.state_path.name == "first_look.state.json"
-    assert DEFAULT_MAX_SECONDS == 180.0
+    assert not hasattr(scout_runtime, "DEFAULT_MAX_SECONDS")
     assert not hasattr(scout, "summary_path")
     assert not hasattr(scout, "round_budget_path")
     assert not hasattr(scout_runtime, "DEFAULT_TOP_K")
@@ -58,7 +58,7 @@ def test_scout_run_writes_flat_streamed_rows_manifest_and_state(tmp_path, capsys
 
     assert result["state"]["status"] == "completed"
     assert manifest["candidate_count"] == 3
-    assert manifest["runtime_policy"] == {"max_seconds": 180.0}
+    assert "runtime_policy" not in manifest
     assert set(manifest["artifacts"]) == {"manifest", "results", "state"}
     assert len(rows) == 3
     assert rows[0] == {
@@ -76,6 +76,7 @@ def test_scout_run_writes_flat_streamed_rows_manifest_and_state(tmp_path, capsys
     assert "result" not in rows[0]
     assert state["completed_count"] == 3
     assert state["skipped_count"] == 0
+    assert "effective_max_seconds" not in state
     assert state["artifacts"] == manifest["artifacts"]
     assert not (tmp_path / "first_look.summary.json").exists()
     assert not (tmp_path / "scout_budget_state.json").exists()
@@ -87,6 +88,7 @@ def test_scout_run_writes_flat_streamed_rows_manifest_and_state(tmp_path, capsys
     assert "scout_top" not in output
     assert "summary=" not in output
     assert "round_budget" not in output
+    assert "max_seconds" not in output
 
 
 def test_scout_run_writes_compact_error_row_without_ok_flag(tmp_path):
@@ -104,7 +106,7 @@ def test_scout_run_writes_compact_error_row_without_ok_flag(tmp_path):
 
 
 def test_scout_run_automatic_resume_skips_completed_candidates(tmp_path, monkeypatch):
-    monkeypatch.setattr(scout_runtime, "DEFAULT_MAX_SECONDS", 0.025)
+    monkeypatch.setattr(scout_runtime, "_MAX_SECONDS", 0.025)
     scout = ScoutRun("first_look", tmp_path)
     candidates = [{"name": f"c{i}", "score": i} for i in range(5)]
 
@@ -117,7 +119,7 @@ def test_scout_run_automatic_resume_skips_completed_candidates(tmp_path, monkeyp
     first_rows = _jsonl(scout.results_path)
     assert 1 <= len(first_rows) < len(candidates)
 
-    monkeypatch.setattr(scout_runtime, "DEFAULT_MAX_SECONDS", 1.0)
+    monkeypatch.setattr(scout_runtime, "_MAX_SECONDS", 1.0)
     second = scout.run(candidates, slow_score)
 
     rows = _jsonl(scout.results_path)
@@ -165,7 +167,8 @@ def test_experiment_loop_documents_minimal_scout_runtime_hook():
     text = reference.read_text(encoding="utf-8")
 
     assert "Use a compact scored scout to choose, not just describe" in text
-    assert "few-minute scratch search" in text
+    assert "roughly 5 minutes" in text
+    assert "still making progress" in text
     assert "then rank what looks worth" in text
     assert "formal validation before broad" in text
     assert "recorded work" in text
@@ -176,8 +179,9 @@ def test_experiment_loop_documents_minimal_scout_runtime_hook():
     assert "result" in text
     assert "rows" in text
     assert "stream to disk" in text
-    assert "timeout/resume" in text
-    assert "Reading back or reordering already" in text
+    assert "available rows as the current scout output" in text
+    assert "timeout/resume" not in text
+    assert "reading\nback or reordering already" in text.lower()
     assert "scored results does not need another" in text
     assert "promote the" in text.lower()
     assert "script still owns" not in text.lower()

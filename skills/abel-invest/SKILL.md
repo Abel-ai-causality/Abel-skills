@@ -128,15 +128,18 @@ Always:
   as audit/debug surfaces, not the standard loop.
 - On a fresh or unfamiliar ticker, use the compact first-look data scout in
   `experiment-loop.md` before the first serious recorded alpha candidate unless
-  the user gave a narrow path or continuation. Expect the scout to be a
-  few-minute scratch search: score plausible target, graph, and construction
-  shapes, then rank what looks worth formal validation before broad recorded
-  work. When scratch work evaluates a set of candidate variants to choose what
-  to validate, import `from abel_invest.narrative_core.scout_runtime import
+  the user gave a narrow path or continuation. Expect the scout to take roughly
+  5 minutes: score plausible target, graph, and construction shapes, then rank
+  what looks worth formal validation before broad recorded work. If the scout
+  script is still making progress, let it finish naturally before deciding what
+  to validate. When scratch work evaluates a set of candidate variants to choose
+  what to validate, import `from abel_invest.narrative_core.scout_runtime import
   ScoutRun` and wrap that evaluation with
   `ScoutRun(name, scratch).run(candidates, scorer)` so result rows stream to
-  disk and the run can timeout/resume safely. Promote the strongest shapes into
-  recorded branch work and account for material selection width.
+  disk while the scout runs. If the helper stops after streaming partial rows,
+  use the available rows as the current scout output and decide what to
+  validate. Promote the strongest shapes into recorded branch work and account
+  for material selection width.
 
 Never:
 

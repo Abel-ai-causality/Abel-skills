@@ -61,10 +61,12 @@ the scout official. A prepared branch may be prepare-only; `run-branch` is for
 meaningful candidates, controls, diagnostics, or ablations.
 
 Use a compact scored scout to choose, not just describe. Expect the first-look
-scout to be a few-minute scratch search: score plausible target, graph, and
-construction shapes, then rank what looks worth formal validation before broad
-recorded work. Use objective metrics such as Sharpe, total return, drawdown,
-and turnover.
+scout to take roughly 5 minutes: score plausible target, graph, and construction
+shapes, then rank what looks worth formal validation before broad recorded work.
+Use objective metrics such as Sharpe, total return, drawdown, and turnover.
+
+If the scout script is still making progress, let it finish naturally before
+deciding what to validate.
 
 - target-only scored baselines: trend, momentum, reversal, and volatility
   regime
@@ -85,10 +87,11 @@ heredoc, notebook cell, or query cell. When scratch work evaluates a set of
 candidate variants to choose what to validate, import
 `from abel_invest.narrative_core.scout_runtime import ScoutRun` and wrap that
 evaluation with `ScoutRun(name, scratch).run(candidates, scorer)` so result rows
-stream to disk and the run can timeout/resume safely. Promote the strongest
-shapes into recorded branch work, and account for any selection width that
-materially chose the submitted candidate. Reading back or reordering already
-scored results does not need another `ScoutRun`.
+stream to disk while the scout runs. If the helper stops after streaming partial
+rows, use the available rows as the current scout output and decide what to
+validate. Promote the strongest shapes into recorded branch work, and account
+for any selection width that materially chose the submitted candidate. Reading
+back or reordering already scored results does not need another `ScoutRun`.
 
 Direct recorded branches remain valid for user-specified strategies, existing
 leads, continuations, baselines, controls, or very narrow diagnostic branches.

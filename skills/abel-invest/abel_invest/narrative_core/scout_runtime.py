@@ -1,4 +1,4 @@
-"""Small runtime wrapper for resumable Abel Invest scratch scouts."""
+"""Small runtime wrapper for Abel Invest scratch scouts."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_MAX_SECONDS = 180.0
-DEFAULT_PROGRESS_INTERVAL_SECONDS = 30.0
+_MAX_SECONDS = 180.0
+_PROGRESS_INTERVAL_SECONDS = 30.0
 
 MAX_COLLECTION_ITEMS = 24
 MAX_STRING_CHARS = 160
@@ -25,8 +25,7 @@ class _ScoutRuntimeTimeout(TimeoutError):
 class ScoutRun:
     """Stability wrapper for baseline-style batch scout scripts.
 
-    The helper only owns streamed persistence, automatic resume, and an
-    internal runtime timeout.
+    The helper only owns streamed persistence and an internal runtime timeout.
     """
 
     def __init__(self, name: str, output_dir: str | Path, /) -> None:
@@ -66,13 +65,13 @@ class ScoutRun:
                 continue
 
             elapsed = time.monotonic() - start_time
-            if elapsed >= DEFAULT_MAX_SECONDS:
+            if elapsed >= _MAX_SECONDS:
                 status = "timeout"
                 timeout_scope = "run"
                 break
 
             try:
-                with _candidate_deadline(DEFAULT_MAX_SECONDS - elapsed):
+                with _candidate_deadline(_MAX_SECONDS - elapsed):
                     row = self._score_candidate(index, candidate, scorer)
             except _ScoutRuntimeTimeout:
                 status = "timeout"
@@ -84,7 +83,7 @@ class ScoutRun:
             completed_this_run += 1
 
             now = time.monotonic()
-            if now - last_progress >= DEFAULT_PROGRESS_INTERVAL_SECONDS:
+            if now - last_progress >= _PROGRESS_INTERVAL_SECONDS:
                 last_progress = now
                 self._write_state(
                     status="running",
@@ -153,9 +152,6 @@ class ScoutRun:
         payload = {
             "name": self.name,
             "candidate_count": _candidate_count(candidates),
-            "runtime_policy": {
-                "max_seconds": DEFAULT_MAX_SECONDS,
-            },
             "artifacts": self._artifact_paths(),
             "started_at": _now_epoch(),
         }
@@ -163,8 +159,7 @@ class ScoutRun:
         self._write_json(self.manifest_path, payload)
         print(
             "scout_manifest "
-            f"name={self.name} candidate_count={payload['candidate_count']} "
-            f"max_seconds={DEFAULT_MAX_SECONDS}"
+            f"name={self.name} candidate_count={payload['candidate_count']}"
         )
         print(f"artifacts manifest={self.manifest_path}")
         return payload
@@ -212,7 +207,6 @@ class ScoutRun:
             "completed_count": int(completed_count),
             "skipped_count": int(skipped_count),
             "elapsed_seconds": round(float(elapsed_seconds), 3),
-            "effective_max_seconds": round(float(DEFAULT_MAX_SECONDS), 3),
             "timeout_scope": timeout_scope,
             "artifacts": self._artifact_paths(),
             "updated_at": _now_epoch(),
