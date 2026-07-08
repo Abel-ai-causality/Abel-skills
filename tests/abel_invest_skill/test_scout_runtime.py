@@ -75,7 +75,7 @@ def test_scout_run_writes_flat_streamed_rows_manifest_and_state(tmp_path, capsys
     assert "candidate" not in rows[0]
     assert "result" not in rows[0]
     assert state["completed_count"] == 3
-    assert state["skipped_count"] == 0
+    assert "skipped_count" not in state
     assert "effective_max_seconds" not in state
     assert state["artifacts"] == manifest["artifacts"]
     assert not (tmp_path / "first_look.summary.json").exists()
@@ -105,27 +105,34 @@ def test_scout_run_writes_compact_error_row_without_ok_flag(tmp_path):
     assert "status" not in rows[0]
 
 
-def test_scout_run_automatic_resume_skips_completed_candidates(tmp_path, monkeypatch):
+def test_scout_run_reinvocation_keeps_internal_crash_safety(tmp_path, monkeypatch):
     monkeypatch.setattr(scout_runtime, "_MAX_SECONDS", 0.025)
     scout = ScoutRun("first_look", tmp_path)
     candidates = [{"name": f"c{i}", "score": i} for i in range(5)]
+    scored_names: list[str] = []
 
     def slow_score(candidate):
+        scored_names.append(candidate["name"])
         time.sleep(0.01)
         return {"name": candidate["name"], "score": candidate["score"]}
 
     first = scout.run(candidates, slow_score)
-    assert first["state"]["status"] == "timeout"
+    assert first["state"]["status"] == "partial_timeout_final"
     first_rows = _jsonl(scout.results_path)
     assert 1 <= len(first_rows) < len(candidates)
+    assert [row["name"] for row in first_rows] == scored_names[: len(first_rows)]
 
     monkeypatch.setattr(scout_runtime, "_MAX_SECONDS", 1.0)
+    scored_names.clear()
     second = scout.run(candidates, slow_score)
 
     rows = _jsonl(scout.results_path)
     assert [row["i"] for row in rows] == list(range(5))
+    assert scored_names == [
+        candidate["name"] for candidate in candidates[len(first_rows) :]
+    ]
     assert second["state"]["status"] == "completed"
-    assert second["state"]["skipped_count"] == len(first_rows)
+    assert "skipped_count" not in second["state"]
 
 
 def test_scout_results_keep_scorer_fields_flat_and_compact(tmp_path):
@@ -168,27 +175,60 @@ def test_experiment_loop_documents_minimal_scout_runtime_hook():
 
     assert "Use a compact scored scout to choose, not just describe" in text
     assert "roughly 5 minutes" in text
-    assert "still making progress" in text
-    assert "then rank what looks worth" in text
-    assert "formal validation before broad" in text
-    assert "recorded work" in text
-    assert "scratch work evaluates a set of" in text
-    assert "candidate variants to choose what to validate" in text
+    assert "10,000 candidates or fewer" in text
+    assert "quick, broad shortlist builder" in text
+    assert "candidate directions and coarse variants" in text
+    assert "candidates" in text
+    assert "recorded branch validation" in text
+    assert "not to keep optimizing in scratch" in text
+    assert "available rows as enough scratch evidence" in text
+    assert "strong lead belongs in" in text
+    assert "still making progress" not in text
+    assert "dense local grids" not in text
+    assert "quick, broad workbench" not in text
+    assert "one discovered shape" not in text
+    assert "Do not turn a failed" in text
+    assert "same-branch micro grids" in text
+    assert "another meaningful recorded branch" in text
+    assert "Target-history-only and buy-and-hold variants are reference metrics" in text
+    assert "not ordinary recorded candidates" in text
+    assert "usable graph, supplement, or other" in text
+    assert "user explicitly asks for" in text
+    assert "scratch work scores variants to" in text
+    assert "choose what to validate" in text
     assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in text
     assert "ScoutRun(name, scratch).run(candidates, scorer)" in text
-    assert "result" in text
-    assert "rows" in text
-    assert "stream to disk" in text
-    assert "available rows as the current scout output" in text
-    assert "timeout/resume" not in text
-    assert "reading\nback or reordering already" in text.lower()
-    assert "scored results does not need another" in text
-    assert "promote the" in text.lower()
+    assert "directly in the session `scratch/` root" in text
+    assert "nested scratch directories" in text
+    assert "partial" in text
+    assert "results are preserved" in text
+    assert "available rows as enough scratch evidence" in text
+    assert "recorded branch" in text
+    assert "Promote short-listed shapes" in text
+    assert "A new scout should sample" not in text
+    assert "choose the next meaningful recorded candidate" in text
+    assert "reusable evidence" in text
+    assert "materially different candidate" not in text
+    assert "same-branch micro grids" in text
+    assert "execution boundary for batch scoring" in text
+    assert "not a" in text
+    assert "separate scout cadence" in text
+    assert "strategy phase" in text
+    old_term = "res" + "ume"
+    assert f"timeout/{old_term}" not in text
+    assert old_term not in text.lower()
+    assert "Reading back or reordering already scored results" not in text
+    assert "does not need another" not in text
+    assert "Promote short-listed shapes" in text
+    assert "A failed branch is not the default next branch" in text
     assert "script still owns" not in text.lower()
-    assert "continuing private" not in text
+    old_action = "cont" + "inuing"
+    assert f"{old_action} private" not in text
     assert "sort_key" not in text
     assert "summary.json" not in text
     assert "family_top" not in text
     assert "round_budget_seconds" not in text
     assert "ScoutEstimate" not in text
     assert "write_dry_run" not in text
+    assert "construction choices: feature factories" not in text
+    assert "target-only scored baselines" not in text

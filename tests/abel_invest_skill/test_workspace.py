@@ -125,12 +125,12 @@ def test_workspace_arg_path_accepts_existing_launch_root_relative_session(
         "abel-invest-workspace",
         target_root=tmp_path / "abel-invest-workspace",
     )
-    session = workspace / "research" / "spy" / "resume-probe"
+    session = workspace / "research" / "spy" / "continuation-probe"
     session.mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
 
     resolved = resolve_workspace_arg_path(
-        "abel-invest-workspace/research/spy/resume-probe"
+        "abel-invest-workspace/research/spy/continuation-probe"
     )
 
     assert resolved == session
@@ -146,6 +146,6 @@ def test_workspace_arg_path_keeps_workspace_relative_session_from_launch_root(
     )
     monkeypatch.chdir(tmp_path)
 
-    resolved = resolve_workspace_arg_path("research/spy/resume-probe")
+    resolved = resolve_workspace_arg_path("research/spy/continuation-probe")
 
-    assert resolved == workspace / "research" / "spy" / "resume-probe"
+    assert resolved == workspace / "research" / "spy" / "continuation-probe"

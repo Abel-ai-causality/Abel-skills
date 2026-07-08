@@ -105,7 +105,14 @@ SELECTION_TRIALS_AUDIT_WARNING = (
     "Selection-trials audit: --selection-trials records accidental or explicitly requested "
     "search width for DSR accounting; it does not by itself validate raw sweep winners. "
     "Record the branch basis and any disposable probe, scout, or optimization influence "
-    f"in {EXPLORATION_PATH_FILENAME} before continuing."
+    f"in {EXPLORATION_PATH_FILENAME} before another recorded action."
+)
+
+SCOUT_RUNTIME_MISSING_WARNING = (
+    "Scout runtime audit: selection_trials > 1 but no complete ScoutRun artifact "
+    "set was found in the session scratch root. Batch scratch scoring that "
+    "materially selects a recorded candidate should preserve streamed rows with "
+    "ScoutRun; nested scratch directories are not counted."
 )
 
 
@@ -113,6 +120,53 @@ def selection_trials_audit_warning(selection_trials: int) -> str | None:
     if selection_trials <= 1:
         return None
     return SELECTION_TRIALS_AUDIT_WARNING
+
+
+def selection_runtime_audit(session: Path, selection_trials: int) -> dict[str, object]:
+    required = selection_trials > 1
+    scratch = session / "scratch"
+    complete_sets: list[dict[str, str]] = []
+    result_count = 0
+
+    if scratch.exists():
+        for results_path in sorted(scratch.glob("*.results.jsonl")):
+            result_count += 1
+            prefix = results_path.name[: -len(".results.jsonl")]
+            manifest_path = scratch / f"{prefix}.manifest.json"
+            state_path = scratch / f"{prefix}.state.json"
+            if manifest_path.exists() and state_path.exists():
+                complete_sets.append(
+                    {
+                        "name": prefix,
+                        "results": str(results_path.relative_to(session)),
+                        "manifest": str(manifest_path.relative_to(session)),
+                        "state": str(state_path.relative_to(session)),
+                    }
+                )
+
+    present = bool(complete_sets)
+    status = (
+        "not_required"
+        if not required
+        else "scout_run_artifacts_present" if present else "scout_run_artifacts_missing"
+    )
+    payload: dict[str, object] = {
+        "required": required,
+        "status": status,
+        "selection_trials": int(selection_trials),
+        "scratch_dir": str(scratch.relative_to(session)),
+        "result_file_count": result_count,
+        "complete_artifact_set_count": len(complete_sets),
+    }
+    if complete_sets:
+        payload["artifacts"] = complete_sets[-5:]
+    return payload
+
+
+def selection_runtime_audit_warning(audit: dict[str, object]) -> str | None:
+    if audit.get("status") != "scout_run_artifacts_missing":
+        return None
+    return SCOUT_RUNTIME_MISSING_WARNING
 
 
 def verbose_output(args: argparse.Namespace) -> bool:
@@ -215,8 +269,8 @@ def loop_boundary_state(*, protocol_state: str) -> str:
 
 def loop_allowed_next(*, boundary_state: str) -> str:
     if boundary_state == "blocked":
-        return "fix_workflow|continue_exploration"
-    return "continue_exploration|final_report"
+        return "fix_workflow|next_exploration"
+    return "next_exploration|final_report"
 
 
 def latest_best_snapshot(session) -> dict[str, str]:
@@ -416,7 +470,7 @@ def print_round_decision_checkpoint(
     print("Decision checkpoint:")
     print("  Choose exactly one next action.")
     print(
-        f"  1. Continue exploration: update {session / EXPLORATION_PATH_FILENAME} "
+        f"  1. Next exploration action: update {session / EXPLORATION_PATH_FILENAME} "
         f"with ledger:{branch.name}:{round_id}, then run the next concrete experiment/debug/branch action."
     )
     print(
@@ -520,7 +574,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
             )
         raise RuntimeError(
             "Abel-edge warm-cache did not produce dependencies output. "
-            "Fix the runtime error above before continuing."
+            "Fix the runtime error above before another recorded action."
         )
     cache_payload = json.loads(output_path.read_text(encoding="utf-8"))
     dependencies["cache"] = cache_payload
@@ -732,10 +786,19 @@ def run_branch_round(args: argparse.Namespace) -> int:
         backtest_start=backtest_start,
         selection_trials=selection_trials,
     )
+    runtime_audit = selection_runtime_audit(session, selection_trials)
+    validation_context = context.get("validation_context")
+    if isinstance(validation_context, dict):
+        validation_context["selection_runtime"] = runtime_audit
+    else:
+        context["validation_context"] = {"selection_runtime": runtime_audit}
     context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
     selection_warning = selection_trials_audit_warning(selection_trials)
     if selection_warning and verbose_output(args):
         print(selection_warning, file=sys.stderr)
+    runtime_warning = selection_runtime_audit_warning(runtime_audit)
+    if runtime_warning and verbose_output(args):
+        print(runtime_warning, file=sys.stderr)
     emit_readiness_warning = False
     session_start = _get_backtest_start(discovery)
     if warning and backtest_start == session_start:

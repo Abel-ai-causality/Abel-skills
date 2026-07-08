@@ -48,52 +48,45 @@ outputs are not validation evidence; they help choose what is worth formal,
 audited validation.
 
 Use scratch to compare construction axes, not to create paperwork. A compact
-first-look scout should usually take roughly 5 minutes while scoring plausible
-target, graph, and construction shapes closely enough to choose what deserves
-formal validation. If the scout script is still making progress, let it finish
-naturally before deciding what to validate. Prefer a ranked table over a prose-only memo:
-target baselines, graph single-feature shapes, feature factories, model-family
-variants, ensembles, filters, or sizing variants should be compared with
+first-look scout should usually take roughly 5 minutes and should behave as a
+quick, broad shortlist builder for candidate directions and coarse variants.
+Its job is to produce candidates for recorded branch validation, not to keep
+optimizing in scratch. Prefer a ranked table over a prose-only memo, using
 objective metrics such as Sharpe, total return, drawdown, and turnover when
 feasible.
 
-When scratch work evaluates a set of candidate variants to choose what to
-validate, wrap that evaluation with
-`ScoutRun(name, scratch).run(candidates, scorer)` so result rows stream to disk
-while the scout runs. If the helper stops after streaming partial rows, use the
-available rows as the current scout output and decide what to validate. Reading
-back or reordering already scored results does not need another `ScoutRun`.
+Keep each ScoutRun about 10,000 candidates or fewer.
+
+When scratch work scores multiple variants to choose a recorded candidate, use
+the scout runtime boundary in `experiment-loop.md`.
+If a ScoutRun stops after partial rows, treat those rows as that batch's final
+scratch evidence. Build from those rows when they support a recorded branch;
+do not rerun scratch search just to make the ranking feel more complete.
+
+After a recorded branch fails, treat it as reusable evidence, not a
+same-branch tuning target. Prefer another meaningful recorded branch from
+existing evidence over more scratch search around the same branch. A strong
+lead belongs in the ledger; it is not a place to keep searching locally.
 
 Diagnostic tables are raw material. IC, correlation, or feature-importance
 screens can rank inputs, but they do not by themselves show whether a tradable
 position rule or model expression works.
 
-Useful construction surfaces include:
-
-- target trend, momentum, reversal, and volatility-regime baselines
-- graph single-feature threshold/vote variants across plausible lags, signs,
-  horizons, transforms, spreads, and subsets
-- feature factories that include rolling cumulative returns, trend deviation,
-  volatility or regime context, not only one-day shifted returns
-- model-family comparisons such as rolling linear/ridge, tree or GBDT, hybrid
-  models, and lightweight ensembles when the feature set justifies them
-
-These are examples, not a fixed route or minimum count. For prepared-data
-ordering, prepare-only scout branches, and promotion into recorded rounds,
-follow `experiment-loop.md`.
+For prepared-data ordering, prepare-only scout branches, and promotion into
+recorded rounds, follow `experiment-loop.md`.
 
 ## What Simple Rules Are For
 
-Simple target-only or graph-node rules are useful as:
+Simple target-history-only, buy-and-hold, or graph-node rows are useful as:
 
-- baselines and controls
-- ablations against a richer candidate
+- reference metrics beside richer candidates
 - quick diagnostics of direction, sign, risk, or target-window difficulty
-- refinements after an empirical construction finds a promising shape
 
-They are not the default substitute for data-driven search. A branch can be
-`graph_supported` because it reads prepared graph inputs and still be a narrow
-hand-written mechanism.
+They are not ordinary formal candidates in graph-informed alpha search. Record a
+target-history-only strategy only when usable graph, supplement, or other
+non-target data cannot support the search, or when the user explicitly asks for
+that strategy shape. A branch can be `graph_supported` because it reads prepared
+graph inputs and still be a narrow hand-written mechanism.
 
 ## Search Accounting
 
@@ -106,10 +99,9 @@ reportability.
 ## Failure Reading
 
 A failed empirical construction says that expression failed. It does not prove
-the graph is useless, and it does not prove target-only should take over. Read
-metric shape and evidence context before deciding whether the problem is the
-expression, the data view, the model family, the risk treatment, or the search
-scope.
+the graph is useless, and it does not prove target-history-only should take
+over. Reuse the informative parts in distinct candidates instead of tuning the
+same failed branch.
 
-Before claiming no edge, the ledger should show materially different empirical
-search axes, not only a sequence of small hand-written mechanisms.
+Before claiming no edge, the ledger should show that the search did not collapse
+to one hand-written rule or one local lead.

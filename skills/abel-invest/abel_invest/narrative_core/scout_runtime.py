@@ -26,6 +26,8 @@ class ScoutRun:
     """Stability wrapper for baseline-style batch scout scripts.
 
     The helper only owns streamed persistence and an internal runtime timeout.
+    Existing result rows are skipped on repeated invocation for crash safety.
+    Timed-out rows remain usable evidence for branch selection.
     """
 
     def __init__(self, name: str, output_dir: str | Path, /) -> None:
@@ -55,18 +57,16 @@ class ScoutRun:
         start_time = time.monotonic()
         last_progress = start_time
         completed_this_run = 0
-        skipped = 0
         status = "completed"
         timeout_scope = ""
 
         for index, candidate in enumerate(candidates):
             if index in completed_indices:
-                skipped += 1
                 continue
 
             elapsed = time.monotonic() - start_time
             if elapsed >= _MAX_SECONDS:
-                status = "timeout"
+                status = "partial_timeout_final"
                 timeout_scope = "run"
                 break
 
@@ -74,7 +74,7 @@ class ScoutRun:
                 with _candidate_deadline(_MAX_SECONDS - elapsed):
                     row = self._score_candidate(index, candidate, scorer)
             except _ScoutRuntimeTimeout:
-                status = "timeout"
+                status = "partial_timeout_final"
                 timeout_scope = "run"
                 break
 
@@ -89,7 +89,6 @@ class ScoutRun:
                     status="running",
                     next_candidate_index=index + 1,
                     completed_count=len(completed_indices),
-                    skipped_count=skipped,
                     elapsed_seconds=now - start_time,
                     timeout_scope="",
                 )
@@ -108,7 +107,6 @@ class ScoutRun:
             status=status,
             next_candidate_index=next_index,
             completed_count=len(completed_indices),
-            skipped_count=skipped,
             elapsed_seconds=elapsed,
             timeout_scope=timeout_scope,
         )
@@ -196,7 +194,6 @@ class ScoutRun:
         status: str,
         next_candidate_index: int,
         completed_count: int,
-        skipped_count: int,
         elapsed_seconds: float,
         timeout_scope: str,
     ) -> dict[str, Any]:
@@ -205,7 +202,6 @@ class ScoutRun:
             "status": status,
             "next_candidate_index": int(next_candidate_index),
             "completed_count": int(completed_count),
-            "skipped_count": int(skipped_count),
             "elapsed_seconds": round(float(elapsed_seconds), 3),
             "timeout_scope": timeout_scope,
             "artifacts": self._artifact_paths(),

@@ -129,7 +129,11 @@ def test_artifact_digest_session_compact_surfaces_bounded_loop_state(
     assert payload["scope"] == "session"
     assert payload["loop_state_only"] is True
     assert payload["not_user_report"] is True
-    assert payload["use_for"] == ["resume", "checkpoint_recovery", "branch_backtrack"]
+    assert payload["use_for"] == [
+        "checkpoint_gap",
+        "blocker_detail",
+        "branch_backtrack",
+    ]
     assert payload["do_not_use_for"] == ["final_ranking", "user_report"]
     assert payload["final_report_source"].endswith(f"best-strategy --session {session} --json")
     assert payload["status"]["branch_count"] == 2

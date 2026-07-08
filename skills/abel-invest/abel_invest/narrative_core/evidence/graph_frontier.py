@@ -153,7 +153,7 @@ def print_graph_frontier_status(session: Path) -> None:
     print(f"Roles: {render_inline_counts(facts['role_counts'])}")
     print(
         "Search boundary: frontier coverage is context, not exhaustion; "
-        "before stopping below target, check whether higher-ceiling search axes remain."
+        "it does not instruct graph expansion or local search."
     )
 
 

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from abel_invest.narrative_core.command_handlers.branch import (
+    selection_runtime_audit,
+    selection_runtime_audit_warning,
+)
+
 from ._branch_runtime_helpers import *  # noqa: F401,F403
 
 def test_evidence_ledger_marks_missing_hypothesis_as_protocol_incomplete(tmp_path) -> None:
@@ -26,7 +31,7 @@ def test_evidence_ledger_marks_missing_hypothesis_as_protocol_incomplete(tmp_pat
     assert "hypothesis" in row["declaration_gaps"]
 
 
-def test_evidence_ledger_classifies_complete_target_control(tmp_path) -> None:
+def test_evidence_ledger_classifies_explicit_protocol_control(tmp_path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-ledger-control", tmp_path / "research")
     ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
     ni.write_readiness(session, _sample_readiness())
@@ -38,7 +43,7 @@ def test_evidence_ledger_classifies_complete_target_control(tmp_path) -> None:
             "evidence_intent": "control",
             "input_claim": "target_only",
             "mechanism_family": "target_momentum",
-            "invalidation_condition": "Target-only validation loses positive IC.",
+            "invalidation_condition": "Explicit control validation loses positive IC.",
         }
     )
     _record_synthetic_round(session, branch, spec=spec, result=_edge_result())
@@ -127,6 +132,8 @@ def test_run_branch_round_records_network_failure_as_workflow_blocker(tmp_path, 
             next_step="",
             action=[],
             python_bin=None,
+            verbose=True,
+            audit=False,
         )
     )
 
@@ -200,6 +207,8 @@ def test_starter_scaffold_round_is_diagnostic_only_not_candidate(tmp_path, monke
             next_step="",
             action=[],
             python_bin=None,
+            verbose=True,
+            audit=False,
         )
     )
 
@@ -266,6 +275,8 @@ def test_run_branch_round_records_dsr_k_accounting(tmp_path, monkeypatch, capsys
             next_step="",
             action=[],
             python_bin=None,
+            verbose=True,
+            audit=False,
         )
     )
 
@@ -273,6 +284,14 @@ def test_run_branch_round_records_dsr_k_accounting(tmp_path, monkeypatch, capsys
     captured = capsys.readouterr()
     assert "Selection-trials audit" in captured.err
     assert "does not by itself validate raw sweep winners" in captured.err
+    assert "Scout runtime audit" in captured.err
+    assert "session scratch root" in captured.err
+
+    context = json.loads((branch / "outputs" / "round-001-alpha-context.json").read_text(encoding="utf-8"))
+    runtime_audit = context["validation_context"]["selection_runtime"]
+    assert runtime_audit["required"] is True
+    assert runtime_audit["status"] == "scout_run_artifacts_missing"
+    assert runtime_audit["selection_trials"] == 4
 
     dsr_rows = _read_jsonl(session / "dsr_trials.jsonl")
     assert len(dsr_rows) == 1
@@ -303,6 +322,91 @@ def test_run_branch_round_records_dsr_k_accounting(tmp_path, monkeypatch, capsys
     assert accounting["edge_k"] == 4
     assert accounting["alpha_current_round_trials"] == 4
     assert accounting["counted_for_future_dsr"] is True
+
+
+def test_selection_runtime_audit_ignores_nested_scout_artifacts(tmp_path) -> None:
+    session = tmp_path / "research" / "tsla" / "nested-scout"
+    nested = session / "scratch" / "graph-v1"
+    nested.mkdir(parents=True)
+    (nested / "first_look.results.jsonl").write_text('{"i":0,"name":"lead"}\n', encoding="utf-8")
+    (nested / "first_look.manifest.json").write_text('{"name":"first_look"}\n', encoding="utf-8")
+    (nested / "first_look.state.json").write_text('{"name":"first_look"}\n', encoding="utf-8")
+
+    audit = selection_runtime_audit(session, 4)
+
+    assert audit["required"] is True
+    assert audit["status"] == "scout_run_artifacts_missing"
+    assert audit["result_file_count"] == 0
+    warning = selection_runtime_audit_warning(audit)
+    assert warning is not None
+    assert "nested scratch directories are not counted" in warning
+
+
+def test_run_branch_round_records_scout_runtime_artifact_presence(tmp_path, monkeypatch, capsys) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-scout-runtime-audit", tmp_path / "research")
+    ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
+    ni.write_readiness(session, _sample_readiness())
+    branch = ni.init_branch_dir(session, "graph-v1")
+    _write_runtime_files(branch)
+    spec = ni.load_branch_spec(branch)
+    spec.update(
+        {
+            "hypothesis": "AAPL driver strength leads TSLA next-day risk appetite.",
+            "evidence_intent": "candidate",
+            "input_claim": "graph_supported",
+            "mechanism_family": "driver_momentum",
+            "invalidation_condition": "No AAPL reads or negative holdout IC.",
+            "selected_inputs": ["AAPL"],
+        }
+    )
+    ni.write_branch_spec(branch, spec)
+    scratch = session / "scratch"
+    scratch.mkdir()
+    (scratch / "first_look.results.jsonl").write_text('{"i":0,"name":"lead","sharpe":2.1}\n', encoding="utf-8")
+    (scratch / "first_look.manifest.json").write_text('{"name":"first_look"}\n', encoding="utf-8")
+    (scratch / "first_look.state.json").write_text('{"name":"first_look","status":"completed"}\n', encoding="utf-8")
+
+    def fake_subprocess_run(command, cwd=None, capture_output=None, text=None, env=None):
+        result_path = Path(command[command.index("--output-json") + 1])
+        report_path = Path(command[command.index("--output-md") + 1])
+        handoff_path = Path(command[command.index("--output-handoff") + 1])
+        result_path.write_text(json.dumps(_edge_result(traced_inputs=["AAPL"], k=4, current_round_trials=4)), encoding="utf-8")
+        report_path.write_text("# validation\n", encoding="utf-8")
+        handoff_path.write_text(json.dumps({"ok": True}), encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(ni.subprocess, "run", fake_subprocess_run)
+
+    result = ni.run_branch_round(
+        Namespace(
+            branch=str(branch),
+            mode="explore",
+            description="scout selected output",
+            input_note="",
+            hypothesis="AAPL driver strength leads TSLA next-day risk appetite.",
+            expected_signal="",
+            trigger="test",
+            change_summary="test",
+            changed_dimension=["drivers"],
+            selection_trials=4,
+            time_spent_min="1",
+            summary="",
+            next_step="",
+            action=[],
+            python_bin=None,
+            verbose=True,
+            audit=False,
+        )
+    )
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "Scout runtime audit" not in captured.err
+    context = json.loads((branch / "outputs" / "round-001-alpha-context.json").read_text(encoding="utf-8"))
+    runtime_audit = context["validation_context"]["selection_runtime"]
+    assert runtime_audit["status"] == "scout_run_artifacts_present"
+    assert runtime_audit["complete_artifact_set_count"] == 1
+    assert runtime_audit["artifacts"][0]["name"] == "first_look"
 
 
 def test_run_branch_round_audits_edge_k_before_alpha_decision(tmp_path, monkeypatch) -> None:

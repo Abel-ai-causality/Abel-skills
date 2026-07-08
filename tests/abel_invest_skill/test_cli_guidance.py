@@ -21,7 +21,7 @@ def test_run_branch_decision_checkpoint_has_two_normal_paths(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "Decision checkpoint:" in output
     assert "Choose exactly one next action." in output
-    assert "Continue exploration:" in output
+    assert "Next exploration action:" in output
     assert "Final report:" in output
     assert "best-strategy --session" in output
     assert "exploration is incomplete" in output

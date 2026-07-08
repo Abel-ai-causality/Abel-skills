@@ -29,7 +29,7 @@ single human-facing exploration log for session `{session.name}`
 ## How To Use
 
 - Before choosing the next Edge run, read `exploration_path.md`, the latest `edge-result.json`, and the latest `edge-validation.md`.
-- Use the previous chosen path, compact reason, and Edge feedback to decide the next candidate, search axis, input set, or control.
+- Use prior entries as evidence context for the next meaningful recorded candidate.
 - Every recorded round needs one concise entry below with its `ledger:<branch_id>:<round_id>` reference.
 - Keep entries short: ledger ref, chosen path, compact reason, Edge feedback, key result, and artifacts.
 - System-owned evidence facts stay in `{EVIDENCE_LEDGER_FILENAME}` and `{FRONTIER_MARKDOWN_FILENAME}`.
@@ -238,11 +238,11 @@ def edge_failure_messages(result: dict[str, Any]) -> list[str]:
 def feedback_next_implication(result: dict[str, Any]) -> str:
     verdict = str(result.get("verdict") or "").upper()
     if verdict == "PASS":
-        return "compare this PASS against prior path entries before refining or promoting."
+        return "compare this PASS against prior path entries before promoting."
     failures = edge_failure_messages(result)
     if failures:
-        return "choose the next Edge run to address: " + "; ".join(failures[:2])
-    return "review the latest Edge artifacts before selecting the next candidate or search axis."
+        return "treat failures as evidence context before choosing another meaningful recorded candidate: " + "; ".join(failures[:2])
+    return "review the latest Edge artifacts before choosing another meaningful recorded candidate."
 
 
 def format_changed_dimensions(values: list[str]) -> str:

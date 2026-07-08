@@ -300,7 +300,7 @@ Then run the branch preflight and recorded round:
 
 After every recorded round, follow the terse `loop_checkpoint` printed by
 `run-branch`: either update `exploration_path.md` with ledger ref, chosen path,
-compact reason, Edge feedback, and artifact refs before continuing a concrete
+compact reason, Edge feedback, and artifact refs before taking another concrete
 exploration action, or enter final report. The checkpoint is evidence feedback,
 not strategy advice.
 
@@ -333,23 +333,23 @@ Use that path as orientation, not as a rigid script. The important boundary is:
   feature factories, model/denoise lanes, node-subset search, lag/sign search,
   regimes, filters, sizing, and ensembles; do not reduce graph use to a
   full-frontier quota or a few hand-written node rules
-- target-only candidates are baselines, seeds, ablations, and competitors for
-  measuring graph-derived marginal contribution, not the default main lane when
-  graph-derived data is live and unsearched
-- every recorded round ends with a terse `loop_checkpoint`; continue only after
+- target-history-only and buy-and-hold rows are reference metrics for measuring
+  graph-derived marginal contribution, not ordinary formal candidates when
+  usable graph, supplement, or other non-target data can support the search
+- every recorded round ends with a terse `loop_checkpoint`; take another action only after
   `exploration_path.md` is covered, or enter final report with `best-strategy`
 - every next Edge run should be chosen after reading `exploration_path.md` and
   the latest CLI checkpoint. Use `artifact-digest --session <session>
-  --compact` when resuming, after major session changes, or when checkpoint
+  --compact` after gaps, after major session changes, or when checkpoint
   feedback is insufficient; use `artifact-digest --branch <branch> --compact`
   when latest/best branch failure details matter.
-  Use full `--json` digest for audit/recovery/debugging only; open full Edge
+  Use full `--json` digest for audit/debugging only; open full Edge
   JSON only for blocker diagnosis, claim verification, or a precise next change
 
 ## Re-entry
 
-- if `alpha.workspace.yaml` exists in the current directory, continue here and do not create `./abel-invest-workspace`
-- if you open this workspace root again later, continue here
+- if `alpha.workspace.yaml` exists in the current directory, use this workspace and do not create `./abel-invest-workspace`
+- if you open this workspace root again later, work here
 - if you open the parent launch directory later, reuse its child `abel-invest-workspace` before creating another one
 - do not create a second workspace in the same area unless you want one intentionally
 - create new sessions only after the active bootstrap shim has completed
@@ -374,7 +374,7 @@ Use that path as orientation, not as a rigid script. The important boundary is:
   upload/promotion through the strategy-artifact capability. Direct artifact
   export/promotion remain independent commands. If no hostable strategy artifact
   is available, the session view can still be created without one. If a selected
-  strategy emits a hosted-paper contract request, continue that loop; if it
+  strategy emits a hosted-paper contract request, follow that contract loop; if it
   cannot complete, report the session as `action_required`
 - session `backtest_start` is a default target; branch `requested_start` can override it explicitly
 - the generated `engine.py` is a starter wiring scaffold for the first end-to-end run, not a finished strategy
@@ -394,7 +394,7 @@ checks auth/runtime readiness through its internal runtime doctor; and prints
 the command prefix for strategy work.
 
 - `ready`: you can start alpha search
-- `ready` means continue with `init-session`, then init and prepare a scout or candidate branch before any broad recorded run
+- `ready` means run `init-session`, then init and prepare a scout or candidate branch before any broad recorded run
 - `auth_missing`: no reusable auth was found; use `abel-auth`, then rerun the
   active bootstrap shim
 - `scaffold_stale`, `runtime_stale`, `env_missing`, `edge_missing`, or
@@ -408,7 +408,7 @@ def render_workspace_agents() -> str:
     return f"""<!-- {WORKSPACE_AGENTS_GUIDE_SCHEMA} version={WORKSPACE_AGENTS_GUIDE_VERSION} -->
 # AGENTS.md — Abel Invest Alpha Search Workspace
 
-Use this workspace as the default place to continue alpha search for this working
+Use this workspace as the default place for alpha search for this working
 area. The CLI commands below are tools for operating inside this workspace, but
 the goal is to keep the current branch state understandable rather than to
 follow a rigid script.
@@ -476,20 +476,21 @@ candidate logic there. Treat session readiness as advisory context; the branch's
 file-organization fact, not as proof of search breadth. Use `exploration_path.md`
 as the single human-facing exploration log: record each chosen path, compact
 reason, Edge feedback, and ledger ref. Use the latest CLI checkpoint before
-choosing the next Edge run. Run `artifact-digest --session <session> --compact`
-when resuming, after major session changes, or when checkpoint feedback is
+choosing another meaningful recorded candidate. Run `artifact-digest --session <session> --compact`
+after gaps, after major session changes, or when checkpoint feedback is
 insufficient; use `artifact-digest --branch <branch> --compact` when latest/best
 branch failure details matter. Use full `--json` digest for
-audit/recovery/debugging only; open full Edge JSON only for blocker diagnosis,
+audit/debugging only; open full Edge JSON only for blocker diagnosis,
 claim verification, or a precise next change. After every
-recorded round, follow the `loop_checkpoint`
-printed by `run-branch`: either continue a concrete exploration action or enter
-final report. Check path coverage before starting another round. Check input
-realization before claiming graph-derived contribution. Stay in Exploring until
-the objective is met or the ledger supports unable-to-reach; if a concrete next
-search action remains, keep Exploring. Treat Edge failures as diagnostics, not
-the next objective; when return or Sharpe remain weak, do not only repair gates
-into conservative branches. When either normal ending holds, enter Completed.
+recorded round, use `loop_checkpoint`
+printed by `run-branch` as evidence context. Check path coverage before starting
+another round. Check input realization before claiming graph-derived
+contribution. Stay in Exploring until the objective is met or the ledger
+supports unable-to-reach. Treat Edge failures as diagnostics, not the next
+objective. A failed high-return branch is reusable evidence, not a same-branch
+tuning target. Prefer another meaningful recorded candidate from existing
+evidence over more scratch search around the same branch. When either normal
+ending holds, enter Completed.
 If interrupted or blocked, do not enter Completed or ask for visualization.
 `render`, `status`, and `check` are audit actions only. Do not create
 the online session view automatically; a recorded candidate strategy round makes
@@ -520,7 +521,7 @@ Edit only when `sourceEditPolicy` says a source edit is required or genuinely
 allowed, and declare the paper history boundary in `paper-contract-report.json`.
 Rerun the same command afterward. If another request appears, inspect
 `validation.lastGateFailure`, `validation.attemptPolicy`, and
-`requirements.fallback`, then continue until promotion succeeds, fallback is
+`requirements.fallback`, then proceed until promotion succeeds, fallback is
 eligible and succeeds or fails a gate, or a hard blocker remains. Promotion
 converts the selected research strategy into a clean hosted daily live-paper
 artifact; do not add one-off schedules or cached tail decisions merely to pass
@@ -551,10 +552,10 @@ separate directory.
 - `cache/market_data/` is the edge-owned shared cache root
 
 ### Re-enter this workspace later
-- if `alpha.workspace.yaml` is in the current directory, continue here directly and do not bootstrap a child workspace
-- if you are already in this workspace root, continue here directly
+- if `alpha.workspace.yaml` is in the current directory, use this workspace directly and do not bootstrap a child workspace
+- if you are already in this workspace root, work here directly
 - if you are in the parent launch directory, reuse its `abel-invest-workspace` child before creating another one
-- rerun the active Abel Invest bootstrap shim before creating or resuming a session after a skill update
+- rerun the active Abel Invest bootstrap shim before creating or using a session after a skill update
 """
 
 

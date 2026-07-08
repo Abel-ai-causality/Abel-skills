@@ -72,7 +72,7 @@ EXPLORATION_ROLES = {
     "control",
     "ablation",
     "expansion_probe",
-    "refinement",
+    "same_neighborhood_iteration",
     "diagnostic",
     "unspecified",
 }

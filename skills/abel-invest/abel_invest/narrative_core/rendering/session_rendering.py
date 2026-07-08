@@ -109,7 +109,7 @@ def print_status(session: Path) -> None:
             f"rows={frontier.get('row_count', 0)} "
             f"candidate_causal={labels.get('candidate_causal_evidence', 0)} "
             f"candidate_strategy={labels.get('candidate_strategy_evidence', 0)} "
-            f"target_control={labels.get('target_control_evidence', 0)} "
+            f"explicit_control_or_ablation_evidence={labels.get('target_control_evidence', 0)} "
             f"workflow_blockers={frontier.get('workflow_blockers', 0)} "
             f"graph_candidates_available={str(candidate_universe.get('graph_candidates_available', False)).lower()} "
             f"path_coverage_complete={str(path_coverage.get('path_coverage_complete', False)).lower()}"

@@ -24,8 +24,10 @@ tuning to improve the ratio.
 ## Workflow
 
 1. Start a grandma session with `abel-invest init-session --mode grandma`.
-2. Prefer simple target-only branches unless the user or evidence gives a clear
-   reason to use graph inputs.
+2. Prefer simple, meaningful candidates that can pass the grandma gate. Use
+   target-history-only as a reference metric, final fallback, or explicit
+   user-requested strategy shape, not as the default branch lane when useful
+   graph inputs exist.
 3. Keep `model_family=rule_signal` and `complexity_class=simple_signal` unless a
    clear empirical improvement needs more complexity.
 4. Before running, confirm prepared `inputs/runtime_profile.json` includes
@@ -40,8 +42,8 @@ tuning to improve the ratio.
 - Do not treat grandma mode as a way to ignore validation or search-width
   accounting.
 - Do not promote a levered candidate even if total return looks attractive.
-- Do not require graph-enriched breadth before a simple target-only candidate can be
-  judged.
+- Do not require graph-enriched breadth before judging an explicitly
+  user-requested target-history-only strategy shape.
 - Do not compare grandma candidates by Sharpe, DSR, Position IC, or Omega as live
   pass/fail gates; those may be diagnostics, while `grandma_daily` owns the
   grandma verdict.

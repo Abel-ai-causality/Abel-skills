@@ -61,9 +61,8 @@ def handle_frontier_command(args: argparse.Namespace) -> int:
         )
         graph_frontier.print_graph_frontier_status(session)
         print("")
-        print("From here:")
+        print("Context:")
         print(f"  review graph_frontier.json under {session}")
-        print(f"  update exploration_path.md if this expansion changes the next candidate or search axis")
-        print(f"  create or revise branch.yaml only after naming the candidate question this expansion answered")
+        print("  use expansion nodes only when they support a meaningful recorded candidate")
         return 0
     raise RuntimeError(f"Unknown frontier command: {args.frontier_command}")

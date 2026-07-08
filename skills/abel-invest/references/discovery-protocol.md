@@ -64,9 +64,9 @@ are possible expressions, not a checklist. A hand-written rule that happens to
 read graph nodes is graph-realized evidence, but it is not by itself
 data-driven graph search.
 
-Target-only candidates are baselines, seeds, ablations, and competing strategy
-candidates. Their job is to make graph-derived marginal contribution visible,
-not to replace graph search as the default when graph candidates are live.
+Target-only history and buy-and-hold rows are reference baselines. Their job is
+to make graph-derived marginal contribution visible, not to become ordinary
+formal candidates when graph candidates are live.
 
 ## CAP Role Interpretation
 
@@ -120,10 +120,9 @@ realization limits, user context, or a plausible external driver outside the
 current frontier. Weak reasons include "more graph nodes are always good" or
 "the product expects graph coverage."
 
-Before expanding to a more distant frontier, consider whether the current graph
-universe still has useful subset, lag, sign, transformation, model-family,
-regime, or sizing search left. Prefer the path that is most likely to improve
-the user's objective.
+Graph expansion is optional search context. Do not expand merely because a
+strong lead exists; record the lead as evidence and validate another meaningful
+candidate when current evidence already supports one.
 
 ## Narrative Scout
 

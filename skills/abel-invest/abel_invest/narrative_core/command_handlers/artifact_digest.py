@@ -391,7 +391,7 @@ def compact_loop_purpose(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "loop_state_only": True,
         "not_user_report": True,
-        "use_for": ["resume", "checkpoint_recovery", "branch_backtrack"],
+        "use_for": ["checkpoint_gap", "blocker_detail", "branch_backtrack"],
         "do_not_use_for": ["final_ranking", "user_report"],
         "final_report_source": f"best-strategy --session {session} --json",
     }

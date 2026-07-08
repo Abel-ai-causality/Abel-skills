@@ -211,7 +211,7 @@ def test_run_branch_round_updates_ledger_and_agent_context(
     assert "protocol_state=" in round_output
     assert "next_boundary " in round_output
     assert "state=reportable" in round_output
-    assert "allowed_next=continue_exploration|final_report" in round_output
+    assert "allowed_next=next_exploration|final_report" in round_output
     assert "final_report_source=" in round_output
     assert "best-strategy --session" in round_output
     assert "final_report_allowed_when=objective_met_or_ledger_supports_stop" in round_output
@@ -263,7 +263,7 @@ def test_build_skill_dashboard_session_bundle_aggregates_branches_and_rounds(tmp
     spec_b = ni.load_branch_spec(branch_b)
     spec_b.update(
         {
-            "hypothesis": "TSLA target-only control branch.",
+            "hypothesis": "Explicit TSLA target-history protocol control.",
             "evidence_intent": "control",
             "input_claim": "target_only",
             "mechanism_family": "target_momentum",
@@ -339,7 +339,7 @@ def test_build_skill_dashboard_session_bundle_aggregates_branches_and_rounds(tmp
         for branch in bundle["payload"]["branches"]
     ] == [
         ("graph-v1", "AAPL driver strength leads TSLA next-day risk appetite."),
-        ("target-control", "TSLA target-only control branch."),
+        ("target-control", "Explicit TSLA target-history protocol control."),
     ]
     exploration_map = bundle["payload"]["explorationMap"]
     assert exploration_map["source"] == "local_session_evidence"
@@ -363,7 +363,7 @@ def test_build_skill_dashboard_session_bundle_aggregates_branches_and_rounds(tmp
         )
         for round_item in bundle["payload"]["rounds"]
     ] == [
-        ("target-control", "round-001", 1, "TSLA target-only control branch."),
+        ("target-control", "round-001", 1, "Explicit TSLA target-history protocol control."),
         ("graph-v1", "round-001", 2, "AAPL driver strength leads TSLA next-day risk appetite."),
     ]
 

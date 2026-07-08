@@ -71,11 +71,11 @@ Final robust-success claims require the applicable validation profile:
 
 Insufficient validation evidence disqualifies the candidate from final robust
 reporting, but it does not invalidate the usefulness of the search path. A
-high-Sharpe/high-return near-pass is often a better lead than a low-objective
-candidate that is merely easy to validate.
+high-Sharpe/high-return failed branch can be useful evidence, but it is not a
+branch to retune by default.
 
 K accounting makes the search reportable. It should not make the agent avoid a
-promising high-capacity lead; it should make the reported claim honest.
+promising high-capacity construction; it should make the reported claim honest.
 
 ## K Rule
 
@@ -111,11 +111,13 @@ Report the null honestly when no candidate passes final-K validation.
 - Reporting a raw search winner as robust.
 - Hiding search width inside one branch.
 - Treating the whole depth-1 frontier as the only legitimate first candidate.
-- Letting target-only become the default escape from live graph-derived search.
+- Letting target-history-only become the default escape from live graph-derived
+  search.
 - Treating graph-supported hand-written rules as a substitute for feature
   factories, model-family comparison, denoise, subset search, or ensembles.
-- Refusing to report a validated target-only candidate when it is honestly the
-  strongest strategy found.
+- Refusing to report a validated target-history-only fallback when no usable
+  graph, supplement, or other non-target data supports a better strategy, or
+  when the user explicitly asked for that strategy shape.
 - Under-counting `--selection-trials`.
 - Passing cumulative `--selection-trials`.
 - Adding complexity without accounting for the search width it introduced.

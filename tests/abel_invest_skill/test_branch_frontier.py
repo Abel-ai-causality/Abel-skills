@@ -28,7 +28,8 @@ def test_frontier_reports_coverage_without_route_recommendation(tmp_path) -> Non
     assert frontier["evidence_label_counts"]["candidate_causal_evidence"] == 1
     assert frontier["mechanism_family_counts"]["driver_momentum"] == 1
     assert frontier["driver_reads"] == ["AAPL"]
-    forbidden = ["try next", "recommend", "open a sibling", "resume `", "threshold"]
+    old_term = "res" + "ume"
+    forbidden = ["try next", "recommend", "open a sibling", f"{old_term} `", "threshold"]
     assert not any(term in frontier_text.lower() for term in forbidden)
     assert "## Next Step" not in session_text
     assert "candidate_causal_evidence" in session_text
@@ -78,7 +79,7 @@ def test_evidence_rows_record_graph_node_runtime_facts(tmp_path) -> None:
     assert frontier["graph_node_reads"] == ["MSFT.volume"]
 
 
-def test_frontier_surfaces_candidate_failures_and_resume_facts(tmp_path) -> None:
+def test_frontier_surfaces_candidate_failures_and_state_facts(tmp_path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-frontier-fail-facts", tmp_path / "research")
     ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
     ni.write_readiness(session, _sample_readiness())
@@ -418,7 +419,7 @@ def test_path_coverage_required_after_recorded_evidence_without_round_entries(tm
     assert updated["path_coverage"]["covered_round_count"] == 6
 
 
-def test_exploration_breadth_marks_single_branch_local_refinement(tmp_path) -> None:
+def test_exploration_breadth_marks_single_branch_same_neighborhood_iteration(tmp_path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-breadth-local", tmp_path / "research")
     ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
     ni.write_readiness(session, _sample_readiness())
@@ -457,7 +458,7 @@ def test_exploration_breadth_marks_single_branch_local_refinement(tmp_path) -> N
     assert exploration["branch_family_count"] == 1
     assert exploration["same_branch_max_rounds"] == 6
     assert exploration["exploration_class_counts"]["broad_explore"] == 1
-    assert exploration["exploration_class_counts"]["local_refinement"] == 5
+    assert exploration["exploration_class_counts"]["same_neighborhood_iteration"] == 5
     assert ledger["rows"][-1]["same_neighborhood_failed_rows"] == 5
     assert "path_coverage_complete: `false`" in context_text
 

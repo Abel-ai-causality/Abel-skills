@@ -175,7 +175,7 @@ def test_build_branch_context_declares_session_dsr_trials(tmp_path) -> None:
     control_spec = ni.load_branch_spec(prior_control)
     control_spec.update(
         {
-            "hypothesis": "TSLA target-only control.",
+            "hypothesis": "Explicit TSLA target-history protocol control.",
             "evidence_intent": "control",
             "input_claim": "target_only",
             "mechanism_family": "target_momentum",

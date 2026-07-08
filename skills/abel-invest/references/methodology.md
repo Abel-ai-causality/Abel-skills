@@ -30,21 +30,22 @@ empirical test.
 For ordinary non-grandma alpha search, the default posture is empirical
 construction over target and graph-derived data. Feature factories, model
 families, denoise, subsets, ensembles, regimes, filters, and sizing are
-degrees of freedom. Simple rules can benchmark, diagnose, ablate, or refine an
-empirical lead, but they are not the default search engine.
+degrees of freedom. Simple rules can benchmark, diagnose, or ablate empirical
+construction, but they are not the default search engine.
 
 **Graph as alpha universe.**
 Abel-discovered causal structure is a validated prior and should normally enter
-candidate generation early. It expands the search beyond target-only price and
+candidate generation early. It expands the search beyond target-history price and
 volume history. The graph supplies a rich node universe; data selects subsets,
 lags, signs, transformations, model families, interaction terms, filters,
 sizing signals, and regime roles.
 
-**Target-only as benchmark, seed, and competitor.**
-Target-only candidates are useful baselines, simple seeds, ablations, and
-competing strategies. They should not become the default hiding place when live
-graph candidates are available. Their main product role is to reveal whether
-graph-derived information improves the objective or robustness.
+**Target-history-only as reference metric and fallback.**
+Target history and buy-and-hold rows are useful reference metrics and quick
+diagnostics. Do not make them ordinary recorded strategy candidates when usable
+graph, supplement, or other non-target data can support the search, unless the
+user explicitly asks for that strategy shape. Their main product role is to
+reveal whether graph-derived information improves the objective or robustness.
 
 **Empirical search is normal.**
 Feature construction, model-family comparison, HPO, graph-node subset search,
@@ -82,7 +83,7 @@ user objective -> bounded candidate universe -> empirical construction/search ->
 Candidate-universe sources include:
 
 - validated baselines or catalog strategies
-- target history and target-only simple features
+- target history and target-history simple features
 - causal graph nodes and graph-derived feeds
 - sector, cross-asset, liquidity, volume, and regime feeds
 - proven empirical patterns

@@ -131,9 +131,9 @@ def derive_exploration_class(
     if role == "expansion_probe" or any(item in BROAD_CHANGED_DIMENSIONS for item in changed_dimensions):
         return "broad_explore"
     if role == "refinement" or any(item in LOCAL_CHANGED_DIMENSIONS for item in changed_dimensions):
-        return "local_refinement"
+        return "same_neighborhood_iteration"
     if declared_mode == "exploit":
-        return "local_refinement"
+        return "same_neighborhood_iteration"
     return "broad_explore"
 
 
@@ -165,7 +165,7 @@ def annotate_exploration_protocol(rows: list[dict[str, object]]) -> None:
             and same_branch_rounds > 1
             and not row.get("changed_dimensions")
         ):
-            row["derived_exploration_class"] = "local_refinement"
+            row["derived_exploration_class"] = "same_neighborhood_iteration"
         row["same_branch_round_index"] = same_branch_rounds
         row["same_neighborhood_failed_rows"] = failed_before
         if row.get("comparable") and row.get("verdict") == "FAIL":

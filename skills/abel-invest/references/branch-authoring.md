@@ -29,7 +29,9 @@ metadata into two layers.
 Minimum metadata for ordinary candidate exploration:
 
 - objective or search goal
-- `evidence_intent`: `candidate`, `control`, `diagnostic`, or `draft`
+- `evidence_intent`: `candidate`, `diagnostic`, or `draft`; reserve `control`
+  for explicit user/protocol control studies, not ordinary target-history-only
+  fallback work
 - `input_claim`: `graph_supported`, `target_only`, `supplement`, or `mixed`
 - selected runtime inputs
 - requested/effective window
@@ -138,7 +140,7 @@ Use branch fields to describe the candidate family:
 - `complexity_class`: `simple_signal`, `interaction`, `regime`, `portfolio`,
   `learned_model`, `hybrid`, or `unspecified`
 - `exploration_role`: `candidate`, `control`, `ablation`, `expansion_probe`,
-  `refinement`, `diagnostic`, or `unspecified`
+  `diagnostic`, or `unspecified`
 
 Use `run-branch --changed-dimension` to describe factual round changes:
 
@@ -153,9 +155,9 @@ not relabel search width as a single isolated idea.
 
 ## Exploration Path
 
-`agent_context.md` is the compact factual resume surface. `exploration_path.md`
-is the single human-facing exploration log and remains a completeness gate
-before another recorded round.
+`agent_context.md` is the compact factual session snapshot.
+`exploration_path.md` is the single human-facing exploration log and remains a
+completeness gate before another recorded round.
 
 Each recorded round entry should be concise:
 
@@ -199,14 +201,15 @@ Before recording a branch, be able to state the minimum audit facts:
 - whether the candidate is target/baseline, graph-enriched, mixed, or supplement
 - any search width used to select the submitted candidate
 - whether this is the empirical construction lane, a diagnostic/control, an
-  ablation, or a refinement around an empirical lead
+  ablation, or another materially distinct candidate
 - whether semantic preflight confirmed legal reads
-- what validation result would make this candidate worth refining or promoting
+- what validation result would make this candidate reusable evidence or a
+  promotion candidate
 
 For graph-attribution claims, also state the selected graph nodes,
 construction, intended role, unresolved assumption, and falsification scope.
 Keep this compact before validation; expand it after a pass or meaningful
-near-pass.
+evidence row.
 
 If a branch was chosen because it ranked best in a local metric scan, that is
 normal candidate search. Declare the search width with `--selection-trials` and
@@ -228,8 +231,8 @@ metadata, inputs, graph attribution, and exploration-path facts.
 6. Use `debug_checkpoint`; open traces only for blockers or unclear fixes.
 7. Run `<command_prefix> run-branch --branch ...` when runtime facts are ready.
 8. Use `loop_checkpoint` first. Open compact digest, ledger/frontier files, or
-   Edge artifacts only for resume, blocker detail, claim verification, or
-   precise follow-up authoring; reserve full `--json` digest for
-   audit/recovery/debugging.
+   Edge artifacts only for checkpoint gaps, blocker detail, claim verification,
+   or precise branch authoring; reserve full `--json` digest for
+   audit/debugging.
 9. Keep `exploration_path.md` covered with ledger ref, chosen path, compact
    reason, Edge feedback, and artifact refs.

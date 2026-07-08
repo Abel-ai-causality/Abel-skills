@@ -4,7 +4,7 @@ description: >
   Use when the user asks how to invest, trade, buy or sell, find alpha, find or
   improve a trading strategy, backtest or stress a signal, screen candidates,
   optimize Sharpe/return/drawdown, run graph-enriched feature/model/ensemble
-  search, or continue/prepare/debug an Abel strategy-discovery workspace —
+  search, or inspect/prepare/debug an Abel strategy-discovery workspace —
   even if they don't say "Abel" and even when they just ask for "a good
   strategy for X" or "is there alpha in Y". When no metric target is specified,
   default to searching for a high-return, reportable strategy with Sharpe > 2
@@ -22,7 +22,7 @@ metadata:
 Use this skill for:
 
 - alpha search and candidate screening
-- continuing an existing Abel strategy discovery workspace
+- using an existing Abel strategy discovery workspace
 - creating sessions and branches
 - preparing, debugging, recording, and reviewing strategy rounds
 - interpreting `evidence_ledger.json`, `frontier.md`, `agent_context.md`, and
@@ -51,14 +51,14 @@ Always start by resolving workspace state before strategy work.
    bootstrap shim. If it reports `scaffold_stale`, `runtime_stale`,
    `env_missing`, `edge_missing`, or `edge_contract_missing`, rerun the active
    bootstrap shim after fixing the stated blocker.
-6. Only start or continue session/branch work after bootstrap readiness is
+6. Only start or work with session/branch files after bootstrap readiness is
    `ready`, unless the user explicitly asks you to inspect or repair setup.
 
 ## Reference Routing
 
 - New workspace, workspace reuse, auth, generated-file refresh, or setup repair:
   read `references/workspace-bootstrap.md`.
-- New session, normal round loop, or resuming a session:
+- New session, normal round loop, or existing session:
   read `references/experiment-loop.md`.
 - Grandma mode, simple-return screening, or conservative no-leverage exploration:
   read `references/grandma-mode.md`.
@@ -75,7 +75,7 @@ Always start by resolving workspace state before strategy work.
   paper state:
   read the emitted `paper-contract-request.json` first; read
   `contractGuide.referencePath` from this active skill when the request requires
-  stateful continuation, source edits, or deeper gate diagnosis.
+  stateful hosted-paper handling, source edits, or deeper gate diagnosis.
 - Explaining why the workflow is data-led, graph-informed, or evidence-boundary oriented:
   optionally read `references/methodology.md`.
 - Choosing concrete constructions while writing the engine:
@@ -119,27 +119,25 @@ Always:
   credentials or endpoints. Trust bootstrap's effective profile/CAP URL report.
 - Report to the user with the current workspace/session/branch path, bootstrap
   readiness, blockers, what evidence exists, and the next action you will take.
-- Treat `agent_context.md` as the compact factual resume surface,
+- Treat `agent_context.md` as the compact factual session snapshot,
   `exploration_path.md` as the human-facing chosen-path and Edge-feedback log.
 - Treat the terse checkpoint printed by `prepare-branch`, `debug-branch`, and
   `run-branch` as the normal loop feedback. Use compact `artifact-digest` only
-  for resume, blocker detail, branch backtrack, or insufficient checkpoint
+  for checkpoint gaps, blocker detail, branch backtrack, or insufficient checkpoint
   state. Treat full digest `--json`, raw artifacts, `--verbose`, and `--audit`
   as audit/debug surfaces, not the standard loop.
 - On a fresh or unfamiliar ticker, use the compact first-look data scout in
   `experiment-loop.md` before the first serious recorded alpha candidate unless
-  the user gave a narrow path or continuation. Expect the scout to take roughly
-  5 minutes: score plausible target, graph, and construction shapes, then rank
-  what looks worth formal validation before broad recorded work. If the scout
-  script is still making progress, let it finish naturally before deciding what
-  to validate. When scratch work evaluates a set of candidate variants to choose
-  what to validate, import `from abel_invest.narrative_core.scout_runtime import
-  ScoutRun` and wrap that evaluation with
-  `ScoutRun(name, scratch).run(candidates, scorer)` so result rows stream to
-  disk while the scout runs. If the helper stops after streaming partial rows,
-  use the available rows as the current scout output and decide what to
-  validate. Promote the strongest shapes into recorded branch work and account
-  for material selection width.
+  the user gave a narrow path or existing lead. Treat the scout as a quick,
+  broad shortlist builder for candidate directions and coarse variants. Its
+  job is to produce candidates for recorded branch validation, not to keep
+  optimizing in scratch. Keep each ScoutRun about 10,000 candidates or fewer.
+  Any batch scratch scoring that materially chooses a recorded candidate uses
+  the scout runtime boundary described in `experiment-loop.md` and writes
+  ScoutRun artifacts directly in the session `scratch/` root. If ScoutRun stops
+  after partial rows, treat the available rows as the current scout output. Once
+  usable rows exist, build meaningful recorded branch work and account for
+  material selection width.
 
 Never:
 
@@ -160,10 +158,10 @@ Never:
   reportability accounting, not a brake on empirical search.
 - Do not `run-branch` a flat/no-signal branch solely to warm cache or make a
   scout feel official. `prepare-branch` is enough for data materialization; use
-  recorded runs for meaningful candidates, controls, diagnostics, or ablations.
+  recorded runs for meaningful strategy candidates.
 - Do not treat a diagnostic table such as IC, correlation, or feature
-  importance as a completed first-look scout when graph/model construction
-  remains available. Pair diagnostics with scored candidate-shaped variants.
+  importance as a completed first-look scout. Pair diagnostics with scored
+  candidate-shaped variants when a broader candidate comparison remains useful.
 - Never pass a running/cumulative total to `--selection-trials`; pass this
   round's search width only.
 - Do not depend on any external skill for guarded optimization; abel-invest runs
@@ -173,18 +171,18 @@ Core search invariants:
 
 - User objective first. If the user gives no metric target, search for a strong
   tradable strategy: high return, Sharpe > 2, and all required Abel Edge gates
-  passing. This is the internal completion target; do not stop at a mediocre
-  branch or a promising near-pass while useful graph-informed search axes
-  remain.
+  passing. This is the internal completion target, not a reason to make scratch
+  search the main loop.
 - Follow `experiment-loop.md` as the single detailed source for the round loop,
   completion check, stop report, visualization prompt, and interrupted/blocked
   note boundary.
 - Stay in `Exploring` until a normal ending is justified: the user
   objective/default target is achieved, or the ledger supports that the bounded
   search is unlikely to reach the target. Either normal ending enters
-  `Completed`. If a concrete next search action remains, keep searching.
+  `Completed`. Otherwise choose another meaningful recorded candidate from the
+  available evidence.
 - If the user explicitly interrupts or an external blocker prevents
-  continuation, do not enter `Completed`; give only a brief
+  concrete work, do not enter `Completed`; give only a brief
   interrupted/blocked note and do not ask for visualization.
 - Search hard, then explain. Let observed results, failure modes, and metric
   shape choose the next candidate family. Mechanism stories are useful after
@@ -196,40 +194,42 @@ Core search invariants:
   are degrees of freedom, not a scripted route.
 - Fresh or unfamiliar tickers should normally use the prepared first-look scout
   sequence in `experiment-loop.md` before the first broad recorded candidate.
-  Its practical output is scored target, graph, and construction shapes ranked
-  by what looks worth formal validation, not only an analysis memo. Direct
-  recorded branches remain valid for user-specified strategies, existing leads,
-  baselines, controls,
-  continuations, or very narrow diagnostics.
+  Its practical output is a branch shortlist from broad scored variants, not
+  only an analysis memo and not an open-ended scratch loop. Direct recorded
+  branches remain valid for user-specified strategies or existing strategy
+  leads.
 - Live graph discovery is the default high-value alpha universe when available.
   Use `discovery-protocol.md` for graph semantics and expansion; use
   `data-driven-construction.md` for feature factories, model comparison,
   denoise, node subsets, lags, regimes, sizing, filters, and ensembles.
-- Target-only work is a baseline, seed, ablation, or competitor. A
-  graph-supported branch is not automatically data-driven: runtime graph reads
-  prove input realization, not construction breadth. Hand-written
-  single-mechanism branches are diagnostics, controls, ablations, or refinements
-  around empirical construction, not the default search posture when live
-  graph-derived data is available.
+- Target-history-only and buy-and-hold variants are reference metrics in
+  ordinary graph-informed alpha search, not default recorded candidates. Record
+  a target-history-only strategy only when usable graph, supplement, or other
+  non-target data cannot support the search, or when the user explicitly asks
+  for that strategy shape. A graph-supported branch is not automatically
+  data-driven: runtime graph reads prove input realization, not construction
+  breadth.
 - A hard user metric target (Sharpe / MaxDD / PnL) is an optimization request.
   Search is expected: use target/baseline context, graph-derived features,
   feature factories, ensembles, parameter search, model-family comparison, HPO,
   regime/sizing/filter search, and node-subset search when useful. Then report
   candidates according to their objective quality and validation reliability.
 - Gates measure reliability and reportability; they are not the user-facing
-  goal. High return and high Sharpe remain the product objective. A
-  high-ceiling near-pass is a lead, not waste or final success.
+  goal. High return and high Sharpe remain the product objective.
+- A failed high-return branch is reusable evidence, not a branch to retune.
+  A strong lead belongs in the ledger; it is not a place to keep searching
+  locally.
 - Edge failures are diagnostics, not the next objective. After a failed round,
-  keep choosing the next action by objective quality and upside; do not only
-  repair gates into conservative branches when return or Sharpe remain weak.
+  prefer another meaningful recorded branch from existing evidence over more
+  scratch search around the same branch.
 - Record the effective width of any search that materially selected the
   submitted candidate. Search-width accounting should not make the agent timid
-  about pursuing a high-ceiling empirical lead.
+  about pursuing broad empirical construction.
 - Exhaustion is ledger-proven. Do not write "exhausted", "ceiling", or "no
   edge" unless `experiment-loop.md`'s ledger requirements are satisfied,
-  including materially different search axes, graph-derived and target/baseline
-  contrasts where useful, and all attempted width. One validated candidate does
-  not certify search exhaustiveness.
+  including graph-derived and target/baseline contrasts where useful, and all
+  attempted width. One validated candidate does not certify search
+  exhaustiveness.
 - CAP graph nodes are model-supported causal priors, not trading instructions.
   Do not infer hidden weight, exact lag, signed effect, or tradable direction
   from graph role alone. Expand the graph or use narrative scout context only
@@ -240,9 +240,9 @@ Core search invariants:
 Completion, reporting, and artifacts:
 
 - After every recorded `run-branch`, follow the printed `loop_checkpoint` and
-  its `next_boundary`. Continue a concrete exploration action or enter final
-  report; do not send a final user report that says exploration is incomplete
-  while also naming the next experiment.
+  its `next_boundary`. Choose another meaningful recorded candidate or enter
+  final report; do not send a final user report that says exploration is
+  incomplete while also naming the next experiment.
 - `Completed` is the only normal final-answer state, whether the target was
   reached or the ledger supports unable-to-reach. A completed stop report uses
   `<command_prefix> best-strategy --session <session> --json` as the read-only
@@ -256,7 +256,7 @@ Completion, reporting, and artifacts:
 - Do not run `visualize-session` or `export-strategy-artifact` merely to compute
   the stop report, and do not manually rank `results.tsv`, `frontier.json`, or
   branch outputs. The read-only handoff already owns strategy selection.
-- There is no third reporting state. If still `Exploring`, continue the search;
+- There is no third reporting state. If still `Exploring`, keep searching;
   only explicit interruption or a blocker justifies a non-completed note, and
   that note must not ask for visualization.
 - Do not create or refresh an online session view automatically. If the user

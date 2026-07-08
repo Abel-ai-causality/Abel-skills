@@ -300,7 +300,7 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
 
     assert "<feature-factory-branch>" in rendered
     assert "<model-or-denoise-branch>" in rendered
-    assert "<target-control-branch>" in rendered
+    assert "<target-control-branch>" not in rendered
     assert "graph-v1" not in rendered
     assert "data-led graph-enriched alpha search" in rendered
     assert "Sharpe > 2 and all required Abel Edge gates passing" in rendered
@@ -314,20 +314,34 @@ def test_init_session_output_uses_data_led_graph_enriched_alpha_search() -> None
     assert "do not run flat/no-signal rounds" in rendered
     assert "after prepare-branch, temporary scripts or summaries may live" in rendered
     assert "roughly 5 minutes" in rendered
-    assert "still making progress" in rendered
-    assert "rank what looks worth formal validation before broad recorded work" in rendered
-    assert "scratch work evaluates a set of candidate variants" in rendered
-    assert "choose what to validate" in rendered
-    assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in rendered
-    assert "ScoutRun(name, scratch).run(candidates, scorer)" in rendered
-    assert "result rows stream to disk" in rendered
+    assert "10,000 candidates or fewer" in rendered
+    assert "quick, broad shortlist builder" in rendered
+    assert "candidate directions and coarse variants" in rendered
+    assert "candidates for recorded branch validation" in rendered
+    assert "not to keep optimizing in scratch" in rendered
     assert "available rows as the current scout output" in rendered
-    assert "promote the strongest shapes into recorded branch work" in rendered
+    assert "strong lead belongs in the ledger" in rendered
+    assert "still making progress" not in rendered
+    assert "dense local grids" not in rendered
+    assert "quick, broad workbench" not in rendered
+    assert "one discovered shape" not in rendered
+    assert "batch scratch scoring that materially chooses a recorded candidate" in rendered
+    assert "scout runtime boundary described in experiment-loop.md" in rendered
+    assert "session scratch root" in rendered
+    assert "once usable rows exist, promote meaningful recorded branch work" in rendered
+    assert "prefer another meaningful branch from existing evidence" in rendered
+    assert "more scratch search around the same branch" in rendered
+    assert "same-branch tuning target" not in rendered
+    assert "start another ScoutRun only when the next candidate needs a materially new evidence surface" not in rendered
+    assert "target-history-only and buy-and-hold rows are reference metrics" in rendered
+    assert "not ordinary recorded candidates" in rendered
+    assert "no usable non-target data supports the search" in rendered
+    assert "user explicitly asks for that shape" in rendered
     assert "script still owns ranking, projection, and branch-candidate selection" not in rendered
     assert "sort_key" not in rendered
     assert "ranked set of graph leads can itself be construction material" not in rendered
-    assert "run broad candidates only after data/cache are prepared" in rendered
-    assert "simple hand-written rules are diagnostics, controls, ablations, or refinements" in rendered
+    assert "run recorded strategy candidates only after data/cache are prepared" in rendered
+    assert "refinements around empirical construction" not in rendered
     assert "validation gates estimate reliability" in rendered
     assert "exploration_path.md" in rendered
     assert "research_journal.md" not in rendered
@@ -439,11 +453,12 @@ def test_tsla_replay_fixture_keeps_broad_failed_search_as_frontier_facts(tmp_pat
         for row in ledger["rows"]
         if row["declared_input_claim"] == "target_only"
     )
+    old_term = "res" + "ume"
     forbidden = [
         "try next",
         "recommend",
         "open a sibling",
-        "resume `",
+        f"{old_term} `",
         "next branch",
         "proxy",
         "threshold",

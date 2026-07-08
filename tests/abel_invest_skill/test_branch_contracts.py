@@ -131,20 +131,36 @@ def test_prepare_branch_inputs_writes_runtime_contract_artifacts(tmp_path, monke
     assert "not validation evidence" in context_guide
     assert "inline heredoc" in context_guide
     assert "roughly 5 minutes" in context_guide
-    assert "still making progress" in context_guide
-    assert "score plausible target, graph, and construction shapes" in context_guide
-    assert "scratch work evaluates a set of candidate variants" in context_guide
-    assert "choose what to validate" in context_guide
-    assert "from abel_invest.narrative_core.scout_runtime import ScoutRun" in context_guide
+    assert "10,000 candidates or fewer" in context_guide
+    assert "quick, broad shortlist builder" in context_guide
+    assert "candidate directions and coarse variants" in context_guide
+    assert "candidates for recorded branch validation" in context_guide
+    assert "not to keep optimizing in scratch" in context_guide
+    assert "current scout output" in context_guide
+    assert "strong lead belongs in the ledger" in context_guide
+    assert "still making progress" not in context_guide
+    assert "dense local grids" not in context_guide
+    assert "quick, broad workbench" not in context_guide
+    assert "one discovered shape" not in context_guide
+    assert "batch scratch scoring that materially chooses a recorded candidate" in context_guide
     assert "ScoutRun(name, scratch).run(candidates, scorer)" in context_guide
-    assert "result rows stream to disk" in context_guide
+    assert "partial rows are preserved" in context_guide
+    assert "directly in the session `scratch/` root" in context_guide
+    assert "nested scratch directories" in context_guide
     assert "available rows as the current scout output" in context_guide
-    assert "promote the strongest shapes into recorded branch work" in context_guide
+    assert "once usable rows exist, promote meaningful recorded branch work" in context_guide
+    assert "after a recorded branch runs, prefer another meaningful candidate" in context_guide
+    assert "more scratch search around the same branch" in context_guide
+    assert "micro grids around the same branch" not in context_guide
+    assert "target-history-only and buy-and-hold rows are reference metrics" in context_guide
+    assert "not ordinary recorded candidates" in context_guide
+    assert "no usable non-target data supports the search" in context_guide
+    assert "user explicitly asks for that shape" in context_guide
     assert "script still owns ranking, projection, and branch-candidate selection" not in context_guide
-    assert "rank what looks worth formal validation before broad recorded work" in context_guide
+    assert "rank what looks worth formal validation before broad recorded work" not in context_guide
     assert "sort_key" not in context_guide
     assert "ranked set of graph leads can itself be construction material" not in context_guide
-    assert "scored candidate-shaped variants" in context_guide
+    assert "graph/model construction" not in context_guide
 
 
 def test_default_branch_spec_starts_with_graph_enriched_candidate_context(tmp_path) -> None:

@@ -24,9 +24,9 @@ Ask an agent to explore a natural-language market question, such as semiconducto
 
 Use Abel to turn a company, sector, or market theme into a strategy thesis with drivers, risks, and evidence.
 
-### Continue Strategy Research
+### Open Strategy Research
 
-Resume prior Abel research, inspect recorded drivers and risks, and decide the next research step.
+Open prior Abel research, inspect recorded drivers and risks, and decide the next research step.
 
 ### Analyze Causal Drivers
 
@@ -38,7 +38,7 @@ Organize hypotheses, candidates, open risks, missing evidence, and follow-up que
 
 ## Main Skills
 
-- `abel`: routes strategy discovery, causal-driver analysis, investment research, and auth recovery
+- `abel`: routes strategy discovery, causal-driver analysis, investment research, and auth repair
 - `abel-invest`: core strategy discovery and investment research skill
 - `abel-ask`: graph-native analysis of causal drivers and market decisions
 - `abel-auth`: Abel authentication setup and repair
