@@ -80,6 +80,7 @@ from abel_invest.narrative_core.session_lifecycle import (
     init_session_dir,
     refresh_data_readiness,
     render_data_led_start_lines,
+    ticker_scoped_session_name,
     write_discovery,
     write_readiness,
 )

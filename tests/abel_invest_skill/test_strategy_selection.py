@@ -346,7 +346,8 @@ def test_select_best_strategy_skips_unhostable_validation_rounds(
 def test_build_strategy_artifact_manifest_uses_router_contract_fields(
     tmp_path: Path,
 ) -> None:
-    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    session_name = ni.ticker_scoped_session_name("TSLA", "v1")
+    session = ni.init_session_dir("TSLA", session_name, tmp_path / "research")
     branch = ni.init_branch_dir(session, "momentum_lead")
     trade_log_path = _write_strategy_artifact_inputs(branch)
     _write_strategy_result_row(

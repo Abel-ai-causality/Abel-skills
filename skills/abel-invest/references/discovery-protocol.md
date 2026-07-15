@@ -16,6 +16,9 @@ Live graph discovery is the normal session opening:
 <command_prefix> init-session --ticker <TICKER> --exp-id <exp-id>
 ```
 
+`init-session` adds the lowercase ticker prefix when `exp-id` does not already
+have it. Reuse the created session path for retries and later commands.
+
 Use an explicit no-discovery fallback only when auth, service access, or
 continuity constraints make live discovery unavailable:
 

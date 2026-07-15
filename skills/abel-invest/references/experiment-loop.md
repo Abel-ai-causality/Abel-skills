@@ -20,6 +20,9 @@ Run:
 <command_prefix> frontier status --session research/<ticker>/<exp_id>
 ```
 
+`init-session` adds the lowercase ticker prefix when `exp-id` does not already
+have it. Continue from the created path printed by the command.
+
 Live graph discovery should run by default when available. Its output is the
 default high-value alpha feature universe, not a mandatory first branch and not
 a requirement to run the whole depth-1 frontier as one basket. For ordinary
