@@ -178,9 +178,9 @@ def ticker_scoped_session_name(ticker: str, exp_id: str) -> str:
         for separator in _TICKER_SCOPE_SEPARATORS
     )
     if already_scoped:
-        session_name = f"{ticker_token}{requested_name[len(ticker_token):]}"
-    else:
-        session_name = f"{ticker_token}-{requested_name}"
+        return requested_name
+
+    session_name = f"{ticker_token}-{requested_name}"
 
     if len(session_name) <= _MAX_SOURCE_SESSION_ID_LENGTH:
         return session_name

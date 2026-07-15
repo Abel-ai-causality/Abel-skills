@@ -120,8 +120,10 @@ def test_ticker_scoped_session_name_prevents_cross_ticker_collisions() -> None:
 
 def test_ticker_scoped_session_name_is_stable_and_does_not_double_prefix() -> None:
     assert ni.ticker_scoped_session_name("TSLA", "tsla-v1") == "tsla-v1"
-    assert ni.ticker_scoped_session_name("TSLA", "TSLA_v1") == "tsla_v1"
-    assert ni.ticker_scoped_session_name("BRK.B", "BRK.B-research") == "brk.b-research"
+    assert ni.ticker_scoped_session_name("TSLA", "TSLA_v1") == "TSLA_v1"
+    assert ni.ticker_scoped_session_name("BRK.B", "BRK.B-research") == "BRK.B-research"
+    long_scoped_name = "RIVN-" + "x" * 200
+    assert ni.ticker_scoped_session_name("RIVN", long_scoped_name) == long_scoped_name
 
     long_name = ni.ticker_scoped_session_name("RIVN", "x" * 200)
     assert long_name == ni.ticker_scoped_session_name("RIVN", "x" * 200)
