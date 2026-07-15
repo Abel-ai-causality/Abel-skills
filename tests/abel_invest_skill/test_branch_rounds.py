@@ -266,6 +266,8 @@ def test_run_branch_round_records_dsr_k_accounting(tmp_path, monkeypatch, capsys
             next_step="",
             action=[],
             python_bin=None,
+            verbose=True,
+            audit=False,
         )
     )
 

@@ -17,7 +17,12 @@ Run:
 
 ```bash
 <command_prefix> init-session --ticker <TICKER> --exp-id <exp-id>
-<command_prefix> frontier status --session research/<ticker>/<exp_id>
+```
+
+Reuse the created path printed by `init-session` for retries and later commands:
+
+```bash
+<command_prefix> frontier status --session <created-session-path>
 ```
 
 Live graph discovery should run by default when available. Its output is the

@@ -31,6 +31,7 @@ from abel_invest.narrative_core.session_lifecycle import (
     render_data_led_start_lines,
     resolve_session_root,
     resolve_workspace_arg_path,
+    ticker_scoped_session_name,
 )
 from abel_invest.narrative_core.state import (
     load_discovery,
@@ -43,9 +44,10 @@ from abel_invest.narrative_core.state import (
 
 
 def handle_init_session(args: argparse.Namespace) -> int:
+    session_name = ticker_scoped_session_name(args.ticker, args.exp_id)
     session = init_session_dir(
         args.ticker,
-        args.exp_id,
+        session_name,
         resolve_session_root(
             args.root,
             allow_outside_workspace=args.allow_outside_workspace,

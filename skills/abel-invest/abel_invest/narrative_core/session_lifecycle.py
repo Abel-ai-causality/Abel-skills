@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
@@ -49,6 +50,9 @@ from abel_invest.workspace_core.workspace import (
     resolve_workspace_entry,
     resolve_workspace_paths,
 )
+
+_MAX_SOURCE_SESSION_ID_LENGTH = 128
+_TICKER_SCOPE_SEPARATORS = ("-", "_", ".")
 
 
 def resolve_session_root(
@@ -157,6 +161,33 @@ def _path_is_relative_to(path: Path, parent: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def ticker_scoped_session_name(ticker: str, exp_id: str) -> str:
+    """Return a stable ticker-scoped session name safe for router upload."""
+    ticker_token = str(ticker or "").strip().lower()
+    requested_name = str(exp_id or "").strip()
+    if not ticker_token:
+        raise ValueError("ticker must not be empty")
+    if not requested_name:
+        raise ValueError("exp-id must not be empty")
+
+    normalized_name = requested_name.lower()
+    already_scoped = normalized_name == ticker_token or any(
+        normalized_name.startswith(f"{ticker_token}{separator}")
+        for separator in _TICKER_SCOPE_SEPARATORS
+    )
+    if already_scoped:
+        return requested_name
+
+    session_name = f"{ticker_token}-{requested_name}"
+
+    if len(session_name) <= _MAX_SOURCE_SESSION_ID_LENGTH:
+        return session_name
+
+    digest = hashlib.sha256(session_name.encode("utf-8")).hexdigest()[:12]
+    prefix_length = _MAX_SOURCE_SESSION_ID_LENGTH - len(digest) - 1
+    return f"{session_name[:prefix_length]}-{digest}"
 
 
 def init_session_dir(

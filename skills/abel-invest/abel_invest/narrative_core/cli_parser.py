@@ -22,7 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     init_session = sub.add_parser("init-session", help="Create an Abel Invest alpha-search session")
     init_session.add_argument("--ticker", required=True, help="Target ticker for this strategy discovery session")
-    init_session.add_argument("--exp-id", required=True, help="Session id written under the workspace research root")
+    init_session.add_argument(
+        "--exp-id",
+        required=True,
+        help="Session id written under the workspace research root; ticker prefix is added when missing",
+    )
     init_session.add_argument(
         "--root",
         default=None,

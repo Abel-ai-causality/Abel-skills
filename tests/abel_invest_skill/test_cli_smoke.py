@@ -36,7 +36,7 @@ def test_public_cli_session_branch_render_status_check_smoke(
             "--no-discover",
         ],
     ) == 0
-    session = root / "tsla" / "cli-smoke"
+    session = root / "tsla" / "tsla-cli-smoke"
     assert (session / ni.GRAPH_FRONTIER_FILENAME).exists()
     assert not (session / "discovery.json").exists()
 
@@ -95,7 +95,9 @@ def test_init_session_ignores_obsolete_experiment_mode(
     ) == 0
 
     state = json.loads(
-        (root / "tsla" / "obsolete-mode-env" / "session_state.json").read_text(encoding="utf-8")
+        (root / "tsla" / "tsla-obsolete-mode-env" / "session_state.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert state["mode"] == "standard"
     assert "validation_profile" not in state
@@ -105,6 +107,28 @@ def test_public_cli_version_option(monkeypatch, capsys) -> None:
     assert _run_cli(monkeypatch, ["--version"]) == 0
 
     assert "abel-invest" in capsys.readouterr().out
+
+
+def test_ticker_scoped_session_name_prevents_cross_ticker_collisions() -> None:
+    rivn_name = ni.ticker_scoped_session_name("RIVN", "sharpe3-20260617")
+    aapl_name = ni.ticker_scoped_session_name("AAPL", "sharpe3-20260617")
+
+    assert rivn_name == "rivn-sharpe3-20260617"
+    assert aapl_name == "aapl-sharpe3-20260617"
+    assert rivn_name != aapl_name
+
+
+def test_ticker_scoped_session_name_is_stable_and_does_not_double_prefix() -> None:
+    assert ni.ticker_scoped_session_name("TSLA", "tsla-v1") == "tsla-v1"
+    assert ni.ticker_scoped_session_name("TSLA", "TSLA_v1") == "TSLA_v1"
+    assert ni.ticker_scoped_session_name("BRK.B", "BRK.B-research") == "BRK.B-research"
+    long_scoped_name = "RIVN-" + "x" * 200
+    assert ni.ticker_scoped_session_name("RIVN", long_scoped_name) == long_scoped_name
+
+    long_name = ni.ticker_scoped_session_name("RIVN", "x" * 200)
+    assert long_name == ni.ticker_scoped_session_name("RIVN", "x" * 200)
+    assert len(long_name) == 128
+    assert long_name.startswith("rivn-")
 
 
 def test_init_session_without_root_uses_current_workspace_research_root(
@@ -126,7 +150,7 @@ def test_init_session_without_root_uses_current_workspace_research_root(
         ],
     ) == 0
 
-    assert (workspace / "research" / "tsla" / "workspace-owned").exists()
+    assert (workspace / "research" / "tsla" / "tsla-workspace-owned").exists()
 
 
 def test_init_session_from_launch_root_uses_default_child_workspace(
@@ -151,7 +175,7 @@ def test_init_session_from_launch_root_uses_default_child_workspace(
         ],
     ) == 0
 
-    assert (workspace / "research" / "msft" / "child-owned").exists()
+    assert (workspace / "research" / "msft" / "msft-child-owned").exists()
 
 
 def test_init_session_without_workspace_refuses_local_research_fallback(
@@ -226,7 +250,7 @@ def test_init_session_explicit_outside_root_requires_escape_hatch(
         ],
     ) == 0
 
-    assert (outside_root / "tsla" / "outside").exists()
+    assert (outside_root / "tsla" / "tsla-outside").exists()
 
 
 def test_public_cli_prepare_branch_smoke(

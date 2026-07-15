@@ -98,7 +98,8 @@ def test_dashboard_payload_session_bundle_omits_primary_strategy(
 def test_dashboard_payload_accepts_ticker_directory_with_one_session(
     tmp_path: Path,
 ) -> None:
-    session = ni.init_session_dir("ORCL", "orcl-r10", tmp_path / "research")
+    session_name = ni.ticker_scoped_session_name("ORCL", "r10")
+    session = ni.init_session_dir("ORCL", session_name, tmp_path / "research")
 
     bundle = build_skill_dashboard_session_bundle(
         session.parent,
@@ -106,6 +107,7 @@ def test_dashboard_payload_accepts_ticker_directory_with_one_session(
     )
 
     assert bundle["sessionId"] == "orcl-r10"
+    assert bundle["payload"]["session"]["id"] == bundle["sessionId"]
     assert bundle["payload"]["session"]["ticker"] == "ORCL"
 
 
