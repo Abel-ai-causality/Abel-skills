@@ -68,6 +68,7 @@ def prepare_promotion(
     sha256_file: Callable[[Path], str],
     runtime_env: dict[str, str] | None = None,
 ) -> PromotionResult:
+    strategy_workdir = getattr(candidate, "strategy_workdir", None) or candidate.branch
     promoted_dir = destination / "promoted"
     promoted_dir.mkdir(parents=True, exist_ok=True)
     _cleanup_legacy_promotion_outputs(destination, promoted_dir)
@@ -77,6 +78,7 @@ def prepare_promotion(
     agent_contract_ready = promoted_source.is_file() and existing_contract_report.is_file()
     dependency_scan = _collect_hosted_paper_dependency_scan(
         candidate.branch,
+        source_root=strategy_workdir,
         strategy_source_path=candidate.strategy_source_path,
         is_denylisted_source=is_denylisted_source,
         candidate=candidate,
@@ -125,6 +127,7 @@ def prepare_promotion(
             _report_packaged_files(
                 contract_report,
                 branch=candidate.branch,
+                source_root=strategy_workdir,
                 is_denylisted_source=is_denylisted_source,
             )
         )
@@ -233,6 +236,7 @@ def prepare_promotion(
             request_source_path = promoted_source
         failure_scan = _collect_hosted_paper_dependency_scan(
             candidate.branch,
+            source_root=strategy_workdir,
             strategy_source_path=request_source_path,
             is_denylisted_source=is_denylisted_source,
             candidate=candidate,

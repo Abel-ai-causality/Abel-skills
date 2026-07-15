@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from zipfile import ZipFile
 
 from ._memory_helpers import *  # noqa: F401,F403
 
@@ -593,6 +595,248 @@ def test_export_selected_strategy_artifact_writes_local_bundle(
     assert manifest["promotion"]["mode"] == "agent_paper_contract"
     assert manifest["runtime"]["paperExecutionProfile"]["history"]["boundary"] == "fixed_lookback"
     assert manifest["runtime"]["paperExecutionProfile"]["history"]["lookbackBars"] == 1
+    assert result["sourceVersionMode"] == "legacy_branch_fallback"
+    assert result["sourceSnapshotDigest"] is None
+
+
+def test_export_selected_strategy_artifact_uses_historical_round_snapshot(
+    tmp_path: Path,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "momentum_lead")
+    _write_strategy_artifact_inputs(branch)
+    historical_engine = (branch / "engine.py").read_bytes()
+    historical_helper = (branch / "helper.py").read_bytes()
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-001",
+        verdict="PASS",
+        sharpe=2.5,
+        lo_adj=2.1,
+        max_dd=-0.08,
+    )
+    _write_metric_input(branch, round_id="round-001")
+    pending = ni.prepare_round_source_snapshot(branch, "round-001")
+    ni.publish_round_source_snapshot(pending)
+
+    (branch / "engine.py").write_text("LATEST_ENGINE = True\n", encoding="utf-8")
+    (branch / "helper.py").write_text("VALUE = 999\n", encoding="utf-8")
+    runtime_profile = json.loads(ni.runtime_profile_path(branch).read_text(encoding="utf-8"))
+    runtime_profile["decision_event"] = "market_open"
+    ni.runtime_profile_path(branch).write_text(json.dumps(runtime_profile), encoding="utf-8")
+    (branch / "branch.yaml").write_text("target: LIVE\n", encoding="utf-8")
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-002",
+        verdict="PASS",
+        sharpe=1.5,
+        lo_adj=1.4,
+        max_dd=-0.10,
+    )
+
+    output_dir = tmp_path / "exported-artifact"
+    _seed_promoted_stateless_paper_artifact(output_dir)
+    captured: dict[str, Path] = {}
+
+    def fake_runner(command, cwd=None, capture_output=None, text=None, env=None):
+        if "-c" in command:
+            trade_log_path = Path(command[-1])
+            trade_log_path.write_text(
+                "date,asset_return,pnl,position,cum_return,source,next_position\n"
+                "2020-01-01,0,0,0,0,backfill,0\n"
+                "2020-01-02,0,0,1,0,backfill,1\n"
+                "2020-01-03,0,0,1,0,backfill,1\n",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps({"tradeLogPath": str(trade_log_path)}),
+                stderr="",
+            )
+        if "export-artifact" in command:
+            from abel_edge.research.artifact_export import (
+                export_strategy_artifact_zip,
+                load_extra_source_map,
+            )
+
+            captured["workdir"] = Path(command[command.index("--workdir") + 1])
+            artifact_path = Path(command[command.index("--output-zip") + 1])
+            manifest_path = Path(command[command.index("--manifest-json") + 1])
+            edge_result_path = Path(command[command.index("--edge-result") + 1])
+            trade_log_path = Path(command[command.index("--trade-log") + 1])
+            edge_report_path = Path(command[command.index("--edge-report") + 1])
+            extra_source_map = load_extra_source_map(
+                Path(command[command.index("--extra-source-map") + 1])
+            )
+            payload = export_strategy_artifact_zip(
+                json.loads(manifest_path.read_text(encoding="utf-8")),
+                output_zip_path=artifact_path,
+                workdir=captured["workdir"],
+                edge_result_path=edge_result_path,
+                edge_report_path=edge_report_path,
+                trade_log_path=trade_log_path,
+                extra_source_map=extra_source_map,
+            )
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps(payload),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = ni.export_selected_strategy_artifact(
+        session,
+        output_dir=output_dir,
+        python_bin="python-test",
+        runner=fake_runner,
+    )
+
+    snapshot_workdir = branch / "rounds" / "round-001" / "source"
+    assert result["artifactExported"] is True
+    assert result["selectedRoundId"] == "round-001"
+    assert result["sourceVersionMode"] == "round_snapshot"
+    assert result["sourceSnapshotDigest"]
+    assert captured["workdir"] == snapshot_workdir
+    assert (snapshot_workdir / "engine.py").read_bytes() == historical_engine
+    assert (snapshot_workdir / "helper.py").read_bytes() == historical_helper
+    manifest = json.loads(Path(result["manifestPath"]).read_text(encoding="utf-8"))
+    helper_entry = next(item for item in manifest["files"] if item["path"] == "strategy/helper.py")
+    assert helper_entry["sha256"] == hashlib.sha256(historical_helper).hexdigest()
+    assert manifest["runtime"]["decisionEvent"] == "bar_close"
+    with ZipFile(result["artifactPath"]) as artifact:
+        assert artifact.read("strategy/helper.py") == historical_helper
+        assert artifact.read("runtime/strategy.yaml") != b"target: LIVE\n"
+
+
+def test_invalid_snapshot_does_not_change_best_report_or_fall_through(
+    tmp_path: Path,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "momentum_lead")
+    _write_strategy_artifact_inputs(branch)
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-001",
+        verdict="PASS",
+        sharpe=2.5,
+        lo_adj=2.1,
+        max_dd=-0.08,
+    )
+    _write_metric_input(branch, round_id="round-001")
+    pending = ni.prepare_round_source_snapshot(branch, "round-001")
+    snapshot_dir = ni.publish_round_source_snapshot(pending)
+    (snapshot_dir / "source" / "helper.py").write_text("VALUE = 999\n", encoding="utf-8")
+    fallback_branch = ni.init_branch_dir(session, "lower_ranked")
+    _write_strategy_artifact_inputs(fallback_branch)
+    _write_strategy_result_row(
+        session,
+        fallback_branch,
+        round_id="round-001",
+        verdict="PASS",
+        sharpe=1.0,
+        lo_adj=1.0,
+        max_dd=-0.10,
+    )
+    _write_metric_input(fallback_branch, round_id="round-001")
+
+    report = ni.best_strategy_report_payload(session)
+    export = ni.export_selected_strategy_artifact(session, python_bin="python-test")
+
+    assert report["status"] == "selected"
+    assert report["strategy"]["branchId"] == "momentum_lead"
+    assert report["strategy"]["roundId"] == "round-001"
+    assert export["artifactExported"] is False
+    assert export["selectedBranchId"] == "momentum_lead"
+    assert export["selectedRoundId"] == "round-001"
+    assert export["skipReason"] == "round_source_snapshot_invalid"
+    assert export["sourceVersionMode"] == "invalid_round_snapshot"
+
+
+def test_snapshot_round_without_metric_input_does_not_rerun_current_source(
+    tmp_path: Path,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "momentum_lead")
+    _write_strategy_artifact_inputs(branch)
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-001",
+        verdict="PASS",
+        sharpe=2.5,
+        lo_adj=2.1,
+        max_dd=-0.08,
+    )
+    pending = ni.prepare_round_source_snapshot(branch, "round-001")
+    ni.publish_round_source_snapshot(pending)
+    calls: list[list[str]] = []
+
+    def rejecting_runner(command, **kwargs):
+        calls.append(command)
+        raise AssertionError("snapshot export must not rerun Edge without metric input")
+
+    result = ni.export_selected_strategy_artifact(
+        session,
+        python_bin="python-test",
+        runner=rejecting_runner,
+    )
+
+    assert result["artifactExported"] is False
+    assert result["skipReason"] == "artifact_metric_input_unavailable"
+    assert calls == []
+
+
+def test_snapshot_mutation_during_export_fails_before_promotion(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "momentum_lead")
+    _write_strategy_artifact_inputs(branch)
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-001",
+        verdict="PASS",
+        sharpe=2.5,
+        lo_adj=2.1,
+        max_dd=-0.08,
+    )
+    _write_metric_input(branch, round_id="round-001")
+    pending = ni.prepare_round_source_snapshot(branch, "round-001")
+    snapshot = ni.publish_round_source_snapshot(pending)
+    calls: list[list[str]] = []
+
+    def mutating_runner(command, **kwargs):
+        calls.append(command)
+        if "-c" not in command:
+            raise AssertionError(f"unexpected command: {command}")
+        trade_log_path = Path(command[-1])
+        trade_log_path.write_text(
+            "date,asset_return,pnl,position,cum_return,source,next_position\n"
+            "2020-01-01,0,0,0,0,backfill,0\n",
+            encoding="utf-8",
+        )
+        (snapshot / "source" / "helper.py").write_text("VALUE = 999\n", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps({"tradeLogPath": str(trade_log_path)}),
+            stderr="",
+        )
+
+    result = ni.export_selected_strategy_artifact(
+        session,
+        python_bin="python-test",
+        runner=mutating_runner,
+    )
+
+    assert result["artifactExported"] is False
+    assert result["skipReason"] == "round_source_snapshot_invalid"
+    assert len(calls) == 1
+    assert not (branch / "promotions" / "round-001" / "promoted").exists()
 
 
 def test_export_selected_strategy_artifact_nulls_inapplicable_metrics(

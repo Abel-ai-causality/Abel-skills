@@ -321,6 +321,20 @@ def test_strategy_artifact_skip_line_keeps_session_view_language():
     assert "skipped" not in lines[0].lower()
 
 
+def test_strategy_artifact_skip_line_explains_invalid_round_snapshot():
+    lines = render_strategy_artifact_upload_lines(
+        {
+            "artifactUploadSkipped": True,
+            "skipReason": "round_source_snapshot_invalid",
+        }
+    )
+
+    assert lines == [
+        "Session view created without a strategy artifact: the selected round's "
+        "saved strategy source failed its integrity check"
+    ]
+
+
 def test_strategy_artifact_success_lines_include_strategy_detail_tip():
     lines = render_strategy_artifact_upload_lines(
         {

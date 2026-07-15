@@ -39,6 +39,62 @@ def test_contract_report_rejects_same_source_as_asset_and_initial_state(
         )
 
 
+def test_contract_report_resolves_base_assets_from_selected_round_source(
+    tmp_path: Path,
+) -> None:
+    branch = tmp_path / "branch"
+    source_root = branch / "rounds" / "round-001" / "source"
+    (branch / "models").mkdir(parents=True)
+    (source_root / "models").mkdir(parents=True)
+    (branch / "models" / "weights.json").write_text("latest\n", encoding="utf-8")
+    historical = source_root / "models" / "weights.json"
+    historical.write_text("historical\n", encoding="utf-8")
+    initial_state = branch / "state" / "seed.json"
+    initial_state.parent.mkdir()
+    initial_state.write_text("{}\n", encoding="utf-8")
+    report = {
+        "paths": {
+            "packagedFiles": [
+                {
+                    "artifactPath": "strategy/models/weights.json",
+                    "sourcePath": "models/weights.json",
+                    "purpose": "immutable selected-round model",
+                }
+            ],
+            "initialStateFiles": [
+                {
+                    "artifactPath": "runtime/initial-state/strategy/seed.json",
+                    "sourcePath": "state/seed.json",
+                    "purpose": "mutable startup state",
+                }
+            ],
+        }
+    }
+
+    packaged = promotion_helpers._report_packaged_files(
+        report,
+        branch=branch,
+        source_root=source_root,
+        is_denylisted_source=lambda path: False,
+    )
+
+    by_role = {item.role: item.source_path for item in packaged}
+    assert by_role["base_asset"] == historical
+    assert by_role["initial_state"] == initial_state
+
+    report["paths"]["packagedFiles"][0]["sourcePath"] = str(
+        branch / "models" / "weights.json"
+    )
+    absolute_packaged = promotion_helpers._report_packaged_files(
+        report,
+        branch=branch,
+        source_root=source_root,
+        is_denylisted_source=lambda path: False,
+    )
+    absolute_by_role = {item.role: item.source_path for item in absolute_packaged}
+    assert absolute_by_role["base_asset"] == historical
+
+
 def test_contract_report_rejects_research_evidence_as_live_asset(
     tmp_path: Path,
 ) -> None:

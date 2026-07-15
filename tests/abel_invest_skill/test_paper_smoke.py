@@ -1,6 +1,86 @@
 from __future__ import annotations
 
+import importlib
+import sys
+
 from ._memory_helpers import *  # noqa: F401,F403
+from abel_invest.narrative_core.promotion.paper.smoke import (
+    _isolated_strategy_imports,
+    _stage_paper_smoke_files,
+)
+
+
+def test_paper_smoke_reloads_staged_helper_modules(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    (first / "helper.py").write_text("VALUE = 'first'\n", encoding="utf-8")
+    (second / "helper.py").write_text("VALUE = 'second'\n", encoding="utf-8")
+    sys.path.insert(0, str(first))
+    try:
+        first_helper = importlib.import_module("helper")
+        assert first_helper.VALUE == "first"
+        sys.path.insert(0, str(second))
+        try:
+            with _isolated_strategy_imports(second):
+                second_helper = importlib.import_module("helper")
+                assert second_helper.VALUE == "second"
+        finally:
+            sys.path.remove(str(second))
+        assert sys.modules["helper"] is first_helper
+    finally:
+        sys.path.remove(str(first))
+        sys.modules.pop("helper", None)
+
+
+def test_paper_smoke_stages_selected_round_source_root(tmp_path: Path) -> None:
+    branch = tmp_path / "branch"
+    snapshot = branch / "rounds" / "round-001" / "source"
+    for root, helper_value, decision_event in (
+        (branch, "live", "market_open"),
+        (snapshot, "historical", "bar_close"),
+    ):
+        (root / "inputs").mkdir(parents=True, exist_ok=True)
+        (root / "engine.py").write_text("class BranchEngine: pass\n", encoding="utf-8")
+        (root / "helper.py").write_text(f"VALUE = {helper_value!r}\n", encoding="utf-8")
+        (root / "branch.yaml").write_text("target: TSLA\n", encoding="utf-8")
+        (root / "inputs" / "dependencies.json").write_text("{}\n", encoding="utf-8")
+        (root / "inputs" / "data_manifest.json").write_text("{}\n", encoding="utf-8")
+        (root / "inputs" / "runtime_profile.json").write_text(
+            json.dumps({"decision_event": decision_event}),
+            encoding="utf-8",
+        )
+    (branch / "live-only.py").write_text("LIVE = True\n", encoding="utf-8")
+    strategy_dir = tmp_path / "staged" / "strategy"
+    runtime_dir = tmp_path / "staged" / "runtime"
+    state_dir = tmp_path / "staged" / "state"
+    strategy_dir.mkdir(parents=True)
+    runtime_dir.mkdir(parents=True)
+    state_dir.mkdir(parents=True)
+    candidate = Namespace(
+        branch=branch,
+        strategy_workdir=snapshot,
+        strategy_source_path=snapshot / "engine.py",
+    )
+
+    _stage_paper_smoke_files(
+        candidate,
+        strategy_source_path=snapshot / "engine.py",
+        packaged_files=(),
+        strategy_dir=strategy_dir,
+        runtime_dir=runtime_dir,
+        state_dir=state_dir,
+        strategy_entrypoint="strategy.py",
+        is_denylisted_source=lambda relative: (
+            relative.name == "branch.yaml" or "inputs" in relative.parts
+        ),
+    )
+
+    assert (strategy_dir / "helper.py").read_text(encoding="utf-8") == "VALUE = 'historical'\n"
+    assert not (strategy_dir / "live-only.py").exists()
+    assert json.loads((runtime_dir / "dependencies.json").read_text(encoding="utf-8")) == {}
+    assert (runtime_dir / "strategy.yaml").read_text(encoding="utf-8") == "target: TSLA\n"
 
 def test_paper_smoke_bootstraps_state_before_holdout_tail(
     tmp_path: Path,

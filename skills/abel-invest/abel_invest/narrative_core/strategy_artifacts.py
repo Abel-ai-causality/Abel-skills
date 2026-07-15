@@ -42,6 +42,12 @@ from abel_invest.narrative_core.promotion import (
 )
 from abel_invest.narrative_core.runtime.edge_commands import resolve_default_python_bin
 from abel_invest.narrative_core.session_lifecycle import resolve_workspace_arg_path
+from abel_invest.narrative_core.strategy_sources import (
+    SOURCE_VERSION_ROUND_SNAPSHOT,
+    StrategySourceError,
+    is_denylisted_strategy_source,
+    resolve_round_strategy_source,
+)
 from abel_invest.workspace_core.edge_runtime import build_workspace_runtime_env
 from abel_invest.workspace_core.workspace import find_workspace_root
 
@@ -104,47 +110,6 @@ SELECTION_REASON_AUTO_BEST_STRATEGY = (
 DEFAULT_PROMOTIONS_DIRNAME = "promotions"
 LEGACY_SESSION_ARTIFACT_DIRNAME = "paper_ready_artifact"
 RUNTIME_STATE_SCHEMA = "abel-invest.runtime-state/v1"
-DENYLISTED_STRATEGY_PARTS = {
-    ".git",
-    ".abel-runtime",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".ruff_cache",
-    ".venv",
-    "__pycache__",
-    "inputs",
-    "outputs",
-    "promotions",
-    "rounds",
-    "strategy_artifacts",
-    "venv",
-}
-DENYLISTED_STRATEGY_FILENAMES = {
-    ".env",
-    "branch_state.json",
-    "id_rsa",
-    "id_rsa.pub",
-    "results.tsv",
-    "state_intent.json",
-}
-DENYLISTED_STRATEGY_SUFFIXES = {
-    ".key",
-    ".pem",
-    ".pyc",
-    ".pyo",
-}
-STRATEGY_EXTRA_FILE_SUFFIXES = {
-    ".csv",
-    ".json",
-    ".joblib",
-    ".npy",
-    ".npz",
-    ".pkl",
-    ".py",
-    ".txt",
-    ".yaml",
-    ".yml",
-}
 ARTIFACT_NULL_METRIC_KEYS_BY_APPLICABILITY = (
     ("omega_applicable", ("omega",)),
     ("position_ic_applicable", ("position_ic", "position_hit_rate")),
@@ -201,6 +166,9 @@ class StrategyArtifactCandidate:
     session_round_index: int = 0
     selection_mode: str = SELECTION_MODE_AUTO_BEST_STRATEGY
     selection_scope: str = SELECTION_SCOPE_SESSION
+    strategy_workdir: Path | None = None
+    source_version_mode: str = ""
+    source_snapshot_digest: str | None = None
 
     @property
     def selection_metric_values(self) -> dict[str, float | None]:
@@ -486,8 +454,11 @@ def build_strategy_artifact_manifest(
 ) -> dict[str, Any]:
     """Build the router upload manifest for one selected validation strategy."""
 
-    branch_spec = load_branch_spec(candidate.branch)
-    runtime_profile = _load_json_object(runtime_profile_path(candidate.branch))
+    if candidate.strategy_workdir is None:
+        candidate = _bind_candidate_strategy_source(candidate)
+    strategy_workdir = _candidate_strategy_workdir(candidate)
+    branch_spec = load_branch_spec(strategy_workdir)
+    runtime_profile = _load_json_object(runtime_profile_path(strategy_workdir))
     metrics = candidate.edge_result.get("metrics")
     if not isinstance(metrics, dict):
         raise RuntimeError("selected strategy edge result is missing metrics")
@@ -673,6 +644,10 @@ def _export_strategy_artifact_candidate(
     rerun_command: str | None,
     runner,
 ) -> dict[str, Any]:
+    try:
+        candidate = _bind_candidate_strategy_source(candidate)
+    except StrategySourceError as exc:
+        return _strategy_source_error_result(exc, selection=selection)
     destination = _artifact_output_dir(candidate, output_dir=output_dir)
     _cleanup_stale_strategy_artifact_outputs(candidate, destination=destination)
     python_bin = _normalize_python_bin(
@@ -680,6 +655,7 @@ def _export_strategy_artifact_candidate(
         anchor=candidate.session,
     )
 
+    bound_candidate = candidate
     candidate = _ensure_metric_input_for_artifact(
         candidate,
         destination=destination,
@@ -687,7 +663,10 @@ def _export_strategy_artifact_candidate(
         runner=runner,
     )
     if candidate is None:
-        return _artifact_skip_result("artifact_metric_input_unavailable", selection=selection)
+        return _source_diagnostics(
+            _artifact_skip_result("artifact_metric_input_unavailable", selection=selection),
+            bound_candidate,
+        )
 
     assert candidate.edge_metric_input_path is not None
     trade_log_path = destination / "trade-log.csv"
@@ -699,14 +678,23 @@ def _export_strategy_artifact_candidate(
         runner=runner,
     )
 
+    try:
+        _validate_bound_candidate_strategy_source(candidate)
+    except StrategySourceError as exc:
+        return _strategy_source_error_result(exc, selection=selection)
+
     promotion_or_result = _prepare_promotion_for_export(
         candidate,
         destination=destination,
         selection=selection,
         rerun_command=rerun_command,
     )
+    try:
+        _validate_bound_candidate_strategy_source(candidate)
+    except StrategySourceError as exc:
+        return _strategy_source_error_result(exc, selection=selection)
     if isinstance(promotion_or_result, dict):
-        return promotion_or_result
+        return _source_diagnostics(promotion_or_result, candidate)
     promotion = promotion_or_result
     candidate = _candidate_with_artifact_edge_result_metric_nulls(
         candidate,
@@ -717,6 +705,10 @@ def _export_strategy_artifact_candidate(
         trade_log_path=trade_log_path,
         promotion=promotion,
     )
+    try:
+        _validate_bound_candidate_strategy_source(candidate)
+    except StrategySourceError as exc:
+        return _strategy_source_error_result(exc, selection=selection)
     manifest_path = destination / "manifest.json"
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True),
@@ -743,6 +735,8 @@ def _export_strategy_artifact_candidate(
         "selectedBranchId": candidate.branch_id,
         "selectedRoundId": candidate.round_id,
         "selection": _selection_payload(candidate),
+        "sourceVersionMode": candidate.source_version_mode,
+        "sourceSnapshotDigest": candidate.source_snapshot_digest,
         "manifestPath": str(manifest_path),
         "artifactPath": str(artifact_path),
         "tradeLogPath": str(trade_log_path),
@@ -950,8 +944,6 @@ def _candidate_from_row(
         return None
 
     strategy_source_path = branch / "engine.py"
-    if not strategy_source_path.is_file():
-        return None
 
     edge_result = _load_json_object(result_path)
     if not edge_result:
@@ -1011,6 +1003,39 @@ def _candidate_from_row(
         selection_mode=selection_mode,
         selection_scope=selection_scope,
     )
+
+
+def _bind_candidate_strategy_source(
+    candidate: StrategyArtifactCandidate,
+) -> StrategyArtifactCandidate:
+    resolution = resolve_round_strategy_source(candidate.branch, candidate.round_id)
+    return replace(
+        candidate,
+        strategy_workdir=resolution.workdir,
+        strategy_source_path=resolution.source_path,
+        source_version_mode=resolution.mode,
+        source_snapshot_digest=resolution.snapshot_digest,
+    )
+
+
+def _candidate_strategy_workdir(candidate: StrategyArtifactCandidate) -> Path:
+    return candidate.strategy_workdir or candidate.branch
+
+
+def _validate_bound_candidate_strategy_source(
+    candidate: StrategyArtifactCandidate,
+) -> None:
+    resolution = resolve_round_strategy_source(candidate.branch, candidate.round_id)
+    if (
+        resolution.workdir.resolve() != _candidate_strategy_workdir(candidate).resolve()
+        or resolution.source_path.resolve() != candidate.strategy_source_path.resolve()
+        or resolution.mode != candidate.source_version_mode
+        or resolution.snapshot_digest != candidate.source_snapshot_digest
+    ):
+        raise StrategySourceError(
+            "round_source_snapshot_invalid",
+            "selected round strategy source changed after it was bound for export",
+        )
 
 
 def _with_rank(
@@ -1105,6 +1130,30 @@ def _selection_payload(candidate: StrategyArtifactCandidate | None) -> dict[str,
         "rule": SELECTION_RULE_AUTO_BEST_STRATEGY if mode == "auto_best" else "",
         "reason": SELECTION_REASON_AUTO_BEST_STRATEGY if mode == "auto_best" else "",
     }
+
+
+def _source_diagnostics(
+    result: dict[str, Any],
+    candidate: StrategyArtifactCandidate,
+) -> dict[str, Any]:
+    result["sourceVersionMode"] = candidate.source_version_mode
+    result["sourceSnapshotDigest"] = candidate.source_snapshot_digest
+    return result
+
+
+def _strategy_source_error_result(
+    exc: StrategySourceError,
+    *,
+    selection: StrategySelectionResult,
+) -> dict[str, Any]:
+    result = _artifact_skip_result(exc.code, selection=selection)
+    result["sourceVersionMode"] = (
+        "invalid_round_snapshot"
+        if exc.code == "round_source_snapshot_invalid"
+        else "source_unavailable"
+    )
+    result["sourceError"] = str(exc)
+    return result
 
 
 def _promotion_rerun_command(candidate: StrategyArtifactCandidate) -> str:
@@ -1282,6 +1331,8 @@ def _ensure_metric_input_for_artifact(
         and candidate.edge_metric_input_path.is_file()
     ):
         return candidate
+    if candidate.source_version_mode == SOURCE_VERSION_ROUND_SNAPSHOT:
+        return None
 
     result_path = destination / "edge-result.json"
     report_path = destination / "edge-validation.md"
@@ -1320,7 +1371,7 @@ def _run_edge_metric_input_export(
         "abel_edge.cli",
         "evaluate",
         "--workdir",
-        str(candidate.branch),
+        str(_candidate_strategy_workdir(candidate)),
         "--output-json",
         str(result_path),
         "--output-md",
@@ -1413,7 +1464,7 @@ def _run_edge_artifact_export(
         "abel_edge.cli",
         "export-artifact",
         "--workdir",
-        str(candidate.branch),
+        str(_candidate_strategy_workdir(candidate)),
         "--manifest-json",
         str(manifest_path),
         "--edge-result",
@@ -1577,6 +1628,7 @@ def _required_artifact_source_files(
     trade_log_path: Path,
     promotion: PromotionResult | None = None,
 ) -> list[tuple[str, Path]]:
+    strategy_workdir = _candidate_strategy_workdir(candidate)
     files = [
         ("edge/edge-result.json", candidate.edge_result_path),
         ("edge/trade-log.csv", trade_log_path),
@@ -1586,9 +1638,9 @@ def _required_artifact_source_files(
         files.append(("edge/edge-validation.md", candidate.edge_report_path))
     files.extend(
         [
-            ("runtime/strategy.yaml", branch_spec_path(candidate.branch)),
-            ("runtime/dependencies.json", dependencies_path(candidate.branch)),
-            ("runtime/data_manifest.json", data_manifest_path(candidate.branch)),
+            ("runtime/strategy.yaml", branch_spec_path(strategy_workdir)),
+            ("runtime/dependencies.json", dependencies_path(strategy_workdir)),
+            ("runtime/data_manifest.json", data_manifest_path(strategy_workdir)),
         ]
     )
 
@@ -1631,15 +1683,16 @@ def _strategy_source_files(
     *,
     promotion: PromotionResult | None = None,
 ) -> list[tuple[str, Path]]:
+    strategy_workdir = _candidate_strategy_workdir(candidate)
     strategy_source_path = (
         promotion.strategy_source_path if promotion is not None else candidate.strategy_source_path
     )
     files = [(STRATEGY_ARTIFACT_ENTRYPOINT, strategy_source_path)]
     packaged_branch_sources = _packaged_branch_sources(candidate, promotion=promotion)
-    for source_path in sorted(path for path in candidate.branch.rglob("*") if path.is_file()):
+    for source_path in sorted(path for path in strategy_workdir.rglob("*") if path.is_file()):
         if source_path == candidate.strategy_source_path:
             continue
-        relative = source_path.relative_to(candidate.branch)
+        relative = source_path.relative_to(strategy_workdir)
         if source_path.resolve() in packaged_branch_sources:
             continue
         if _is_denylisted_strategy_source(relative):
@@ -1659,7 +1712,7 @@ def _packaged_branch_sources(
 ) -> set[Path]:
     if promotion is None:
         return set()
-    branch_root = candidate.branch.resolve()
+    branch_root = _candidate_strategy_workdir(candidate).resolve()
     sources: set[Path] = set()
     for item in promotion.packaged_files:
         try:
@@ -1672,15 +1725,7 @@ def _packaged_branch_sources(
 
 
 def _is_denylisted_strategy_source(relative: Path) -> bool:
-    if any(part in DENYLISTED_STRATEGY_PARTS for part in relative.parts):
-        return True
-    if relative.name in DENYLISTED_STRATEGY_FILENAMES:
-        return True
-    if relative.suffix in DENYLISTED_STRATEGY_SUFFIXES:
-        return True
-    if relative.name == "branch.yaml":
-        return True
-    return relative.suffix not in STRATEGY_EXTRA_FILE_SUFFIXES
+    return is_denylisted_strategy_source(relative)
 
 
 def _artifact_file_entry(*, artifact_path: str, source_path: Path) -> dict[str, Any]:
