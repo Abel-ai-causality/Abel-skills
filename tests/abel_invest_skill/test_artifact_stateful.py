@@ -398,6 +398,48 @@ def test_promotion_state_dependency_scan_records_state_like_facts(tmp_path: Path
     assert any(signal["kind"] == "source_state_reference" for signal in signals)
 
 
+def test_promotion_dependency_scan_splits_snapshot_source_from_live_evidence(
+    tmp_path: Path,
+) -> None:
+    branch = tmp_path / "branch"
+    snapshot = branch / "rounds" / "round-001" / "source"
+    snapshot.mkdir(parents=True)
+    (snapshot / "engine.py").write_text("class BranchEngine: pass\n", encoding="utf-8")
+    (snapshot / "historical-helper.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (snapshot / "models").mkdir()
+    (snapshot / "models" / "historical.joblib").write_bytes(b"historical")
+    (branch / "engine.py").write_text("LATEST = True\n", encoding="utf-8")
+    (branch / "live-only.py").write_text("LIVE = True\n", encoding="utf-8")
+    runtime_state = branch / ".abel-runtime" / "state" / "strategy" / "latest.json"
+    runtime_state.parent.mkdir(parents=True)
+    runtime_state.write_text("{}\n", encoding="utf-8")
+    evidence = branch / "outputs" / "round-001-edge-result.json"
+    evidence.parent.mkdir()
+    evidence.write_text("{}\n", encoding="utf-8")
+
+    scan = promotion_helpers._collect_hosted_paper_dependency_scan(
+        branch,
+        source_root=snapshot,
+        strategy_source_path=snapshot / "engine.py",
+        is_denylisted_source=lambda path: False,
+    )
+
+    branch_files = {item["path"] for item in scan["branchFiles"]}
+    assert "historical-helper.py" in branch_files
+    assert "models/historical.joblib" in branch_files
+    assert "live-only.py" not in branch_files
+    assert any(
+        item["path"] == "outputs/round-001-edge-result.json"
+        for item in scan["researchEvidenceFiles"]
+    )
+    assert any(item["kind"] == "runtime_state_file" for item in scan["stateDependencies"])
+    assert any(
+        item["kind"] in {"state_like_file", "state_like_branch_file"}
+        and item["value"] == "models/historical.joblib"
+        for item in scan["stateDependencies"]
+    )
+
+
 def test_export_selected_strategy_artifact_regenerates_missing_metric_input(
     tmp_path: Path,
 ) -> None:

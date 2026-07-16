@@ -39,6 +39,126 @@ def test_contract_report_rejects_same_source_as_asset_and_initial_state(
         )
 
 
+def test_contract_report_resolves_base_assets_from_selected_round_source(
+    tmp_path: Path,
+) -> None:
+    branch = tmp_path / "branch"
+    source_root = branch / "rounds" / "round-001" / "source"
+    (branch / "models").mkdir(parents=True)
+    (source_root / "models").mkdir(parents=True)
+    (branch / "models" / "weights.json").write_text("latest\n", encoding="utf-8")
+    historical = source_root / "models" / "weights.json"
+    historical.write_text("historical\n", encoding="utf-8")
+    initial_state = branch / "state" / "seed.json"
+    initial_state.parent.mkdir()
+    initial_state.write_text("{}\n", encoding="utf-8")
+    report = {
+        "paths": {
+            "packagedFiles": [
+                {
+                    "artifactPath": "strategy/models/weights.json",
+                    "sourcePath": "models/weights.json",
+                    "purpose": "immutable selected-round model",
+                }
+            ],
+            "initialStateFiles": [
+                {
+                    "artifactPath": "runtime/initial-state/strategy/seed.json",
+                    "sourcePath": "state/seed.json",
+                    "purpose": "mutable startup state",
+                }
+            ],
+        }
+    }
+
+    packaged = promotion_helpers._report_packaged_files(
+        report,
+        branch=branch,
+        source_root=source_root,
+        is_denylisted_source=lambda path: False,
+    )
+
+    by_role = {item.role: item.source_path for item in packaged}
+    assert by_role["base_asset"] == historical
+    assert by_role["initial_state"] == initial_state
+
+    report["paths"]["packagedFiles"][0]["sourcePath"] = str(
+        branch / "models" / "weights.json"
+    )
+    absolute_packaged = promotion_helpers._report_packaged_files(
+        report,
+        branch=branch,
+        source_root=source_root,
+        is_denylisted_source=lambda path: False,
+    )
+    absolute_by_role = {item.role: item.source_path for item in absolute_packaged}
+    assert absolute_by_role["base_asset"] == historical
+
+
+def test_contract_report_does_not_fall_back_to_live_base_asset(
+    tmp_path: Path,
+) -> None:
+    branch = tmp_path / "branch"
+    source_root = branch / "rounds" / "round-001" / "source"
+    live_asset = branch / "models" / "weights.json"
+    live_asset.parent.mkdir(parents=True)
+    live_asset.write_text("latest\n", encoding="utf-8")
+    source_root.mkdir(parents=True)
+    report = {
+        "paths": {
+            "packagedFiles": [
+                {
+                    "artifactPath": "strategy/models/weights.json",
+                    "sourcePath": str(live_asset),
+                    "purpose": "immutable selected-round model",
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(
+        promotion_helpers.PromotionHostedPaperContractRequired,
+        match="packaged source file is missing",
+    ):
+        promotion_helpers._report_packaged_files(
+            report,
+            branch=branch,
+            source_root=source_root,
+            is_denylisted_source=lambda path: False,
+        )
+
+
+def test_contract_report_preserves_promoted_base_asset(
+    tmp_path: Path,
+) -> None:
+    branch = tmp_path / "branch"
+    source_root = branch / "rounds" / "round-001" / "source"
+    source_root.mkdir(parents=True)
+    promoted_asset = branch / "promotions" / "round-001" / "promoted" / "model.json"
+    promoted_asset.parent.mkdir(parents=True)
+    promoted_asset.write_text("{}\n", encoding="utf-8")
+    report = {
+        "paths": {
+            "packagedFiles": [
+                {
+                    "artifactPath": "strategy/models/model.json",
+                    "sourcePath": str(promoted_asset),
+                    "purpose": "contract-generated immutable model",
+                }
+            ]
+        }
+    }
+
+    packaged = promotion_helpers._report_packaged_files(
+        report,
+        branch=branch,
+        source_root=source_root,
+        is_denylisted_source=lambda path: False,
+    )
+
+    assert packaged[0].source_path == promoted_asset
+
+
 def test_contract_report_rejects_research_evidence_as_live_asset(
     tmp_path: Path,
 ) -> None:
@@ -417,6 +537,7 @@ def test_hosted_paper_request_is_actionable_for_training_like_source(
     request_path = promotion_helpers._write_hosted_paper_contract_request(
         promoted_dir,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=scan,
         signals=[
@@ -429,6 +550,13 @@ def test_hosted_paper_request_is_actionable_for_training_like_source(
     )
 
     request = json.loads(request_path.read_text(encoding="utf-8"))
+    assert request["strategySourceRoot"] == str(branch.resolve())
+    assert request["sourceResolution"]["localDependenciesRelativeTo"] == (
+        "strategySourceRoot"
+    )
+    assert "do not substitute same-named files" in request["sourceResolution"][
+        "instruction"
+    ]
     assert "workOrder" not in request
     assert "mission" not in request
     assert "runtimeApiFacts" not in request
@@ -468,6 +596,7 @@ def test_hosted_paper_request_opens_full_replay_fallback_after_failures(
         request_path = promotion_helpers._write_hosted_paper_contract_request(
             promoted_dir,
             branch=branch,
+            round_id="round-001",
             source_path=source,
             dependency_scan=scan,
             signals=[],

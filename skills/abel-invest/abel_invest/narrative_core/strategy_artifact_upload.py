@@ -282,6 +282,12 @@ def _strategy_artifact_skip_line(artifact_result: dict) -> str:
             "the selected validation round is missing metric-input evidence needed "
             "for artifact export"
         ),
+        "round_source_snapshot_invalid": (
+            "the selected round's saved strategy source failed its integrity check"
+        ),
+        "strategy_source_missing": (
+            "the selected validation round has no strategy source available for export"
+        ),
     }.get(reason, reason)
     return f"Session view created without a strategy artifact: {reason_text}"
 

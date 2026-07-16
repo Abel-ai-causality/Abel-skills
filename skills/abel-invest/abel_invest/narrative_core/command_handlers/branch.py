@@ -43,8 +43,6 @@ from abel_invest.narrative_core.contracts.constants import (
     BRANCH_SPEC_FILENAME,
     EVENTS_HEADER,
     EXPLORATION_PATH_FILENAME,
-    EXECUTION_CONSTRAINTS_FILENAME,
-    PROBE_SAMPLES_FILENAME,
     RESULTS_HEADER,
 )
 from abel_invest.narrative_core.runtime.context import (
@@ -79,6 +77,13 @@ from abel_invest.narrative_core.rendering.renderers import (
 from abel_invest.narrative_core.session_lifecycle import (
     command_prefix_for_path,
     resolve_workspace_arg_path,
+)
+from abel_invest.narrative_core.strategy_sources import (
+    StrategySourceError,
+    cleanup_pending_round_source_snapshot,
+    prepare_round_source_snapshot,
+    publish_round_source_snapshot,
+    verify_round_source_unchanged,
 )
 from abel_invest.narrative_core.rendering.session_rendering import (
     path_coverage_missing_rounds,
@@ -752,6 +757,13 @@ def run_branch_round(args: argparse.Namespace) -> int:
         for line in readiness_coverage_hint_lines(readiness):
             print(f"Coverage hint: {line}", file=sys.stderr)
 
+    try:
+        with SessionLock(session):
+            pending_source_snapshot = prepare_round_source_snapshot(branch, round_id)
+    except StrategySourceError as exc:
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
+
     python_bin = args.python_bin or resolve_default_python_bin(branch)
     command = [
         python_bin,
@@ -778,16 +790,26 @@ def run_branch_round(args: argparse.Namespace) -> int:
         if workspace_root is not None
         else None
     )
-    completed = subprocess.run(
-        command,
-        cwd=session,
-        capture_output=True,
-        text=True,
-        env=runtime_env,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=session,
+            capture_output=True,
+            text=True,
+            env=runtime_env,
+        )
+    except Exception:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
+        raise
     if verbose_output(args):
         sys.stdout.write(completed.stdout)
         sys.stderr.write(completed.stderr)
+    try:
+        verify_round_source_unchanged(pending_source_snapshot)
+    except StrategySourceError as exc:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
     if not result_path.exists():
         if not verbose_output(args):
             sys.stdout.write(completed.stdout)
@@ -810,26 +832,33 @@ def run_branch_round(args: argparse.Namespace) -> int:
                 f"{source}" + (f" ({path})" if path else ""),
                 file=sys.stderr,
             )
-        with SessionLock(session):
-            record_workflow_blocker_round(
-                session=session,
-                branch=branch,
-                round_id=round_id,
-                args=args,
-                completed=completed,
-                context_path=context_path,
-                result_path=result_path,
-                report_path=report_path,
-                handoff_path=handoff_path,
-                backtest_start=backtest_start,
-                effective_hypothesis=effective_hypothesis,
-                hypothesis_source=hypothesis_source,
-                discovery=discovery,
-            )
+        try:
+            with SessionLock(session):
+                publish_round_source_snapshot(pending_source_snapshot)
+                record_workflow_blocker_round(
+                    session=session,
+                    branch=branch,
+                    round_id=round_id,
+                    args=args,
+                    completed=completed,
+                    context_path=context_path,
+                    result_path=result_path,
+                    report_path=report_path,
+                    handoff_path=handoff_path,
+                    backtest_start=backtest_start,
+                    effective_hypothesis=effective_hypothesis,
+                    hypothesis_source=hypothesis_source,
+                    discovery=discovery,
+                )
+        except StrategySourceError as exc:
+            cleanup_pending_round_source_snapshot(pending_source_snapshot)
+            print(f"{exc.code}: {exc}", file=sys.stderr)
+            return 2
         return completed.returncode or 1
     try:
         result = json.loads(result_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
         print(
             f"Abel-edge wrote an unreadable result JSON at {result_path}: {exc}",
             file=sys.stderr,
@@ -845,8 +874,14 @@ def run_branch_round(args: argparse.Namespace) -> int:
         context=context,
         result=result,
     )
-    with SessionLock(session):
-        append_dsr_accounting_record(session, dsr_accounting)
+    try:
+        with SessionLock(session):
+            publish_round_source_snapshot(pending_source_snapshot)
+            append_dsr_accounting_record(session, dsr_accounting)
+    except StrategySourceError as exc:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
     emit_missing_hypothesis_warning = False
     if not has_explicit_hypothesis(effective_hypothesis):
         with SessionLock(session):
@@ -978,6 +1013,10 @@ def run_branch_round(args: argparse.Namespace) -> int:
     print(f"Edge handoff: {handoff_path.relative_to(session)}")
     if frame_path.exists():
         print(f"Edge frame: {frame_path.relative_to(session)}")
+    print(
+        "Round source snapshot: "
+        f"{(branch / 'rounds' / round_id).relative_to(session)}"
+    )
     print(f"Exploration path: {session / EXPLORATION_PATH_FILENAME}")
     semantic = result.get("semantic") or {}
     if isinstance(semantic, dict) and semantic:
