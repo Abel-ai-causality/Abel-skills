@@ -307,10 +307,12 @@ def _write_hosted_paper_contract_request(
     *,
     branch: Path,
     source_path: Path,
+    source_root: Path | None = None,
     dependency_scan: dict[str, Any],
     signals: list[dict[str, str]],
     validation_failure: dict[str, Any] | None = None,
 ) -> Path:
+    strategy_source_root = (source_root or branch).resolve()
     request_path = promoted_dir / PROMOTION_CONTRACT_REQUEST_FILENAME
     attempt_policy = _contract_attempt_policy(
         promoted_dir,
@@ -366,6 +368,16 @@ def _write_hosted_paper_contract_request(
         "kind": PROMOTION_HOSTED_CONTRACT_SCOPE,
         "scope": PROMOTION_HOSTED_CONTRACT_SCOPE,
         "sourcePath": str(source_path),
+        "strategySourceRoot": str(strategy_source_root),
+        "sourceResolution": {
+            "localDependenciesRelativeTo": "strategySourceRoot",
+            "instruction": (
+                "Resolve local imports and relative strategy assets from "
+                "strategySourceRoot. If branchPath is present and differs from "
+                "strategySourceRoot, do not substitute same-named files from "
+                "branchPath."
+            ),
+        },
         "output": {
             "reportPath": str(promoted_dir / PROMOTION_CONTRACT_REPORT_FILENAME),
         },

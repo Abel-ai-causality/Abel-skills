@@ -485,6 +485,13 @@ def test_hosted_paper_request_is_actionable_for_training_like_source(
     )
 
     request = json.loads(request_path.read_text(encoding="utf-8"))
+    assert request["strategySourceRoot"] == str(branch.resolve())
+    assert request["sourceResolution"]["localDependenciesRelativeTo"] == (
+        "strategySourceRoot"
+    )
+    assert "do not substitute same-named files" in request["sourceResolution"][
+        "instruction"
+    ]
     assert "workOrder" not in request
     assert "mission" not in request
     assert "runtimeApiFacts" not in request

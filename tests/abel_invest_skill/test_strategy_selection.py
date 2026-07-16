@@ -599,6 +599,94 @@ def test_export_selected_strategy_artifact_writes_local_bundle(
     assert result["sourceSnapshotDigest"] is None
 
 
+def test_historical_round_contract_request_exposes_snapshot_source_root(
+    tmp_path: Path,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "momentum_lead")
+    _write_strategy_artifact_inputs(branch)
+    (branch / "engine.py").write_text(
+        "from abel_edge.engine.base import StrategyEngine\n"
+        "from helper import VALUE\n"
+        "class BranchEngine(StrategyEngine):\n"
+        "    def compute_decisions(self, ctx):\n"
+        "        return ctx.decisions(VALUE)\n",
+        encoding="utf-8",
+    )
+    historical_engine = (branch / "engine.py").read_bytes()
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-001",
+        verdict="PASS",
+        sharpe=2.5,
+        lo_adj=2.1,
+        max_dd=-0.08,
+    )
+    _write_metric_input(branch, round_id="round-001")
+    pending = ni.prepare_round_source_snapshot(branch, "round-001")
+    ni.publish_round_source_snapshot(pending)
+
+    (branch / "engine.py").write_text("LATEST_ENGINE = True\n", encoding="utf-8")
+    (branch / "helper.py").write_text("VALUE = 999\n", encoding="utf-8")
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-002",
+        verdict="FAIL",
+        sharpe=0.0,
+        lo_adj=0.0,
+        max_dd=0.0,
+        decision="discard",
+    )
+
+    def fake_runner(command, cwd=None, capture_output=None, text=None, env=None):
+        if "-c" in command:
+            trade_log_path = Path(command[-1])
+            trade_log_path.write_text(
+                "date,asset_return,pnl,position,cum_return,source,next_position\n"
+                "2020-01-01,0,0,0,0,backfill,0\n"
+                "2020-01-02,0,0,1,0,backfill,1\n",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps({"tradeLogPath": str(trade_log_path)}),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = ni.export_selected_strategy_artifact(
+        session,
+        python_bin="python-test",
+        runner=fake_runner,
+    )
+
+    snapshot_root = branch / "rounds" / "round-001" / "source"
+    assert result["artifactExported"] is False
+    assert result["skipReason"] == "hosted_paper_contract_required"
+    assert result["sourceVersionMode"] == "round_snapshot"
+    request_path = Path(result["promotionReport"]["requestPath"])
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    assert request["selection"]["roundId"] == "round-001"
+    assert request["branchPath"] == str(branch)
+    assert request["strategySourceRoot"] == str(snapshot_root.resolve())
+    assert request["sourceResolution"]["localDependenciesRelativeTo"] == (
+        "strategySourceRoot"
+    )
+    assert "do not substitute same-named files" in request["sourceResolution"][
+        "instruction"
+    ]
+    assert Path(request["sourcePath"]).read_bytes() == historical_engine
+    facts = json.loads(
+        Path(request["factSidecars"]["fullFactsPath"]).read_text(encoding="utf-8")
+    )
+    assert "helper.py" in {item["path"] for item in facts["branchFiles"]}
+    assert (snapshot_root / "helper.py").read_text(encoding="utf-8") == "VALUE = 1\n"
+    assert (branch / "helper.py").read_text(encoding="utf-8") == "VALUE = 999\n"
+
+
 def test_export_selected_strategy_artifact_uses_historical_round_snapshot(
     tmp_path: Path,
 ) -> None:

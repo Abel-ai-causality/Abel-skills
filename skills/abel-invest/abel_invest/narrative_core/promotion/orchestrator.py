@@ -95,6 +95,7 @@ def prepare_promotion(
             promoted_dir,
             branch=candidate.branch,
             source_path=promoted_source,
+            source_root=strategy_workdir,
             dependency_scan=dependency_scan,
             signals=contract_signals,
         )
@@ -264,6 +265,7 @@ def prepare_promotion(
             promoted_dir,
             branch=candidate.branch,
             source_path=request_source_path,
+            source_root=strategy_workdir,
             dependency_scan=failure_scan,
             signals=failure_signals,
             validation_failure=failure_details,
