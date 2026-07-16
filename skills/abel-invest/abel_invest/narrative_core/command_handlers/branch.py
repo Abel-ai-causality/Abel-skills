@@ -43,8 +43,6 @@ from abel_invest.narrative_core.contracts.constants import (
     BRANCH_SPEC_FILENAME,
     EVENTS_HEADER,
     EXPLORATION_PATH_FILENAME,
-    EXECUTION_CONSTRAINTS_FILENAME,
-    PROBE_SAMPLES_FILENAME,
     RESULTS_HEADER,
 )
 from abel_invest.narrative_core.runtime.context import (
@@ -760,7 +758,8 @@ def run_branch_round(args: argparse.Namespace) -> int:
             print(f"Coverage hint: {line}", file=sys.stderr)
 
     try:
-        pending_source_snapshot = prepare_round_source_snapshot(branch, round_id)
+        with SessionLock(session):
+            pending_source_snapshot = prepare_round_source_snapshot(branch, round_id)
     except StrategySourceError as exc:
         print(f"{exc.code}: {exc}", file=sys.stderr)
         return 2

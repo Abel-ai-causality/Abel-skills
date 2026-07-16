@@ -306,6 +306,7 @@ def _write_hosted_paper_contract_request(
     promoted_dir: Path,
     *,
     branch: Path,
+    round_id: str,
     source_path: Path,
     source_root: Path | None = None,
     dependency_scan: dict[str, Any],
@@ -397,7 +398,10 @@ def _write_hosted_paper_contract_request(
     }
     if not stateless_profile_only:
         request_payload["branchPath"] = str(branch)
-        request_payload["selection"] = _request_selection_payload(branch, promoted_dir)
+        request_payload["selection"] = _request_selection_payload(
+            branch,
+            round_id=round_id,
+        )
         request_payload["signals"] = signals
         request_payload["validation"] = base_validation_payload
         request_payload["selectedRoundCutoverEnd"] = cutover_end
@@ -499,11 +503,14 @@ def _should_write_facts_sidecar(
     )
 
 
-def _request_selection_payload(branch: Path, promoted_dir: Path) -> dict[str, str]:
-    round_dir = promoted_dir.parent
+def _request_selection_payload(
+    branch: Path,
+    *,
+    round_id: str,
+) -> dict[str, str]:
     return {
         "branchId": branch.name,
-        "roundId": round_dir.name,
+        "roundId": round_id,
         "mode": "selected_strategy",
     }
 

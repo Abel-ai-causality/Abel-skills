@@ -330,12 +330,17 @@ def _validated_source_file(path: Path, *, root: Path) -> Path:
             f"strategy source cannot be resolved: {path}: {exc}",
         ) from exc
     try:
-        resolved.relative_to(root.resolve())
+        resolved_relative = resolved.relative_to(root.resolve())
     except ValueError as exc:
         raise StrategySourceError(
             "strategy_source_symlink_escape",
             f"strategy source escapes its branch through a symlink: {path}",
         ) from exc
+    if path.is_symlink() and is_denylisted_strategy_source(resolved_relative):
+        raise StrategySourceError(
+            "strategy_source_symlink_target_denied",
+            f"strategy source symlink points to an excluded file: {path}",
+        )
     if not resolved.is_file():
         raise StrategySourceError(
             "strategy_source_invalid",

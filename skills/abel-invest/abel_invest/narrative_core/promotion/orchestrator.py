@@ -94,6 +94,7 @@ def prepare_promotion(
         request_path = _write_hosted_paper_contract_request(
             promoted_dir,
             branch=candidate.branch,
+            round_id=candidate.round_id,
             source_path=promoted_source,
             source_root=strategy_workdir,
             dependency_scan=dependency_scan,
@@ -264,6 +265,7 @@ def prepare_promotion(
         request_path = _write_hosted_paper_contract_request(
             promoted_dir,
             branch=candidate.branch,
+            round_id=candidate.round_id,
             source_path=request_source_path,
             source_root=strategy_workdir,
             dependency_scan=failure_scan,

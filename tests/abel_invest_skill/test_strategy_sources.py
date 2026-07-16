@@ -195,6 +195,17 @@ def test_source_symlink_cannot_escape_branch(tmp_path: Path) -> None:
     assert exc_info.value.code == "strategy_source_symlink_escape"
 
 
+def test_source_symlink_cannot_alias_denylisted_branch_file(tmp_path: Path) -> None:
+    branch = tmp_path / "session" / "branches" / "candidate"
+    _write_branch_sources(branch)
+    (branch / "secret_alias.py").symlink_to(branch / ".env")
+
+    with pytest.raises(StrategySourceError) as exc_info:
+        prepare_round_source_snapshot(branch, "round-001")
+
+    assert exc_info.value.code == "strategy_source_symlink_target_denied"
+
+
 def test_uncommitted_snapshot_can_be_replaced_but_dsr_record_protects_history(
     tmp_path: Path,
 ) -> None:

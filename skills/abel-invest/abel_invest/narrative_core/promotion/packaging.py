@@ -308,4 +308,8 @@ def _selected_round_base_asset_source(
     except ValueError:
         return source
     historical_source = source_root / relative
-    return historical_source if historical_source.is_file() else source
+    if historical_source.is_file():
+        return historical_source
+    if relative.parts and relative.parts[0] in {"promoted", "promotions"}:
+        return source
+    return historical_source

@@ -423,6 +423,7 @@ def test_contract_request_is_slim_and_marks_training_stateful(tmp_path):
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan={
             "sourceScan": {
@@ -498,6 +499,7 @@ def test_stateless_contract_request_requires_agent_boundary_choice(tmp_path):
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],
@@ -1022,6 +1024,7 @@ def test_contract_request_budget_can_open_fallback_before_third_live_failure(tmp
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],
@@ -1034,6 +1037,7 @@ def test_contract_request_budget_can_open_fallback_before_third_live_failure(tmp
     _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],
@@ -1042,6 +1046,7 @@ def test_contract_request_budget_can_open_fallback_before_third_live_failure(tmp
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],

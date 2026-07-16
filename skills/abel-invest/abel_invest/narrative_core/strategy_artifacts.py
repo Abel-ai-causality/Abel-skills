@@ -45,7 +45,7 @@ from abel_invest.narrative_core.session_lifecycle import resolve_workspace_arg_p
 from abel_invest.narrative_core.strategy_sources import (
     SOURCE_VERSION_ROUND_SNAPSHOT,
     StrategySourceError,
-    is_denylisted_strategy_source,
+    is_denylisted_strategy_source as _is_denylisted_strategy_source,
     resolve_round_strategy_source,
 )
 from abel_invest.workspace_core.edge_runtime import build_workspace_runtime_env
@@ -644,12 +644,12 @@ def _export_strategy_artifact_candidate(
     rerun_command: str | None,
     runner,
 ) -> dict[str, Any]:
+    destination = _artifact_output_dir(candidate, output_dir=output_dir)
+    _cleanup_stale_strategy_artifact_outputs(candidate, destination=destination)
     try:
         candidate = _bind_candidate_strategy_source(candidate)
     except StrategySourceError as exc:
         return _strategy_source_error_result(exc, selection=selection)
-    destination = _artifact_output_dir(candidate, output_dir=output_dir)
-    _cleanup_stale_strategy_artifact_outputs(candidate, destination=destination)
     python_bin = _normalize_python_bin(
         python_bin or resolve_default_python_bin(candidate.branch),
         anchor=candidate.session,
@@ -1722,12 +1722,6 @@ def _packaged_branch_sources(
             continue
         sources.add(source)
     return sources
-
-
-def _is_denylisted_strategy_source(relative: Path) -> bool:
-    return is_denylisted_strategy_source(relative)
-
-
 def _artifact_file_entry(*, artifact_path: str, source_path: Path) -> dict[str, Any]:
     return {
         "path": artifact_path,

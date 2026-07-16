@@ -659,6 +659,7 @@ def test_historical_round_contract_request_exposes_snapshot_source_root(
 
     result = ni.export_selected_strategy_artifact(
         session,
+        output_dir=tmp_path / "custom-export",
         python_bin="python-test",
         runner=fake_runner,
     )
@@ -831,9 +832,17 @@ def test_invalid_snapshot_does_not_change_best_report_or_fall_through(
         max_dd=-0.10,
     )
     _write_metric_input(fallback_branch, round_id="round-001")
+    output_dir = tmp_path / "stale-export"
+    output_dir.mkdir()
+    stale_artifact = output_dir / "artifact.zip"
+    stale_artifact.write_bytes(b"stale")
 
     report = ni.best_strategy_report_payload(session)
-    export = ni.export_selected_strategy_artifact(session, python_bin="python-test")
+    export = ni.export_selected_strategy_artifact(
+        session,
+        output_dir=output_dir,
+        python_bin="python-test",
+    )
 
     assert report["status"] == "selected"
     assert report["strategy"]["branchId"] == "momentum_lead"
@@ -843,6 +852,7 @@ def test_invalid_snapshot_does_not_change_best_report_or_fall_through(
     assert export["selectedRoundId"] == "round-001"
     assert export["skipReason"] == "round_source_snapshot_invalid"
     assert export["sourceVersionMode"] == "invalid_round_snapshot"
+    assert not stale_artifact.exists()
 
 
 def test_snapshot_round_without_metric_input_does_not_rerun_current_source(
