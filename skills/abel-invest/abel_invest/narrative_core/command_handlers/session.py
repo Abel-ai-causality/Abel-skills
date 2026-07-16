@@ -6,6 +6,7 @@ import argparse
 
 from abel_invest.narrative_core.contracts.branch_spec import has_explicit_hypothesis
 from abel_invest.narrative_core.contracts.constants import (
+    AGENT_CONTEXT_FILENAME,
     BRANCH_SPEC_FILENAME,
     BRANCH_STATE_FILENAME,
     EVENTS_HEADER,
@@ -20,6 +21,9 @@ from abel_invest.narrative_core.readiness import (
     readiness_coverage_hint_lines,
 )
 from abel_invest.narrative_core.runtime.context import branch_context_summary_lines
+from abel_invest.narrative_core.sample_strategy_context import (
+    ensure_sample_strategy_context,
+)
 from abel_invest.narrative_core.rendering.session_rendering import (
     render_section,
     render_session,
@@ -36,7 +40,6 @@ from abel_invest.narrative_core.session_lifecycle import (
 from abel_invest.narrative_core.state import (
     load_discovery,
     load_readiness,
-    load_session_state,
     persist_branch_hypothesis,
     resolve_backtest_start_request,
     update_backtest_start,
@@ -56,9 +59,14 @@ def handle_init_session(args: argparse.Namespace) -> int:
         discover_limit=args.discover_limit,
         backtest_start=args.backtest_start,
     )
+    sample_receipt = ensure_sample_strategy_context(
+        session=session,
+        ticker=args.ticker,
+    )
+    if sample_receipt.get("status") == "available":
+        render_session(session)
     discovery = load_discovery(session)
     readiness = load_readiness(session)
-    session_state = load_session_state(session)
     print(f"Created Abel strategy discovery session at {session}")
     print(f"  ticker: {discovery.get('ticker', args.ticker.upper())}")
     print("  mode: standard")
@@ -82,6 +90,14 @@ def handle_init_session(args: argparse.Namespace) -> int:
             print(f"  warning: {warning}")
     else:
         print("  frontier_source: pending (live discovery not run)")
+    sample_status = str(sample_receipt.get("status") or "unavailable")
+    if sample_status == "available":
+        print(
+            f"  sample_strategy: available (count={sample_receipt.get('sample_count', 0)}; "
+            f"see {session / AGENT_CONTEXT_FILENAME})"
+        )
+    else:
+        print(f"  sample_strategy: {sample_status}")
     print("")
     print("From here:")
     for line in render_data_led_start_lines(session):
