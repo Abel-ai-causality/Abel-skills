@@ -19,6 +19,9 @@ Run:
 <command_prefix> init-session --ticker <TICKER> --exp-id <exp-id>
 ```
 
+When `agent_context.md` contains `Optional Sample Strategies`, follow that
+session-local section before broader exploration.
+
 Reuse the created path printed by `init-session` for retries and later commands:
 
 ```bash
