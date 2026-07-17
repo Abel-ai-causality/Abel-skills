@@ -6,7 +6,6 @@ import argparse
 
 from abel_invest import __version__
 from abel_invest.narrative_core.contracts.constants import CHANGED_DIMENSIONS, DEFAULT_BACKTEST_START
-from abel_invest.workspace_core.workspace import DEFAULT_WORKSPACE_NAME
 
 
 def _positive_int(value: str) -> int:
@@ -21,154 +20,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"abel-invest {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    workspace = sub.add_parser("workspace", help="Create or inspect an Abel strategy discovery workspace")
-    workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
-
-    workspace_init = workspace_sub.add_parser(
-        "init",
-        help="Create a new workspace scaffold without preparing the runtime",
-    )
-    workspace_init.add_argument("name", help="Workspace name recorded in the manifest")
-    workspace_init.add_argument(
-        "--path",
-        required=True,
-        help="Explicit workspace directory path",
-    )
-
-    workspace_bootstrap = workspace_sub.add_parser(
-        "bootstrap",
-        help="Create or reuse a workspace, prepare its runtime, and run doctor",
-    )
-    workspace_bootstrap.add_argument(
-        "--path",
-        required=True,
-        help="Explicit workspace directory path",
-    )
-    workspace_bootstrap.add_argument(
-        "--name",
-        default=DEFAULT_WORKSPACE_NAME,
-        help=f"Workspace name recorded in the manifest (defaults to {DEFAULT_WORKSPACE_NAME})",
-    )
-    workspace_bootstrap.add_argument(
-        "--python",
-        dest="base_python",
-        default=None,
-        help="Base interpreter used to create the workspace venv",
-    )
-    workspace_bootstrap.add_argument(
-        "--alpha-source",
-        default=None,
-        help="Local Abel strategy discovery source tree used for installation",
-    )
-    workspace_bootstrap.add_argument(
-        "--runtime-python",
-        default=None,
-        help="Use an existing interpreter instead of creating the workspace venv",
-    )
-    workspace_bootstrap.add_argument(
-        "--no-editable",
-        action="store_true",
-        help="Install Abel strategy discovery from local source in regular mode instead of editable mode",
-    )
-
-    workspace_status = workspace_sub.add_parser("status", help="Show current workspace status")
-    workspace_status.add_argument(
-        "--path",
-        default=".",
-        help="Directory to inspect for the nearest workspace root",
-    )
-    workspace_context = workspace_sub.add_parser(
-        "context",
-        help="Show resolved workspace context for agent re-entry",
-    )
-    workspace_context.add_argument(
-        "--path",
-        default=".",
-        help="Directory to inspect for the nearest workspace root",
-    )
-    workspace_context.add_argument(
-        "--json",
-        action="store_true",
-        dest="json_output",
-        help="Emit machine-readable JSON output",
-    )
-
-    env_parser = sub.add_parser("env", help="Manage the local workspace Python environment")
-    env_sub = env_parser.add_subparsers(dest="env_command", required=True)
-    env_init = env_sub.add_parser("init", help="Create the workspace venv and install or upgrade dependencies")
-    env_init.add_argument(
-        "--path",
-        default=".",
-        help="Directory inside the target workspace",
-    )
-    env_init.add_argument(
-        "--python",
-        dest="base_python",
-        default=None,
-        help="Base interpreter used to create the workspace venv",
-    )
-    env_init.add_argument(
-        "--alpha-source",
-        default=None,
-        help="Local Abel strategy discovery source tree used for installation",
-    )
-    env_init.add_argument(
-        "--runtime-python",
-        default=None,
-        help="Use an existing interpreter instead of creating the workspace venv",
-    )
-    env_init.add_argument(
-        "--no-editable",
-        action="store_true",
-        help="Install Abel strategy discovery from local source in regular mode instead of editable mode",
-    )
-    env_refresh = env_sub.add_parser(
-        "refresh",
-        help="Upgrade the existing workspace runtime to match the current Abel Invest skill",
-    )
-    env_refresh.add_argument(
-        "--path",
-        default=".",
-        help="Directory inside the target workspace",
-    )
-    env_refresh.add_argument(
-        "--python",
-        dest="base_python",
-        default=None,
-        help="Base interpreter used if the workspace venv must be created",
-    )
-    env_refresh.add_argument(
-        "--alpha-source",
-        default=None,
-        help="Local Abel strategy discovery source tree used for installation",
-    )
-    env_refresh.add_argument(
-        "--runtime-python",
-        default=None,
-        help="Use an existing interpreter instead of creating the workspace venv",
-    )
-    env_refresh.add_argument(
-        "--no-editable",
-        action="store_true",
-        help="Install Abel strategy discovery from local source in regular mode instead of editable mode",
-    )
-
-    doctor = sub.add_parser("doctor", help="Check workspace readiness")
-    doctor.add_argument(
-        "--path",
-        default=".",
-        help="Directory inside the target workspace",
-    )
-    doctor.add_argument(
-        "--json",
-        action="store_true",
-        dest="json_output",
-        help="Emit machine-readable JSON output",
-    )
-
     init_session = sub.add_parser("init-session", help="Create an Abel Invest alpha-search session")
     init_session.add_argument("--ticker", required=True, help="Target ticker for this strategy discovery session")
-    init_session.add_argument("--exp-id", required=True, help="Session id written under the workspace research root")
+    init_session.add_argument(
+        "--exp-id",
+        required=True,
+        help="Session id written under the workspace research root; ticker prefix is added when missing",
+    )
     init_session.add_argument(
         "--root",
         default=None,
@@ -183,12 +41,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--backtest-start",
         default=DEFAULT_BACKTEST_START,
         help="Session-level backtest start date passed to abel-edge evaluate",
-    )
-    init_session.add_argument(
-        "--mode",
-        default=None,
-        choices=["standard", "grandma"],
-        help="Session strategy mode. Grandma mode routes branches to the conservative grandma_daily profile.",
     )
     discovery_group = init_session.add_mutually_exclusive_group()
     discovery_group.add_argument(
@@ -280,6 +132,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=5000,
         help="Warm-cache fetch limit used for each requested symbol",
     )
+    prepare_branch.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print the full human-readable branch preparation report",
+    )
+    prepare_branch.add_argument(
+        "--audit",
+        action="store_true",
+        help="Print audit-oriented details instead of the terse loop checkpoint",
+    )
 
     run_branch = sub.add_parser(
         "run-branch", help="Run edge evaluate and record a branch round"
@@ -316,6 +178,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--python-bin",
         default=None,
         help="Interpreter used to run abel-edge evaluate (defaults to the workspace python when available)",
+    )
+    run_branch.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print the full human-readable recorded-round report",
+    )
+    run_branch.add_argument(
+        "--audit",
+        action="store_true",
+        help="Print audit-oriented details instead of the terse loop checkpoint",
     )
     visualize_session = sub.add_parser(
         "visualize-session",
@@ -387,6 +259,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print machine-readable JSON instead of a compact text summary.",
     )
 
+    artifact_digest = sub.add_parser(
+        "artifact-digest",
+        help="Print a compact read-only digest of session or branch artifacts",
+    )
+    artifact_scope = artifact_digest.add_mutually_exclusive_group(required=True)
+    artifact_scope.add_argument(
+        "--session",
+        default=None,
+        help="Session directory to summarize.",
+    )
+    artifact_scope.add_argument(
+        "--branch",
+        default=None,
+        help="Optional branch directory to summarize instead of the whole session.",
+    )
+    artifact_output = artifact_digest.add_mutually_exclusive_group()
+    artifact_output.add_argument(
+        "--json",
+        action="store_true",
+        help="Print machine-readable JSON instead of compact text.",
+    )
+    artifact_output.add_argument(
+        "--compact",
+        action="store_true",
+        help="Print bounded normal-loop decision facts instead of the full audit digest.",
+    )
+
     export_strategy_artifact = sub.add_parser(
         "export-strategy-artifact",
         help=(
@@ -443,6 +342,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--python-bin",
         default=None,
         help="Interpreter used to run abel-edge debug-evaluate (defaults to the workspace python when available)",
+    )
+    debug_branch.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print the full human-readable debug preflight report",
+    )
+    debug_branch.add_argument(
+        "--audit",
+        action="store_true",
+        help="Print audit-oriented details instead of the terse debug checkpoint",
     )
 
     render = sub.add_parser("render", help="Render summaries for a session")

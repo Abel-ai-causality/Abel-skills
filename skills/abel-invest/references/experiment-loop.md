@@ -1,14 +1,8 @@
 # Experiment Loop
 
-Use this reference after workspace preflight is complete and doctor is ready.
-Commands below use the workspace `command_prefix` returned by
-`workspace context --json` or doctor.
-
-Before creating a new session, confirm the workspace context:
-
-```bash
-<command_prefix> workspace context --path . --json
-```
+Use this reference after the active bootstrap shim reports readiness `ready`.
+Commands below use the workspace command prefix printed by bootstrap, usually
+`./.venv/bin/abel-invest` from the workspace root.
 
 Use the resolved workspace `research_root`. Do not pass `--root` unless this
 is an intentional legacy/offline session outside a workspace; in that case pass
@@ -23,13 +17,21 @@ Run:
 
 ```bash
 <command_prefix> init-session --ticker <TICKER> --exp-id <exp-id>
-<command_prefix> frontier status --session research/<ticker>/<exp_id>
+```
+
+When `agent_context.md` contains `Optional Sample Strategies`, follow that
+session-local section before broader exploration.
+
+Reuse the created path printed by `init-session` for retries and later commands:
+
+```bash
+<command_prefix> frontier status --session <created-session-path>
 ```
 
 Live graph discovery should run by default when available. Its output is the
 default high-value alpha feature universe, not a mandatory first branch and not
 a requirement to run the whole depth-1 frontier as one basket. For ordinary
-non-grandma alpha search, keep the search posture empirical, high-capacity, and
+alpha search, keep the search posture empirical, high-capacity, and
 graph-informed over a scoped target + graph-derived universe, not another
 hand-written single mechanism.
 
@@ -40,10 +42,9 @@ internal stopping target, not a user-facing promise and not a separate mode.
 When resuming, read:
 
 - `agent_context.md` for compact factual state
-- `frontier.md` for graph nodes, runtime reads, input realization, search
-  concentration, metric failures, and path coverage
 - `exploration_path.md` for the human-facing path log
-- latest `edge-result.json` / `edge-validation.md` for concrete feedback
+- the latest CLI checkpoint for normal loop state; use compact digest only when
+  that checkpoint is insufficient
 
 ## First-Look Data Scout
 
@@ -130,7 +131,8 @@ Each round should push toward the user's objective.
    where `N` is this round's effective search width only. Inline heredocs,
    notebook cells, and query cells count the same as saved scratch files when
    they materially select the submitted candidate.
-10. Re-read `evidence_ledger.json`, `frontier.md`, and the latest Edge result.
+10. Read the `loop_checkpoint` as the standard loop feedback; use compact
+   digest or raw artifacts only when the checkpoint leaves a concrete gap.
 11. Let metric shape and failure mode decide the next move. The framework shows
    facts; it does not prescribe the next driver, proxy, threshold, model
    family, or route.
@@ -213,9 +215,9 @@ target. If none holds, stay in `Exploring`, keep searching, and choose the next
 concrete action.
 
 If you can name a concrete next search action, the search is still `Exploring`.
-After every recorded `run-branch`, treat the printed `Decision checkpoint` as
-the immediate control point: either update the path and continue a concrete
-exploration action, or enter final report.
+After every recorded `run-branch`, treat the printed `loop_checkpoint` and
+`next_boundary` as the immediate control point: either update the path and
+continue a concrete exploration action, or enter final report.
 
 Do not stop by round count, a mediocre candidate, a high-Sharpe near-pass, an
 easy-to-validate low-objective branch, `render` / `status` / `check` success,

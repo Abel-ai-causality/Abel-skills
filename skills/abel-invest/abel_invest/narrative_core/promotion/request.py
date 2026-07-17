@@ -306,11 +306,14 @@ def _write_hosted_paper_contract_request(
     promoted_dir: Path,
     *,
     branch: Path,
+    round_id: str,
     source_path: Path,
+    source_root: Path | None = None,
     dependency_scan: dict[str, Any],
     signals: list[dict[str, str]],
     validation_failure: dict[str, Any] | None = None,
 ) -> Path:
+    strategy_source_root = (source_root or branch).resolve()
     request_path = promoted_dir / PROMOTION_CONTRACT_REQUEST_FILENAME
     attempt_policy = _contract_attempt_policy(
         promoted_dir,
@@ -366,6 +369,16 @@ def _write_hosted_paper_contract_request(
         "kind": PROMOTION_HOSTED_CONTRACT_SCOPE,
         "scope": PROMOTION_HOSTED_CONTRACT_SCOPE,
         "sourcePath": str(source_path),
+        "strategySourceRoot": str(strategy_source_root),
+        "sourceResolution": {
+            "localDependenciesRelativeTo": "strategySourceRoot",
+            "instruction": (
+                "Resolve local imports and relative strategy assets from "
+                "strategySourceRoot. If branchPath is present and differs from "
+                "strategySourceRoot, do not substitute same-named files from "
+                "branchPath."
+            ),
+        },
         "output": {
             "reportPath": str(promoted_dir / PROMOTION_CONTRACT_REPORT_FILENAME),
         },
@@ -385,7 +398,10 @@ def _write_hosted_paper_contract_request(
     }
     if not stateless_profile_only:
         request_payload["branchPath"] = str(branch)
-        request_payload["selection"] = _request_selection_payload(branch, promoted_dir)
+        request_payload["selection"] = _request_selection_payload(
+            branch,
+            round_id=round_id,
+        )
         request_payload["signals"] = signals
         request_payload["validation"] = base_validation_payload
         request_payload["selectedRoundCutoverEnd"] = cutover_end
@@ -487,11 +503,14 @@ def _should_write_facts_sidecar(
     )
 
 
-def _request_selection_payload(branch: Path, promoted_dir: Path) -> dict[str, str]:
-    round_dir = promoted_dir.parent
+def _request_selection_payload(
+    branch: Path,
+    *,
+    round_id: str,
+) -> dict[str, str]:
     return {
         "branchId": branch.name,
-        "roundId": round_dir.name,
+        "roundId": round_id,
         "mode": "selected_strategy",
     }
 

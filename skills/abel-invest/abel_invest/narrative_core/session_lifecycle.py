@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
@@ -21,7 +22,7 @@ from abel_invest.narrative_core.contracts.constants import (
 )
 from abel_invest.workspace_core.doctor import build_auth_recovery_instruction, workspace_command
 from abel_invest.narrative_core.runtime.edge_commands import run_edge_verify_data
-from abel_invest.workspace_core.edge_runtime import resolve_runtime_auth_env_file
+from abel_invest.workspace_core.edge_runtime import apply_effective_abel_env
 from abel_invest.narrative_core.io import (
     SessionLock,
     _now,
@@ -49,6 +50,9 @@ from abel_invest.workspace_core.workspace import (
     resolve_workspace_entry,
     resolve_workspace_paths,
 )
+
+_MAX_SOURCE_SESSION_ID_LENGTH = 128
+_TICKER_SCOPE_SEPARATORS = ("-", "_", ".")
 
 
 def resolve_session_root(
@@ -93,9 +97,8 @@ def resolve_session_root(
         "No Abel strategy discovery workspace was resolved for session creation. "
         f"Entry path: {entry_path}. "
         f"Default workspace path: {target}. "
-        "Run `abel-invest workspace context --path . --json` to inspect the "
-        "current workspace if the CLI is on PATH, or bootstrap one with "
-        f"`abel-invest workspace bootstrap --path {target}`. "
+        "Run the active Abel Invest skill bootstrap shim for that workspace "
+        "path before creating a session. "
         "For an intentional offline or legacy session, pass both `--root` and "
         "`--allow-outside-workspace`."
     )
@@ -160,6 +163,33 @@ def _path_is_relative_to(path: Path, parent: Path) -> bool:
     return True
 
 
+def ticker_scoped_session_name(ticker: str, exp_id: str) -> str:
+    """Return a stable ticker-scoped session name safe for router upload."""
+    ticker_token = str(ticker or "").strip().lower()
+    requested_name = str(exp_id or "").strip()
+    if not ticker_token:
+        raise ValueError("ticker must not be empty")
+    if not requested_name:
+        raise ValueError("exp-id must not be empty")
+
+    normalized_name = requested_name.lower()
+    already_scoped = normalized_name == ticker_token or any(
+        normalized_name.startswith(f"{ticker_token}{separator}")
+        for separator in _TICKER_SCOPE_SEPARATORS
+    )
+    if already_scoped:
+        return requested_name
+
+    session_name = f"{ticker_token}-{requested_name}"
+
+    if len(session_name) <= _MAX_SOURCE_SESSION_ID_LENGTH:
+        return session_name
+
+    digest = hashlib.sha256(session_name.encode("utf-8")).hexdigest()[:12]
+    prefix_length = _MAX_SOURCE_SESSION_ID_LENGTH - len(digest) - 1
+    return f"{session_name[:prefix_length]}-{digest}"
+
+
 def init_session_dir(
     ticker: str,
     exp_id: str,
@@ -168,11 +198,7 @@ def init_session_dir(
     discover: bool = False,
     discover_limit: int = 10,
     backtest_start: str = DEFAULT_BACKTEST_START,
-    mode: str | None = None,
 ) -> Path:
-    requested_mode = None
-    if mode is not None and str(mode).strip():
-        requested_mode = "grandma" if str(mode).strip().lower() == "grandma" else "standard"
     session = root / ticker.lower() / exp_id
     session.mkdir(parents=True, exist_ok=True)
     ensure_exploration_path(session)
@@ -200,16 +226,9 @@ def init_session_dir(
     with SessionLock(session):
         write_tsv_header(session / "events.tsv", EVENTS_HEADER)
         session_state = load_session_state(session) if session_state_path(session).exists() else {}
-        effective_mode = requested_mode or (
-            "grandma"
-            if str(session_state.get("mode") or "").strip().lower() == "grandma"
-            else "standard"
-        )
+        effective_mode = "standard"
         session_state["mode"] = effective_mode
-        if effective_mode == "grandma":
-            session_state["validation_profile"] = "grandma_daily"
-        else:
-            session_state.pop("validation_profile", None)
+        session_state.pop("validation_profile", None)
         write_session_state(session, session_state)
         graph_frontier.write_graph_frontier(session, frontier_data)
         if readiness_report is not None:
@@ -282,14 +301,12 @@ def fetch_live_discovery(ticker: str, *, limit: int) -> dict:
         command_prefix = workspace_command(workspace_root, None) if workspace_root else "abel-invest"
         raise RuntimeError(
             "Live Abel discovery requires abel-edge with the Abel plugin installed. "
-            f"Run `{command_prefix} doctor` in the workspace, follow its env next_step, "
-            "rerun doctor, then retry."
+            f"Rerun the active Abel Invest bootstrap shim for {workspace_root or Path.cwd()}, "
+            f"then retry `{command_prefix} init-session --ticker {ticker.upper()} --exp-id <exp-id>`."
         ) from exc
     workspace_root, _ = resolve_workspace_entry()
     if workspace_root is not None:
-        auth_env = resolve_runtime_auth_env_file(workspace_root)
-        if auth_env is not None:
-            os.environ.setdefault("ABEL_AUTH_ENV_FILE", str(auth_env))
+        apply_effective_abel_env(workspace_root)
 
     try:
         require_api_key()
@@ -373,8 +390,6 @@ def init_branch_dir(session: Path, branch_id: str) -> Path:
                     discovery=discovery,
                     readiness=readiness,
                     graph_frontier=frontier,
-                    session_mode=str(session_state.get("mode") or "standard"),
-                    validation_profile=str(session_state.get("validation_profile") or ""),
                 ),
             )
         engine = branch / "engine.py"

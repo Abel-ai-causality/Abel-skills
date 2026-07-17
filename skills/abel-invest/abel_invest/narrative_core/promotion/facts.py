@@ -38,9 +38,11 @@ def _collect_hosted_paper_dependency_scan(
     *,
     strategy_source_path: Path,
     is_denylisted_source: Callable[[Path], bool],
+    source_root: Path | None = None,
     candidate: Any | None = None,
     destination: Path | None = None,
 ) -> dict[str, Any]:
+    source_root = source_root or branch
     source = strategy_source_path.read_text(encoding="utf-8")
     try:
         tree = ast.parse(source)
@@ -56,13 +58,14 @@ def _collect_hosted_paper_dependency_scan(
     branch_files = []
     state_dependency_signals = _state_dependency_signals(
         branch,
+        source_root=source_root,
         strategy_source_path=strategy_source_path,
         is_denylisted_source=is_denylisted_source,
     )
-    for path in sorted(branch.rglob("*")):
+    for path in sorted(source_root.rglob("*")):
         if not path.is_file():
             continue
-        relative = path.relative_to(branch)
+        relative = path.relative_to(source_root)
         if relative.name == "engine.py" or is_denylisted_source(relative):
             continue
         if relative.suffix.lower() not in PROMOTION_BRANCH_FILE_SUFFIXES:
@@ -76,7 +79,7 @@ def _collect_hosted_paper_dependency_scan(
         )
     return {
         "schema": "abel-invest.hosted-paper-facts/v2",
-        "sourcePath": _display_source_path(branch, strategy_source_path),
+        "sourcePath": _display_source_path(source_root, strategy_source_path),
         "sourceScan": _source_scan_observations(
             source,
             tree,
@@ -410,6 +413,7 @@ def _validate_promoted_source_static(source_path: Path) -> None:
 def _state_dependency_signals(
     branch: Path,
     *,
+    source_root: Path,
     strategy_source_path: Path,
     is_denylisted_source: Callable[[Path], bool],
 ) -> list[dict[str, str]]:
@@ -429,10 +433,10 @@ def _state_dependency_signals(
                     reason="file already exists under .abel-runtime/state",
                 )
 
-    for path in sorted(branch.rglob("*")):
+    for path in sorted(source_root.rglob("*")):
         if not path.is_file():
             continue
-        relative = path.relative_to(branch)
+        relative = path.relative_to(source_root)
         if _skip_state_self_check_file(relative):
             continue
         if is_denylisted_source(relative):

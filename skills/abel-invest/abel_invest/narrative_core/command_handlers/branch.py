@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from abel_invest.narrative_core.contracts.branch_spec import (
     _get_backtest_start,
@@ -23,6 +24,7 @@ from abel_invest.narrative_core.contracts.branch_spec import (
 )
 from abel_invest.workspace_core.edge_runtime import (
     build_workspace_runtime_env,
+    describe_effective_abel_env,
 )
 from abel_invest.narrative_core.runtime.edge_commands import (
     resolve_default_python_bin,
@@ -33,7 +35,6 @@ from abel_invest.narrative_core.runtime.dsr_accounting import (
 )
 from abel_invest.workspace_core.workspace import (
     find_workspace_root,
-    resolve_workspace_env_file,
 )
 from abel_invest.narrative_core.runtime.workflow_blockers import (
     record_workflow_blocker_round,
@@ -42,8 +43,6 @@ from abel_invest.narrative_core.contracts.constants import (
     BRANCH_SPEC_FILENAME,
     EVENTS_HEADER,
     EXPLORATION_PATH_FILENAME,
-    EXECUTION_CONSTRAINTS_FILENAME,
-    PROBE_SAMPLES_FILENAME,
     RESULTS_HEADER,
 )
 from abel_invest.narrative_core.runtime.context import (
@@ -79,6 +78,13 @@ from abel_invest.narrative_core.session_lifecycle import (
     command_prefix_for_path,
     resolve_workspace_arg_path,
 )
+from abel_invest.narrative_core.strategy_sources import (
+    StrategySourceError,
+    cleanup_pending_round_source_snapshot,
+    prepare_round_source_snapshot,
+    publish_round_source_snapshot,
+    verify_round_source_unchanged,
+)
 from abel_invest.narrative_core.rendering.session_rendering import (
     path_coverage_missing_rounds,
     path_coverage_warning_lines,
@@ -89,6 +95,7 @@ from abel_invest.narrative_core.state import (
     branch_inputs_ready,
     branch_uses_default_scaffold,
     build_debug_snapshot,
+    load_branches,
     load_discovery,
     load_readiness,
     persist_branch_hypothesis,
@@ -111,6 +118,297 @@ def selection_trials_audit_warning(selection_trials: int) -> str | None:
     if selection_trials <= 1:
         return None
     return SELECTION_TRIALS_AUDIT_WARNING
+
+
+def verbose_output(args: argparse.Namespace) -> bool:
+    return bool(getattr(args, "verbose", False) or getattr(args, "audit", False))
+
+
+def metric_value(metrics: dict, key: str) -> str:
+    value = metrics.get(key)
+    if isinstance(value, (int, float)):
+        return f"{value:.4g}"
+    if value is None:
+        return "missing"
+    return str(value)
+
+
+def compact_metric_line(metrics: dict) -> str:
+    return " ".join(
+        [
+            f"sharpe={metric_value(metrics, 'sharpe')}",
+            f"total_return={metric_value(metrics, 'total_return')}",
+            f"max_drawdown={metric_value(metrics, 'max_dd')}",
+            f"dsr={metric_value(metrics, 'dsr')}",
+            f"lo_adjusted={metric_value(metrics, 'lo_adjusted')}",
+            f"position_ic={metric_value(metrics, 'position_ic')}",
+        ]
+    )
+
+
+def primary_blockers(result: dict, *, limit: int = 3) -> list[str]:
+    failures = result.get("failures")
+    if not isinstance(failures, list):
+        return []
+    blockers = [str(item).strip() for item in failures if str(item).strip()]
+    return blockers[:limit]
+
+
+def semantic_verdict(result: dict) -> str:
+    semantic = result.get("semantic")
+    if isinstance(semantic, dict):
+        return str(semantic.get("verdict") or "unknown")
+    return "unknown"
+
+
+def semantic_activity(result: dict) -> str:
+    semantic = result.get("semantic")
+    if not isinstance(semantic, dict):
+        return "missing"
+    signal = semantic.get("signal")
+    if isinstance(signal, dict):
+        active = signal.get("active_days")
+        total = signal.get("total_days")
+        if active is not None and total is not None:
+            return f"{active}/{total}"
+    metrics = result.get("metrics")
+    if isinstance(metrics, dict):
+        active = metrics.get("active_days")
+        total = metrics.get("total_days")
+        if active is not None and total is not None:
+            return f"{active}/{total}"
+    return "missing"
+
+
+def protocol_state_for_prepare(*, warm_fail: list[dict], auth_handoff_needed: bool) -> str:
+    if auth_handoff_needed:
+        return "prepared_blocked_auth"
+    if warm_fail:
+        return "prepared_with_cache_failures"
+    return "prepared_ready_for_debug"
+
+
+def protocol_state_for_debug(*, completed: subprocess.CompletedProcess, debug_result: dict) -> str:
+    if completed.returncode:
+        return "debug_fix_engine_before_run"
+    if not debug_result:
+        return "debug_missing_result"
+    semantic = debug_result.get("semantic")
+    if isinstance(semantic, dict) and str(semantic.get("verdict") or "").upper() == "PASS":
+        return "debug_ready_for_recorded_run"
+    return "debug_fix_engine_before_run"
+
+
+def protocol_state_for_round(*, result: dict, decision: str) -> str:
+    verdict = str(result.get("verdict") or "").upper()
+    if verdict == "PASS":
+        return "recorded_pass_reportable"
+    if verdict == "FAIL":
+        return "recorded_fail_has_blockers" if primary_blockers(result) else "recorded_fail_review_required"
+    if decision == "workflow_blocker":
+        return "recorded_error_workflow_blocker"
+    return "recorded_error_review_required"
+
+
+def loop_boundary_state(*, protocol_state: str) -> str:
+    if protocol_state == "recorded_pass_reportable":
+        return "reportable"
+    if protocol_state.startswith("recorded_error"):
+        return "blocked"
+    return "exploring"
+
+
+def loop_allowed_next(*, boundary_state: str) -> str:
+    if boundary_state == "blocked":
+        return "fix_workflow|continue_exploration"
+    return "continue_exploration|final_report"
+
+
+def latest_best_snapshot(session) -> dict[str, str]:
+    best: dict[str, str] = {}
+    for branch in load_branches(session):
+        for row in branch.get("rows", []):
+            if not isinstance(row, dict):
+                continue
+            verdict = str(row.get("verdict") or "").upper()
+            try:
+                sharpe = float(row.get("sharpe") or 0)
+            except (TypeError, ValueError):
+                sharpe = 0.0
+            try:
+                score = str(row.get("score") or "0/0")
+                passed, total = score.split("/", 1)
+                score_key = float(passed) / max(float(total), 1.0)
+            except (ValueError, ZeroDivisionError):
+                score_key = 0.0
+            key = (1 if verdict == "PASS" else 0, score_key, sharpe)
+            if key > best.get("_key", (-1, -1.0, -1.0)):  # type: ignore[arg-type]
+                best = {
+                    "_key": key,  # type: ignore[dict-item]
+                    "branch": str(row.get("branch_id") or branch.get("branch_id") or "unknown"),
+                    "round": str(row.get("round_id") or "unknown"),
+                    "verdict": verdict or "unknown",
+                    "score": str(row.get("score") or "unknown"),
+                    "sharpe": f"{sharpe:.3f}",
+                }
+    best.pop("_key", None)
+    return best
+
+
+def print_prepare_checkpoint(
+    *,
+    branch,
+    session,
+    target: str,
+    selected_inputs: list[str],
+    symbols: list[str],
+    warm_ok: list[dict],
+    warm_fail: list[dict],
+    requested_start: str,
+    advisory_lines: list[str],
+    output_path,
+    auth_handoff_needed: bool,
+) -> None:
+    dense_overlap = "missing"
+    target_safe = "missing"
+    for line in advisory_lines:
+        if line.startswith("dense_overlap_hint="):
+            dense_overlap = line.split("=", 1)[1].split(" ", 1)[0]
+        elif line.startswith("target_safe_hint="):
+            target_safe = line.split("=", 1)[1]
+    scaffold = "starter_scaffold" if branch_uses_default_scaffold(branch, load_discovery(session), load_readiness(session), session) else "custom_engine"
+    state = protocol_state_for_prepare(
+        warm_fail=warm_fail,
+        auth_handoff_needed=auth_handoff_needed,
+    )
+    print(
+        "prepare_checkpoint "
+        f"branch={branch.name} prepared=true target={target} "
+        f"selected_inputs={len(selected_inputs)} feed_count={len(symbols)} "
+        f"cache_ok={len(warm_ok)} cache_fail={len(warm_fail)} "
+        f"requested_start={requested_start} target_safe={target_safe} "
+        f"dense_overlap={dense_overlap} scaffold={scaffold} "
+        "evidence_recorded=false next_if_ready=debug-branch "
+        "next_if_failed=fix_cache_or_auth"
+    )
+    if warm_fail:
+        failures = ", ".join(
+            f"{item.get('symbol', 'unknown')}:{item.get('error', 'unknown')}"
+            for item in warm_fail[:3]
+        )
+        print(f"cache_failures {failures}")
+    print(f"artifacts inputs={output_path.parent.relative_to(session)}")
+    print(f"protocol_state={state}")
+
+
+def print_debug_checkpoint(
+    *,
+    branch,
+    session,
+    completed: subprocess.CompletedProcess,
+    debug_result: dict,
+    context_path,
+    debug_result_path,
+) -> None:
+    semantic = debug_result.get("semantic") if isinstance(debug_result, dict) else {}
+    semantic = semantic if isinstance(semantic, dict) else {}
+    output_shape = semantic.get("output_shape") if isinstance(semantic, dict) else {}
+    output_label = (
+        output_shape.get("label", "unknown") if isinstance(output_shape, dict) else "unknown"
+    )
+    semantic_ready = str(semantic.get("verdict") or "").upper() == "PASS"
+    frame_key, _ = classify_result_frame(debug_result) if debug_result else ("missing_result", "")
+    primary_error = ""
+    if completed.returncode:
+        primary_error = (completed.stderr or completed.stdout or "").strip().splitlines()
+        primary_error = primary_error[-1] if primary_error else "debug command failed"
+    print(
+        "debug_checkpoint "
+        f"branch={branch.name} semantic_ready={str(semantic_ready).lower()} "
+        f"runtime_stage=semantic_preflight decisions={semantic.get('decision_count', 0)} "
+        f"reads={semantic.get('read_count', 0)} activity={semantic_activity(debug_result)} "
+        f"output_shape={output_label} evidence_recorded=false result_class={frame_key} "
+        "next_if_ready=run-branch next_if_failed=fix_engine_or_branch_compact"
+    )
+    if primary_error:
+        print(f'primary_error="{primary_error[:240]}"')
+    print(f"artifacts debug_context={context_path.relative_to(session)}")
+    if debug_result_path.exists():
+        print(f"artifacts debug_result={debug_result_path.relative_to(session)}")
+    print(
+        "protocol_state="
+        + protocol_state_for_debug(completed=completed, debug_result=debug_result)
+    )
+
+
+def print_loop_checkpoint(
+    *,
+    session,
+    branch,
+    round_id: str,
+    result: dict,
+    decision: str,
+    result_path,
+    report_path,
+    handoff_path,
+    context_path,
+    frame_path,
+) -> None:
+    metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+    blockers = primary_blockers(result)
+    best = latest_best_snapshot(session)
+    scaffold = (
+        "starter_scaffold"
+        if branch_uses_default_scaffold(
+            branch,
+            load_discovery(session),
+            load_readiness(session),
+            session,
+        )
+        else "custom_engine"
+    )
+    print(
+        "loop_checkpoint "
+        f"branch={branch.name} round={round_id} "
+        f"verdict={result.get('verdict', 'ERROR')} semantic={semantic_verdict(result)} "
+        f"decision={decision} score={result.get('score', '?/?')} "
+        f"k={result.get('K', '?')} scaffold={scaffold}"
+    )
+    print(f"metrics {compact_metric_line(metrics)}")
+    print("blockers " + ("; ".join(blockers) if blockers else "none"))
+    if best:
+        print(
+            "best_so_far "
+            f"branch={best.get('branch')} round={best.get('round')} "
+            f"verdict={best.get('verdict')} score={best.get('score')} "
+            f"sharpe={best.get('sharpe')}"
+        )
+    else:
+        print("best_so_far none")
+    refs = [
+        f"result={result_path.relative_to(session)}",
+        f"validation={report_path.relative_to(session)}",
+        f"handoff={handoff_path.relative_to(session)}",
+        f"alpha_context={context_path.relative_to(session)}",
+    ]
+    if frame_path.exists():
+        refs.append(f"frame={frame_path.relative_to(session)}")
+    refs.append(f"exploration_path={EXPLORATION_PATH_FILENAME}")
+    print("artifacts " + " ".join(refs))
+    protocol_state = protocol_state_for_round(result=result, decision=decision)
+    print("protocol_state=" + protocol_state)
+    boundary_state = loop_boundary_state(protocol_state=protocol_state)
+    final_report_command = (
+        f"{command_prefix_for_path(branch)} best-strategy --session {session} --json"
+    )
+    print(
+        "next_boundary "
+        f"state={boundary_state} "
+        f"allowed_next={loop_allowed_next(boundary_state=boundary_state)} "
+        f'final_report_source="{final_report_command}" '
+        "final_report_allowed_when=objective_met_or_ledger_supports_stop "
+        "forbidden_final=incomplete_report_with_next_experiment"
+    )
 
 
 def print_round_decision_checkpoint(
@@ -210,11 +508,13 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         text=True,
         env=runtime_env,
     )
-    if completed.stderr:
+    if completed.stderr and verbose_output(args):
         sys.stderr.write(completed.stderr)
     if not output_path.exists():
         if completed.stdout:
             sys.stderr.write(completed.stdout)
+        if completed.stderr and not verbose_output(args):
+            sys.stderr.write(completed.stderr)
         runtime_error_text = (completed.stderr or completed.stdout or "").strip()
         if "Abel API key not found" in runtime_error_text:
             command_prefix = command_prefix_for_path(branch)
@@ -298,6 +598,22 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         "Abel API key not found" in str(item.get("error") or "")
         for item in warm_fail
     )
+    if not verbose_output(args):
+        print_prepare_checkpoint(
+            branch=branch,
+            session=session,
+            target=target,
+            selected_inputs=selected_inputs,
+            symbols=symbols,
+            warm_ok=warm_ok,
+            warm_fail=warm_fail,
+            requested_start=requested_start,
+            advisory_lines=advisory_lines,
+            output_path=output_path,
+            auth_handoff_needed=auth_handoff_needed,
+        )
+        return completed.returncode or (1 if warm_fail else 0)
+
     print(f"Prepared branch inputs: {output_path.relative_to(session)}")
     print(f"  runtime_profile: {runtime_profile_path(branch).relative_to(session)}")
     print(f"  execution_constraints: {execution_constraints_path(branch).relative_to(session)}")
@@ -376,7 +692,7 @@ def run_branch_round(args: argparse.Namespace) -> int:
     )
     warning = build_readiness_warning(readiness)
     starter_scaffold = branch_uses_default_scaffold(branch, discovery, readiness, session)
-    if starter_scaffold:
+    if starter_scaffold and verbose_output(args):
         print(
             "The branch is still using the untouched starter scaffold. "
             "The run can proceed, but the evidence ledger will treat it as diagnostic-only.",
@@ -423,22 +739,30 @@ def run_branch_round(args: argparse.Namespace) -> int:
     )
     context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
     selection_warning = selection_trials_audit_warning(selection_trials)
-    if selection_warning:
+    if selection_warning and verbose_output(args):
         print(selection_warning, file=sys.stderr)
     emit_readiness_warning = False
     session_start = _get_backtest_start(discovery)
     if warning and backtest_start == session_start:
         with SessionLock(session):
             emit_readiness_warning = should_emit_readiness_warning(session, readiness)
-    for line in advisory_lines:
-        print(f"Runtime context: {line}", file=sys.stderr)
-    if warning and emit_readiness_warning:
+    if verbose_output(args):
+        for line in advisory_lines:
+            print(f"Runtime context: {line}", file=sys.stderr)
+    if warning and emit_readiness_warning and verbose_output(args):
         print(
             f"Warning: {warning}",
             file=sys.stderr,
         )
         for line in readiness_coverage_hint_lines(readiness):
             print(f"Coverage hint: {line}", file=sys.stderr)
+
+    try:
+        with SessionLock(session):
+            pending_source_snapshot = prepare_round_source_snapshot(branch, round_id)
+    except StrategySourceError as exc:
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
 
     python_bin = args.python_bin or resolve_default_python_bin(branch)
     command = [
@@ -466,47 +790,75 @@ def run_branch_round(args: argparse.Namespace) -> int:
         if workspace_root is not None
         else None
     )
-    completed = subprocess.run(
-        command,
-        cwd=session,
-        capture_output=True,
-        text=True,
-        env=runtime_env,
-    )
-    sys.stdout.write(completed.stdout)
-    sys.stderr.write(completed.stderr)
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=session,
+            capture_output=True,
+            text=True,
+            env=runtime_env,
+        )
+    except Exception:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
+        raise
+    if verbose_output(args):
+        sys.stdout.write(completed.stdout)
+        sys.stderr.write(completed.stderr)
+    try:
+        verify_round_source_unchanged(pending_source_snapshot)
+    except StrategySourceError as exc:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
     if not result_path.exists():
+        if not verbose_output(args):
+            sys.stdout.write(completed.stdout)
+            sys.stderr.write(completed.stderr)
         print(
             "Abel-edge did not produce the expected result JSON. "
             "Recording a workflow blocker row for the evidence ledger.",
             file=sys.stderr,
         )
         if workspace_root is not None:
+            effective_env = describe_effective_abel_env(workspace_root)
+            auth = effective_env.get("auth")
+            source = "unknown"
+            path = ""
+            if isinstance(auth, dict):
+                source = str(auth.get("source") or source)
+                path = str(auth.get("path") or "")
             print(
-                f"Alpha expected workspace auth at {resolve_workspace_env_file(workspace_root)} "
-                "and exported it through ABEL_AUTH_ENV_FILE for this run.",
+                "Abel runtime auth source for this run: "
+                f"{source}" + (f" ({path})" if path else ""),
                 file=sys.stderr,
             )
-        with SessionLock(session):
-            record_workflow_blocker_round(
-                session=session,
-                branch=branch,
-                round_id=round_id,
-                args=args,
-                completed=completed,
-                context_path=context_path,
-                result_path=result_path,
-                report_path=report_path,
-                handoff_path=handoff_path,
-                backtest_start=backtest_start,
-                effective_hypothesis=effective_hypothesis,
-                hypothesis_source=hypothesis_source,
-                discovery=discovery,
-            )
+        try:
+            with SessionLock(session):
+                publish_round_source_snapshot(pending_source_snapshot)
+                record_workflow_blocker_round(
+                    session=session,
+                    branch=branch,
+                    round_id=round_id,
+                    args=args,
+                    completed=completed,
+                    context_path=context_path,
+                    result_path=result_path,
+                    report_path=report_path,
+                    handoff_path=handoff_path,
+                    backtest_start=backtest_start,
+                    effective_hypothesis=effective_hypothesis,
+                    hypothesis_source=hypothesis_source,
+                    discovery=discovery,
+                )
+        except StrategySourceError as exc:
+            cleanup_pending_round_source_snapshot(pending_source_snapshot)
+            print(f"{exc.code}: {exc}", file=sys.stderr)
+            return 2
         return completed.returncode or 1
     try:
         result = json.loads(result_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
         print(
             f"Abel-edge wrote an unreadable result JSON at {result_path}: {exc}",
             file=sys.stderr,
@@ -522,13 +874,19 @@ def run_branch_round(args: argparse.Namespace) -> int:
         context=context,
         result=result,
     )
-    with SessionLock(session):
-        append_dsr_accounting_record(session, dsr_accounting)
+    try:
+        with SessionLock(session):
+            publish_round_source_snapshot(pending_source_snapshot)
+            append_dsr_accounting_record(session, dsr_accounting)
+    except StrategySourceError as exc:
+        cleanup_pending_round_source_snapshot(pending_source_snapshot)
+        print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
     emit_missing_hypothesis_warning = False
     if not has_explicit_hypothesis(effective_hypothesis):
         with SessionLock(session):
             emit_missing_hypothesis_warning = should_emit_missing_hypothesis_warning(branch)
-    if emit_missing_hypothesis_warning:
+    if emit_missing_hypothesis_warning and verbose_output(args):
         print(
             "Audit note: recording a round without explicit candidate metadata. "
             "Before the next round, make objective, selected inputs, search width, and validation scope clear; "
@@ -632,6 +990,21 @@ def run_branch_round(args: argparse.Namespace) -> int:
             changed_dimensions=getattr(args, "changed_dimension", []),
         )
         render_session(session)
+    if not verbose_output(args):
+        print_loop_checkpoint(
+            session=session,
+            branch=branch,
+            round_id=round_id,
+            result=result,
+            decision=decision,
+            result_path=result_path,
+            report_path=report_path,
+            handoff_path=handoff_path,
+            context_path=context_path,
+            frame_path=frame_path,
+        )
+        return 0
+
     for line in path_coverage_warning_lines(session):
         print(f"Exploration path required: {line}")
     print(f"Alpha context: {context_path.relative_to(session)}")
@@ -640,6 +1013,10 @@ def run_branch_round(args: argparse.Namespace) -> int:
     print(f"Edge handoff: {handoff_path.relative_to(session)}")
     if frame_path.exists():
         print(f"Edge frame: {frame_path.relative_to(session)}")
+    print(
+        "Round source snapshot: "
+        f"{(branch / 'rounds' / round_id).relative_to(session)}"
+    )
     print(f"Exploration path: {session / EXPLORATION_PATH_FILENAME}")
     semantic = result.get("semantic") or {}
     if isinstance(semantic, dict) and semantic:
@@ -746,8 +1123,19 @@ def debug_branch_run(args: argparse.Namespace) -> int:
         if debug_result_path.exists():
             append_dsr_accounting_record(session, dsr_accounting)
         render_session(session)
-    sys.stdout.write(completed.stdout)
-    sys.stderr.write(completed.stderr)
+    if verbose_output(args):
+        sys.stdout.write(completed.stdout)
+        sys.stderr.write(completed.stderr)
+    if not verbose_output(args):
+        print_debug_checkpoint(
+            branch=branch,
+            session=session,
+            completed=completed,
+            debug_result=debug_result,
+            context_path=context_path,
+            debug_result_path=debug_result_path,
+        )
+        return completed.returncode
     for line in advisory_lines:
         print(f"Runtime context: {line}")
     if isinstance(debug_result, dict) and debug_result:

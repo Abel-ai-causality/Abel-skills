@@ -56,8 +56,14 @@ from abel_invest.narrative_core.strategy_artifacts import (
     select_best_strategy,
     select_strategy_artifact_for_session,
 )
+from abel_invest.narrative_core.strategy_sources import (
+    ROUND_SOURCE_SNAPSHOT_FILENAME,
+    prepare_round_source_snapshot,
+    publish_round_source_snapshot,
+    resolve_round_strategy_source,
+)
 from abel_invest.narrative_core.evidence.evidence import evidence_runtime_facts
-from abel_invest.narrative_core.io import append_tsv_row
+from abel_invest.narrative_core.io import append_tsv_row, read_tsv_rows
 from abel_invest.narrative_core.evidence.exploration_path import build_exploration_path_status
 from abel_invest.narrative_core.command_handlers.branch import (
     debug_branch_run,
@@ -65,7 +71,6 @@ from abel_invest.narrative_core.command_handlers.branch import (
     run_branch_round,
     subprocess,
 )
-from abel_invest.narrative_core.command_handlers.workspace import handle_workspace_command
 from abel_invest.narrative_core.commands import main
 from abel_invest.narrative_core.contracts.paths import (
     context_guide_path,
@@ -81,6 +86,7 @@ from abel_invest.narrative_core.session_lifecycle import (
     init_session_dir,
     refresh_data_readiness,
     render_data_led_start_lines,
+    ticker_scoped_session_name,
     write_discovery,
     write_readiness,
 )

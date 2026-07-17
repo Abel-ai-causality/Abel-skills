@@ -22,6 +22,13 @@ lists such as no observed fit calls or no observed state writes are not proof of
 absence. Read the selected/promoted strategy source and report semantic
 dependencies the scan missed.
 
+Use the request's `strategySourceRoot` to resolve local imports and relative
+strategy assets while reading those dependencies. `sourcePath` remains the
+promoted entrypoint and the only normal source-edit surface. When `branchPath`
+differs from `strategySourceRoot`, treat `branchPath` as branch-level research
+and runtime context; do not substitute its same-named live files for the
+selected source version.
+
 ## Loop
 
 1. Read `paper-contract-request.json`.

@@ -13,8 +13,10 @@ def _report_packaged_files(
     report: dict[str, Any],
     *,
     branch: Path,
+    source_root: Path | None = None,
     is_denylisted_source: Callable[[Path], bool],
 ) -> list[PromotionPackagedFile]:
+    source_root = source_root or branch
     paths = report.get("paths")
     packaged_groups: list[tuple[Any, str | None]] = []
     if isinstance(paths, dict):
@@ -50,7 +52,13 @@ def _report_packaged_files(
                 role=role,
                 is_denylisted_source=is_denylisted_source,
             )
-            source_path = _resolve_report_source_path(raw, branch=branch, artifact_path=artifact_path)
+            source_path = _resolve_report_source_path(
+                raw,
+                branch=branch,
+                source_root=source_root,
+                artifact_path=artifact_path,
+                role=role,
+            )
             if not source_path.is_file():
                 raise PromotionHostedPaperContractRequired(
                     f"packaged source file is missing for {artifact_path}: {source_path}"
@@ -259,14 +267,49 @@ def _resolve_report_source_path(
     raw: dict[str, Any],
     *,
     branch: Path,
+    source_root: Path,
     artifact_path: str,
+    role: str,
 ) -> Path:
     source_text = _clean(raw.get("sourcePath") or raw.get("source"))
     if source_text:
         source = Path(source_text).expanduser()
-        return source if source.is_absolute() else branch / source
+        if source.is_absolute():
+            return _selected_round_base_asset_source(
+                source,
+                branch=branch,
+                source_root=source_root,
+                role=role,
+            )
+        return (source_root if role == "base_asset" else branch) / source
     if artifact_path.startswith("strategy/"):
-        return branch / artifact_path.removeprefix("strategy/")
+        return source_root / artifact_path.removeprefix("strategy/")
     if artifact_path.startswith("runtime/initial-state/"):
         return branch / artifact_path.removeprefix("runtime/initial-state/")
     return branch / artifact_path
+
+
+def _selected_round_base_asset_source(
+    source: Path,
+    *,
+    branch: Path,
+    source_root: Path,
+    role: str,
+) -> Path:
+    if role != "base_asset" or source_root.resolve() == branch.resolve():
+        return source
+    try:
+        source.resolve().relative_to(source_root.resolve())
+        return source
+    except ValueError:
+        pass
+    try:
+        relative = source.resolve().relative_to(branch.resolve())
+    except ValueError:
+        return source
+    historical_source = source_root / relative
+    if historical_source.is_file():
+        return historical_source
+    if relative.parts and relative.parts[0] in {"promoted", "promotions"}:
+        return source
+    return historical_source

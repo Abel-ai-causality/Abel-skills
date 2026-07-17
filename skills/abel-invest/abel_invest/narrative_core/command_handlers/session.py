@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import os
 
 from abel_invest.narrative_core.contracts.branch_spec import has_explicit_hypothesis
 from abel_invest.narrative_core.contracts.constants import (
+    AGENT_CONTEXT_FILENAME,
     BRANCH_SPEC_FILENAME,
     BRANCH_STATE_FILENAME,
     EVENTS_HEADER,
@@ -21,6 +21,9 @@ from abel_invest.narrative_core.readiness import (
     readiness_coverage_hint_lines,
 )
 from abel_invest.narrative_core.runtime.context import branch_context_summary_lines
+from abel_invest.narrative_core.sample_strategy_context import (
+    ensure_sample_strategy_context,
+)
 from abel_invest.narrative_core.rendering.session_rendering import (
     render_section,
     render_session,
@@ -32,11 +35,11 @@ from abel_invest.narrative_core.session_lifecycle import (
     render_data_led_start_lines,
     resolve_session_root,
     resolve_workspace_arg_path,
+    ticker_scoped_session_name,
 )
 from abel_invest.narrative_core.state import (
     load_discovery,
     load_readiness,
-    load_session_state,
     persist_branch_hypothesis,
     resolve_backtest_start_request,
     update_backtest_start,
@@ -44,10 +47,10 @@ from abel_invest.narrative_core.state import (
 
 
 def handle_init_session(args: argparse.Namespace) -> int:
-    mode = resolve_session_mode(getattr(args, "mode", None))
+    session_name = ticker_scoped_session_name(args.ticker, args.exp_id)
     session = init_session_dir(
         args.ticker,
-        args.exp_id,
+        session_name,
         resolve_session_root(
             args.root,
             allow_outside_workspace=args.allow_outside_workspace,
@@ -55,15 +58,18 @@ def handle_init_session(args: argparse.Namespace) -> int:
         discover=args.discover,
         discover_limit=args.discover_limit,
         backtest_start=args.backtest_start,
-        mode=mode,
     )
+    sample_receipt = ensure_sample_strategy_context(
+        session=session,
+        ticker=args.ticker,
+    )
+    if sample_receipt.get("status") == "available":
+        render_session(session)
     discovery = load_discovery(session)
     readiness = load_readiness(session)
-    session_state = load_session_state(session)
-    effective_mode = str(session_state.get("mode") or mode or "standard")
     print(f"Created Abel strategy discovery session at {session}")
     print(f"  ticker: {discovery.get('ticker', args.ticker.upper())}")
-    print(f"  mode: {effective_mode}")
+    print("  mode: standard")
     print(f"  graph_frontier: {session / GRAPH_FRONTIER_FILENAME}")
     print(f"  exploration_path: {session / EXPLORATION_PATH_FILENAME}")
     print(f"  events: {session / 'events.tsv'}")
@@ -84,18 +90,19 @@ def handle_init_session(args: argparse.Namespace) -> int:
             print(f"  warning: {warning}")
     else:
         print("  frontier_source: pending (live discovery not run)")
+    sample_status = str(sample_receipt.get("status") or "unavailable")
+    if sample_status == "available":
+        print(
+            f"  sample_strategy: available (count={sample_receipt.get('sample_count', 0)}; "
+            f"see {session / AGENT_CONTEXT_FILENAME})"
+        )
+    else:
+        print(f"  sample_strategy: {sample_status}")
     print("")
     print("From here:")
     for line in render_data_led_start_lines(session):
         print(f"  {line}")
     return 0
-
-def resolve_session_mode(raw_mode: str | None) -> str | None:
-    raw = raw_mode if raw_mode is not None else os.environ.get("ABEL_EXPERIMENT_MODE")
-    if raw is None or not str(raw).strip():
-        return None
-    mode = str(raw).strip().lower()
-    return "grandma" if mode == "grandma" else "standard"
 
 
 def handle_set_backtest_start(args: argparse.Namespace) -> int:

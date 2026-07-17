@@ -150,6 +150,9 @@ def test_run_branch_round_records_network_failure_as_workflow_blocker(tmp_path, 
     assert "ledger:graph-v1:round-001" in path_text
     assert "network failure round" in path_text
     assert "ERROR" in path_text
+    snapshot = branch / "rounds" / "round-001"
+    assert (snapshot / ni.ROUND_SOURCE_SNAPSHOT_FILENAME).is_file()
+    assert ni.resolve_round_strategy_source(branch, "round-001").workdir == snapshot / "source"
 
 
 def test_starter_scaffold_round_is_diagnostic_only_not_candidate(tmp_path, monkeypatch) -> None:
@@ -208,6 +211,64 @@ def test_starter_scaffold_round_is_diagnostic_only_not_candidate(tmp_path, monke
     row = ledger["rows"][-1]
     assert row["engine_scaffold_status"] == "starter_scaffold"
     assert row["evidence_label"] == "diagnostic_only"
+    assert (branch / "rounds" / "round-001" / "source" / "engine.py").is_file()
+
+
+def test_run_branch_round_rejects_source_changes_during_edge(tmp_path, monkeypatch) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-source-change", tmp_path / "research")
+    ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
+    ni.write_readiness(session, _sample_readiness())
+    branch = ni.init_branch_dir(session, "graph-v1")
+    _write_runtime_files(branch)
+    spec = ni.load_branch_spec(branch)
+    spec.update(
+        {
+            "hypothesis": "AAPL driver strength leads TSLA next-day risk appetite.",
+            "evidence_intent": "candidate",
+            "input_claim": "graph_supported",
+            "mechanism_family": "driver_momentum",
+            "invalidation_condition": "No AAPL reads or negative holdout IC.",
+            "selected_inputs": ["AAPL"],
+        }
+    )
+    ni.write_branch_spec(branch, spec)
+    helper = branch / "helper.py"
+    helper.write_text("VALUE = 1\n", encoding="utf-8")
+
+    def fake_subprocess_run(command, cwd=None, capture_output=None, text=None, env=None):
+        result_path = Path(command[command.index("--output-json") + 1])
+        report_path = Path(command[command.index("--output-md") + 1])
+        handoff_path = Path(command[command.index("--output-handoff") + 1])
+        result_path.write_text(json.dumps(_edge_result()), encoding="utf-8")
+        report_path.write_text("# validation\n", encoding="utf-8")
+        handoff_path.write_text("{}\n", encoding="utf-8")
+        helper.write_text("VALUE = 2\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(ni.subprocess, "run", fake_subprocess_run)
+
+    result = ni.run_branch_round(
+        Namespace(
+            branch=str(branch),
+            mode="explore",
+            description="source changes during run",
+            input_note="",
+            hypothesis="AAPL driver strength leads TSLA next-day risk appetite.",
+            expected_signal="",
+            trigger="test",
+            change_summary="test",
+            time_spent_min="1",
+            summary="",
+            next_step="",
+            action=[],
+            python_bin=None,
+        )
+    )
+
+    assert result == 2
+    assert ni.read_tsv_rows(branch / "results.tsv") == []
+    assert not (branch / "rounds" / "round-001").exists()
+    assert not (session / "dsr_trials.jsonl").exists()
 
 
 def test_run_branch_round_records_dsr_k_accounting(tmp_path, monkeypatch, capsys) -> None:
@@ -266,6 +327,8 @@ def test_run_branch_round_records_dsr_k_accounting(tmp_path, monkeypatch, capsys
             next_step="",
             action=[],
             python_bin=None,
+            verbose=True,
+            audit=False,
         )
     )
 

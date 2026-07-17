@@ -321,6 +321,20 @@ def test_strategy_artifact_skip_line_keeps_session_view_language():
     assert "skipped" not in lines[0].lower()
 
 
+def test_strategy_artifact_skip_line_explains_invalid_round_snapshot():
+    lines = render_strategy_artifact_upload_lines(
+        {
+            "artifactUploadSkipped": True,
+            "skipReason": "round_source_snapshot_invalid",
+        }
+    )
+
+    assert lines == [
+        "Session view created without a strategy artifact: the selected round's "
+        "saved strategy source failed its integrity check"
+    ]
+
+
 def test_strategy_artifact_success_lines_include_strategy_detail_tip():
     lines = render_strategy_artifact_upload_lines(
         {
@@ -409,6 +423,7 @@ def test_contract_request_is_slim_and_marks_training_stateful(tmp_path):
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan={
             "sourceScan": {
@@ -484,6 +499,7 @@ def test_stateless_contract_request_requires_agent_boundary_choice(tmp_path):
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],
@@ -1008,6 +1024,7 @@ def test_contract_request_budget_can_open_fallback_before_third_live_failure(tmp
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],
@@ -1020,6 +1037,7 @@ def test_contract_request_budget_can_open_fallback_before_third_live_failure(tmp
     _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],
@@ -1028,6 +1046,7 @@ def test_contract_request_budget_can_open_fallback_before_third_live_failure(tmp
     request_path = _write_hosted_paper_contract_request(
         promoted,
         branch=branch,
+        round_id="round-001",
         source_path=source,
         dependency_scan=dependency_scan,
         signals=[],

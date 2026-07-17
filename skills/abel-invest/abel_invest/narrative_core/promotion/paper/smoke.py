@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from contextlib import contextmanager, redirect_stdout
+import importlib
 import json
 import re
 from pathlib import Path
@@ -79,6 +80,38 @@ def _paper_smoke_max_call_elapsed(smoke: dict[str, Any]) -> float:
 
 class _PaperSmokeTimeout(BaseException):
     pass
+
+
+@contextmanager
+def _isolated_strategy_imports(strategy_dir: Path):
+    """Load each staged paper strategy without reusing another smoke's module."""
+
+    local_roots = {"strategy"}
+    for path in strategy_dir.iterdir():
+        if path.is_file() and path.suffix == ".py" and path.stem != "__init__":
+            local_roots.add(path.stem)
+        elif path.is_dir():
+            local_roots.add(path.name)
+
+    def is_local_name(name: str) -> bool:
+        return any(name == root or name.startswith(f"{root}.") for root in local_roots)
+
+    saved = {
+        name: module
+        for name, module in sys.modules.items()
+        if is_local_name(name)
+    }
+    for name in saved:
+        sys.modules.pop(name, None)
+    importlib.invalidate_caches()
+    try:
+        yield
+    finally:
+        for name in list(sys.modules):
+            if is_local_name(name):
+                sys.modules.pop(name, None)
+        sys.modules.update(saved)
+        importlib.invalidate_caches()
 
 
 @contextmanager
@@ -221,8 +254,10 @@ def _run_edge_paper_run_one_smoke_unbounded(
             )
             if seed.get("status") == "failed":
                 return seed
-            with _temporary_environ(runtime_env or {}), _temporary_sys_path(
-                [strategy_dir.parent, strategy_dir]
+            with (
+                _temporary_environ(runtime_env or {}),
+                _temporary_sys_path([strategy_dir.parent, strategy_dir]),
+                _isolated_strategy_imports(strategy_dir),
             ):
                 bootstrap = {"required": False, "status": "skipped"}
                 if requires_validation_bootstrap:
@@ -691,17 +726,18 @@ def _stage_paper_smoke_files(
     strategy_entrypoint: str,
     is_denylisted_source: Callable[[Path], bool],
 ) -> None:
+    strategy_workdir = getattr(candidate, "strategy_workdir", None) or candidate.branch
     staged_packaged_sources: set[Path] = {
         item.source_path.resolve()
         for item in packaged_files
-        if _is_branch_relative(item.source_path, candidate.branch)
+        if _is_branch_relative(item.source_path, strategy_workdir)
     }
-    for source_path in sorted(path for path in candidate.branch.rglob("*") if path.is_file()):
+    for source_path in sorted(path for path in strategy_workdir.rglob("*") if path.is_file()):
         if source_path.resolve() == candidate.strategy_source_path.resolve():
             continue
         if source_path.resolve() in staged_packaged_sources:
             continue
-        relative = source_path.relative_to(candidate.branch)
+        relative = source_path.relative_to(strategy_workdir)
         if is_denylisted_source(relative):
             continue
         destination = strategy_dir / relative
@@ -709,9 +745,15 @@ def _stage_paper_smoke_files(
         shutil.copy2(source_path, destination)
 
     shutil.copy2(strategy_source_path, strategy_dir / Path(strategy_entrypoint).name)
-    _copy_if_exists(candidate.branch / "branch.yaml", runtime_dir / "strategy.yaml")
-    _copy_if_exists(candidate.branch / "inputs" / "dependencies.json", runtime_dir / "dependencies.json")
-    _copy_if_exists(candidate.branch / "inputs" / "data_manifest.json", runtime_dir / "data_manifest.json")
+    _copy_if_exists(strategy_workdir / "branch.yaml", runtime_dir / "strategy.yaml")
+    _copy_if_exists(
+        strategy_workdir / "inputs" / "dependencies.json",
+        runtime_dir / "dependencies.json",
+    )
+    _copy_if_exists(
+        strategy_workdir / "inputs" / "data_manifest.json",
+        runtime_dir / "data_manifest.json",
+    )
 
     for item in packaged_files:
         if item.role == "base_asset":
@@ -825,8 +867,11 @@ def _paper_smoke_context(
     state_dir: Path,
     workspace_dir: Path,
 ) -> dict[str, Any]:
+    strategy_workdir = getattr(candidate, "strategy_workdir", None) or candidate.branch
     dependencies = _load_json_object_if_exists(runtime_dir / "dependencies.json")
-    runtime_profile = _load_json_object_if_exists(candidate.branch / "inputs" / "runtime_profile.json")
+    runtime_profile = _load_json_object_if_exists(
+        strategy_workdir / "inputs" / "runtime_profile.json"
+    )
     requirements = dependencies.get("data_requirements")
     if not isinstance(requirements, dict):
         requirements = {}

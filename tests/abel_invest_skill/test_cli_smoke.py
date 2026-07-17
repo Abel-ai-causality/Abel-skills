@@ -36,7 +36,7 @@ def test_public_cli_session_branch_render_status_check_smoke(
             "--no-discover",
         ],
     ) == 0
-    session = root / "tsla" / "cli-smoke"
+    session = root / "tsla" / "tsla-cli-smoke"
     assert (session / ni.GRAPH_FRONTIER_FILENAME).exists()
     assert not (session / "discovery.json").exists()
 
@@ -72,11 +72,12 @@ def test_public_cli_session_branch_render_status_check_smoke(
     assert '"message": "No recorded strategy candidate is ready to summarize yet."' in output
 
 
-def test_init_session_grandma_mode_routes_default_branch_to_grandma_profile(
+def test_init_session_ignores_obsolete_experiment_mode(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     root = tmp_path / "research"
+    monkeypatch.setenv("ABEL_EXPERIMENT_MODE", "legacy-retired-mode")
 
     assert _run_cli(
         monkeypatch,
@@ -85,56 +86,7 @@ def test_init_session_grandma_mode_routes_default_branch_to_grandma_profile(
             "--ticker",
             "TSLA",
             "--exp-id",
-            "grandma-smoke",
-            "--root",
-            str(root),
-            "--allow-outside-workspace",
-            "--no-discover",
-            "--mode",
-            "grandma",
-        ],
-    ) == 0
-    session = root / "tsla" / "grandma-smoke"
-
-    assert _run_cli(
-        monkeypatch,
-        [
-            "init-branch",
-            "--session",
-            str(session),
-            "--branch-id",
-            "simple-return",
-        ],
-    ) == 0
-
-    state = json.loads((session / "session_state.json").read_text(encoding="utf-8"))
-    spec = ni.load_branch_spec(session / "branches" / "simple-return")
-
-    assert state["mode"] == "grandma"
-    assert state["validation_profile"] == "grandma_daily"
-    assert spec["strategy_mode"] == "grandma"
-    assert spec["validation_profile"] == "grandma_daily"
-    assert spec["position_bounds"] == [-1.0, 1.0]
-    assert spec["model_family"] == "rule_signal"
-    assert spec["complexity_class"] == "simple_signal"
-    assert spec["input_claim"] == "target_only"
-
-
-def test_init_session_uses_experiment_env_for_grandma_mode(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    root = tmp_path / "research"
-    monkeypatch.setenv("ABEL_EXPERIMENT_MODE", "grandma")
-
-    assert _run_cli(
-        monkeypatch,
-        [
-            "init-session",
-            "--ticker",
-            "TSLA",
-            "--exp-id",
-            "grandma-env",
+            "obsolete-mode-env",
             "--root",
             str(root),
             "--allow-outside-workspace",
@@ -143,98 +95,40 @@ def test_init_session_uses_experiment_env_for_grandma_mode(
     ) == 0
 
     state = json.loads(
-        (root / "tsla" / "grandma-env" / "session_state.json").read_text(encoding="utf-8")
+        (root / "tsla" / "tsla-obsolete-mode-env" / "session_state.json").read_text(
+            encoding="utf-8"
+        )
     )
-    assert state["mode"] == "grandma"
-    assert state["validation_profile"] == "grandma_daily"
-
-
-def test_init_session_preserves_existing_grandma_mode_without_explicit_mode(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    root = tmp_path / "research"
-    base_args = [
-        "init-session",
-        "--ticker",
-        "TSLA",
-        "--exp-id",
-        "grandma-rerun",
-        "--root",
-        str(root),
-        "--allow-outside-workspace",
-        "--no-discover",
-    ]
-
-    assert _run_cli(monkeypatch, [*base_args, "--mode", "grandma"]) == 0
-    assert _run_cli(monkeypatch, base_args) == 0
-    session = root / "tsla" / "grandma-rerun"
-
-    assert _run_cli(
-        monkeypatch,
-        [
-            "init-branch",
-            "--session",
-            str(session),
-            "--branch-id",
-            "after-rerun",
-        ],
-    ) == 0
-
-    state = json.loads((session / "session_state.json").read_text(encoding="utf-8"))
-    spec = ni.load_branch_spec(session / "branches" / "after-rerun")
-
-    assert state["mode"] == "grandma"
-    assert state["validation_profile"] == "grandma_daily"
-    assert spec["strategy_mode"] == "grandma"
-    assert spec["validation_profile"] == "grandma_daily"
-
-
-def test_init_session_explicit_standard_downgrades_existing_grandma_mode(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    root = tmp_path / "research"
-    base_args = [
-        "init-session",
-        "--ticker",
-        "TSLA",
-        "--exp-id",
-        "grandma-standard",
-        "--root",
-        str(root),
-        "--allow-outside-workspace",
-        "--no-discover",
-    ]
-
-    assert _run_cli(monkeypatch, [*base_args, "--mode", "grandma"]) == 0
-    assert _run_cli(monkeypatch, [*base_args, "--mode", "standard"]) == 0
-    session = root / "tsla" / "grandma-standard"
-
-    assert _run_cli(
-        monkeypatch,
-        [
-            "init-branch",
-            "--session",
-            str(session),
-            "--branch-id",
-            "after-standard",
-        ],
-    ) == 0
-
-    state = json.loads((session / "session_state.json").read_text(encoding="utf-8"))
-    spec = ni.load_branch_spec(session / "branches" / "after-standard")
-
     assert state["mode"] == "standard"
     assert "validation_profile" not in state
-    assert "strategy_mode" not in spec
-    assert "validation_profile" not in spec
 
 
 def test_public_cli_version_option(monkeypatch, capsys) -> None:
     assert _run_cli(monkeypatch, ["--version"]) == 0
 
     assert "abel-invest" in capsys.readouterr().out
+
+
+def test_ticker_scoped_session_name_prevents_cross_ticker_collisions() -> None:
+    rivn_name = ni.ticker_scoped_session_name("RIVN", "sharpe3-20260617")
+    aapl_name = ni.ticker_scoped_session_name("AAPL", "sharpe3-20260617")
+
+    assert rivn_name == "rivn-sharpe3-20260617"
+    assert aapl_name == "aapl-sharpe3-20260617"
+    assert rivn_name != aapl_name
+
+
+def test_ticker_scoped_session_name_is_stable_and_does_not_double_prefix() -> None:
+    assert ni.ticker_scoped_session_name("TSLA", "tsla-v1") == "tsla-v1"
+    assert ni.ticker_scoped_session_name("TSLA", "TSLA_v1") == "TSLA_v1"
+    assert ni.ticker_scoped_session_name("BRK.B", "BRK.B-research") == "BRK.B-research"
+    long_scoped_name = "RIVN-" + "x" * 200
+    assert ni.ticker_scoped_session_name("RIVN", long_scoped_name) == long_scoped_name
+
+    long_name = ni.ticker_scoped_session_name("RIVN", "x" * 200)
+    assert long_name == ni.ticker_scoped_session_name("RIVN", "x" * 200)
+    assert len(long_name) == 128
+    assert long_name.startswith("rivn-")
 
 
 def test_init_session_without_root_uses_current_workspace_research_root(
@@ -256,7 +150,7 @@ def test_init_session_without_root_uses_current_workspace_research_root(
         ],
     ) == 0
 
-    assert (workspace / "research" / "tsla" / "workspace-owned").exists()
+    assert (workspace / "research" / "tsla" / "tsla-workspace-owned").exists()
 
 
 def test_init_session_from_launch_root_uses_default_child_workspace(
@@ -281,7 +175,7 @@ def test_init_session_from_launch_root_uses_default_child_workspace(
         ],
     ) == 0
 
-    assert (workspace / "research" / "msft" / "child-owned").exists()
+    assert (workspace / "research" / "msft" / "msft-child-owned").exists()
 
 
 def test_init_session_without_workspace_refuses_local_research_fallback(
@@ -308,7 +202,7 @@ def test_init_session_without_workspace_refuses_local_research_fallback(
     assert "Traceback" not in captured.err
     assert "Error: No Abel strategy discovery workspace" in captured.err
     assert "Next step:" in captured.err
-    assert "workspace context --path . --json" in captured.err
+    assert "active Abel Invest skill bootstrap shim" in captured.err
     assert not (tmp_path / "research").exists()
 
 
@@ -356,7 +250,7 @@ def test_init_session_explicit_outside_root_requires_escape_hatch(
         ],
     ) == 0
 
-    assert (outside_root / "tsla" / "outside").exists()
+    assert (outside_root / "tsla" / "tsla-outside").exists()
 
 
 def test_public_cli_prepare_branch_smoke(
@@ -397,8 +291,13 @@ def test_public_cli_prepare_branch_smoke(
     assert _run_cli(monkeypatch, ["prepare-branch", "--branch", str(branch)]) == 0
     assert ni.branch_inputs_ready(branch)
     output = capsys.readouterr().out
-    assert "Prepared branch inputs:" in output
-    assert "From here:" in output
+    assert "prepare_checkpoint " in output
+    assert "evidence_recorded=false" in output
+    assert "next_if_ready=debug-branch" in output
+    assert "next_if_failed=fix_cache_or_auth" in output
+    assert "protocol_state=prepared_ready_for_debug" in output
+    assert "Prepared branch inputs:" not in output
+    assert "From here:" not in output
 
 
 def test_public_cli_debug_branch_blocker_smoke(
@@ -422,8 +321,13 @@ def test_public_cli_debug_branch_blocker_smoke(
     assert _run_cli(monkeypatch, ["debug-branch", "--branch", str(branch)]) == 1
     assert (branch / "outputs" / "debug-alpha-context.json").exists()
     output = capsys.readouterr().out
-    assert "No narrative round was recorded." in output
-    assert "From here:" in output
-    assert "fix the engine or prepared inputs before recording a round" in output
+    assert "debug_checkpoint " in output
+    assert "evidence_recorded=false" in output
+    assert "next_if_ready=run-branch" in output
+    assert "next_if_failed=fix_engine_or_branch_compact" in output
+    assert "primary_error=" in output
+    assert "protocol_state=debug_fix_engine_before_run" in output
+    assert "No narrative round was recorded." not in output
+    assert "From here:" not in output
 
 
