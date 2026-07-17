@@ -4,6 +4,27 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.4.5] - 2026-07-17
+
+### Added
+
+- Added best-effort Sample Strategy context to Abel Invest session initialization, preserving ordered strategy source packages and exploration history as optional references without importing or executing sample code.
+- Added immutable, integrity-indexed source snapshots for every newly recorded Abel Invest round, including strategy helpers, configuration, models, and data assets needed to reproduce the selected round.
+- Added compact artifact digest and checkpoint responses so agents can continue exploration without repeatedly reading full workspace artifacts.
+
+### Changed
+
+- Updated Abel Invest to version `3.8.0` and raised its Abel Edge dependency floor to `>=0.8.10,<0.9.0`.
+- Reconciled existing Abel Invest workspaces during bootstrap, centralized effective runtime environment assembly, and improved generated-file version diagnostics.
+- Streamlined Abel Invest loop guidance and specialized references while preserving graph-informed exploration, evidence boundaries, strategy selection, and final-report behavior.
+- Bound artifact export, promotion, hosted-paper checks, and upload packaging to the selected round's source snapshot, while retaining the original branch path for legacy rounds without snapshots.
+
+### Fixed
+
+- Scoped generated session identities by ticker to prevent upload conflicts when different tickers use the same experiment identifier, while keeping retries deterministic.
+- Preserved historical strategy helpers and assets when an earlier round remains the selected strategy after later rounds modify the live branch.
+- Tightened snapshot publication, retry, concurrency, stale-output, symlink, and dependency-resolution boundaries so incomplete historical sources fail safely instead of mixing with current files.
+
 ## [1.4.4] - 2026-06-12
 
 ### Added
