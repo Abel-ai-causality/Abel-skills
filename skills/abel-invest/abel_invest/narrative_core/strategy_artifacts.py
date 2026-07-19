@@ -582,10 +582,17 @@ def export_selected_strategy_artifact(
     round_id: str | None = None,
     output_dir: Path | None = None,
     python_bin: str | None = None,
+    selection_mode: str | None = None,
     rerun_command: str | None = None,
     runner=subprocess.run,
 ) -> dict[str, Any]:
     """Export the selected hosted strategy artifact locally without uploading it."""
+
+    if selection_mode is not None and not str(selection_mode).strip():
+        raise ValueError("selection_mode must not be empty")
+    normalized_selection_mode = _clean(selection_mode)
+    if normalized_selection_mode and strategy is None:
+        raise ValueError("selection_mode requires an explicit strategy")
 
     selection = select_strategy_artifact_for_session(
         session,
@@ -594,6 +601,15 @@ def export_selected_strategy_artifact(
     )
     if selection.selected is None:
         return _artifact_skip_result(selection.skip_reason)
+
+    if normalized_selection_mode:
+        selection = replace(
+            selection,
+            selected=replace(
+                selection.selected,
+                selection_mode=normalized_selection_mode,
+            ),
+        )
 
     return _export_strategy_artifact_candidate(
         selection.selected,

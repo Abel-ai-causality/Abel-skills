@@ -275,6 +275,31 @@ def test_empty_result_is_terminal_not_found_and_does_not_refetch(
     ) == [SAMPLE_STRATEGY_LOOKUP_FILENAME]
 
 
+def test_hidden_force_empty_switch_skips_auth_and_network(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    session = _session(tmp_path)
+    monkeypatch.delenv("ABEL_API_KEY", raising=False)
+    monkeypatch.delenv("CAP_API_KEY", raising=False)
+    monkeypatch.delenv("ABEL_AUTH_ENV_FILE", raising=False)
+    monkeypatch.setenv("ABEL_INVEST_FORCE_EMPTY_SAMPLE_STRATEGIES", "1")
+
+    receipt = ensure_sample_strategy_context(
+        session=session,
+        ticker="CVX",
+        opener=lambda *_args, **_kwargs: pytest.fail("network should not be called"),
+    )
+
+    assert receipt["status"] == "not_found"
+    assert receipt["reason_code"] is None
+    assert receipt["sample_count"] == 0
+    assert load_available_sample_strategies(session) == []
+    assert sorted(
+        path.name for path in (session / SAMPLE_STRATEGY_DIRNAME).iterdir()
+    ) == [SAMPLE_STRATEGY_LOOKUP_FILENAME]
+
+
 def test_missing_auth_and_request_failure_are_fail_open(
     tmp_path: Path,
     monkeypatch,
