@@ -159,6 +159,21 @@ def test_visualize_session_strategy_artifact_is_default_and_opt_out_is_rejected(
     assert not hasattr(default_args, "without_strategy_artifact")
     assert explicit_args.strategy == "research/tsla/tsla-v1/branches/momentum_lead"
     assert explicit_args.round == "round-006"
+    assert explicit_args.selection_mode is None
+    marked_args = parser.parse_args(
+        [
+            "visualize-session",
+            "--session",
+            "research/tsla/tsla-v1",
+            "--strategy",
+            "research/tsla/tsla-v1/branches/momentum_lead",
+            "--round",
+            "round-006",
+            "--selection-mode",
+            "production_sweep_branch_best_v1",
+        ]
+    )
+    assert marked_args.selection_mode == "production_sweep_branch_best_v1"
     with pytest.raises(SystemExit):
         parser.parse_args(
             [
@@ -173,6 +188,7 @@ def test_visualize_session_strategy_artifact_is_default_and_opt_out_is_rejected(
     help_text = capsys.readouterr().out
     assert "--without-strategy-artifact" not in help_text
     assert "--strategy" in help_text
+    assert "--selection-mode" in help_text
     with pytest.raises(SystemExit):
         parser.parse_args(
             [

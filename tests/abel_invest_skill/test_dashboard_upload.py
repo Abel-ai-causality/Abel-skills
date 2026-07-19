@@ -423,22 +423,63 @@ def test_visualize_session_uploads_explicit_strategy_artifact_after_session(
             python_bin=None,
             strategy=str(branch),
             round="round-006",
+            selection_mode="production_sweep_branch_best_v1",
         )
     )
 
     assert captured["session"] == session.resolve()
     assert captured["kwargs"]["strategy"] == str(branch)
     assert captured["kwargs"]["round_id"] == "round-006"
+    assert (
+        captured["kwargs"]["selection_mode"]
+        == "production_sweep_branch_best_v1"
+    )
     expected_rerun_command = (
         f"abel-invest visualize-session --session {session.resolve()} "
-        f"--strategy {branch} --round round-006"
+        f"--strategy {branch} --round round-006 "
+        "--selection-mode production_sweep_branch_best_v1"
     )
-    assert (
-        captured["kwargs"]["rerun_command"]
-        == expected_rerun_command
-    )
+    assert captured["kwargs"]["rerun_command"] == expected_rerun_command
 
 
+def test_visualize_session_rejects_selection_mode_without_explicit_strategy(
+    tmp_path: Path,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+
+    with pytest.raises(RuntimeError, match="requires an explicit --strategy"):
+        ni.upload_skill_dashboard_session(
+            Namespace(
+                session=str(session),
+                api_key="secret-key",
+                output_json=None,
+                dry_run=False,
+                artifact_output_dir=None,
+                python_bin=None,
+                strategy=None,
+                round=None,
+                selection_mode="production_sweep_branch_best_v1",
+            )
+        )
+
+
+def test_visualize_session_rejects_empty_selection_mode(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+
+    with pytest.raises(RuntimeError, match="must not be empty"):
+        ni.upload_skill_dashboard_session(
+            Namespace(
+                session=str(session),
+                api_key="secret-key",
+                output_json=None,
+                dry_run=False,
+                artifact_output_dir=None,
+                python_bin=None,
+                strategy="branch",
+                round="round-001",
+                selection_mode="   ",
+            )
+        )
 def test_visualize_session_aborts_before_upload_when_agent_paper_contract_fails(
     tmp_path: Path,
     monkeypatch,

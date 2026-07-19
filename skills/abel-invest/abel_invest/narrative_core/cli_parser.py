@@ -240,6 +240,14 @@ def build_parser() -> argparse.ArgumentParser:
             "has multiple validation rounds."
         ),
     )
+    visualize_session.add_argument(
+        "--selection-mode",
+        default=None,
+        help=(
+            "Optional artifact selectionMode override for an explicit "
+            "--strategy upload. The default behavior remains explicit_branch_round."
+        ),
+    )
 
     best_strategy = sub.add_parser(
         "best-strategy",
