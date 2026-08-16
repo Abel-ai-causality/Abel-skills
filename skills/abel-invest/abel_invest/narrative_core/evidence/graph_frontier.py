@@ -28,6 +28,7 @@ def fetch_live_graph_frontier(
     *,
     limit: int,
     backtest_start: str,
+    graph_release: dict | None = None,
 ) -> dict:
     try:
         from abel_edge.plugins.abel.credentials import (
@@ -59,7 +60,15 @@ def fetch_live_graph_frontier(
             f"{ticker.upper()} --exp-id <exp-id>`."
         ) from exc
 
-    payload = discover_graph_payload(ticker.upper(), mode="all", limit=limit)
+    if graph_release is None:
+        payload = discover_graph_payload(ticker.upper(), mode="all", limit=limit)
+    else:
+        payload = discover_graph_payload(
+            ticker.upper(),
+            mode="all",
+            limit=limit,
+            graph_release=graph_release,
+        )
     return graph_frontier_from_discovery_payload(
         payload,
         backtest_start=backtest_start,
@@ -73,6 +82,7 @@ def fetch_live_graph_expansion(
     *,
     mode: str,
     limit: int,
+    graph_release: dict | None = None,
 ) -> dict:
     try:
         from abel_edge.plugins.abel.credentials import (
@@ -101,7 +111,14 @@ def fetch_live_graph_expansion(
             f"{build_auth_recovery_instruction(workspace_root or Path.cwd())}"
         ) from exc
 
-    return discover_graph_payload(anchor_node, mode=mode, limit=limit)
+    if graph_release is None:
+        return discover_graph_payload(anchor_node, mode=mode, limit=limit)
+    return discover_graph_payload(
+        anchor_node,
+        mode=mode,
+        limit=limit,
+        graph_release=graph_release,
+    )
 
 
 def write_graph_frontier_from_discovery_payload(session: Path, discovery_data: dict) -> None:
@@ -224,7 +241,12 @@ def merge_graph_frontier_expansion(
     limit: int,
 ) -> tuple[dict, dict]:
     now = str(payload.get("created_at") or _now())
-    anchor_node = normalize_graph_node_ref(anchor_node)
+    typed_release = isinstance(frontier.get("graph_release"), dict)
+    anchor_node = (
+        str(anchor_node or "").strip()
+        if typed_release
+        else normalize_graph_node_ref(anchor_node)
+    )
     updated = dict(frontier)
     updated.setdefault("schema_version", 1)
     updated.setdefault("target_asset", split_graph_node_id(anchor_node)[0])
@@ -255,7 +277,17 @@ def merge_graph_frontier_expansion(
     updated_nodes: list[str] = []
     for section, role in (("parents", "parent"), ("blanket_new", "blanket"), ("children", "child")):
         for item in payload.get(section) or []:
-            node_id = normalize_graph_node_ref(graph_node_id_from_item(item))
+            driver_ref = item.get("driver_ref") if isinstance(item, dict) else None
+            canonical = (
+                isinstance(driver_ref, dict)
+                and driver_ref.get("kind") == "canonical_node"
+            )
+            raw_node_id = graph_node_id_from_item(item)
+            node_id = (
+                str(raw_node_id or "").strip()
+                if canonical
+                else normalize_graph_node_ref(raw_node_id)
+            )
             if not node_id or node_id == anchor_node:
                 continue
             roles = graph_roles_from_item(item, fallback=role)
@@ -266,6 +298,20 @@ def merge_graph_frontier_expansion(
                     discovered_from=anchor_node,
                     depth=anchor_depth + 1,
                     seen_at=now,
+                    driver_ref=driver_ref,
+                    driver_ref_sha256=(
+                        str(item.get("driver_ref_sha256") or "")
+                        if isinstance(item, dict)
+                        else ""
+                    ),
+                    family=(
+                        str(item.get("family") or "")
+                        if isinstance(item, dict)
+                        else ""
+                    ),
+                    source_rank=(
+                        item.get("source_rank") if isinstance(item, dict) else None
+                    ),
                 )
                 new_nodes.append(node_id)
                 continue
@@ -306,6 +352,8 @@ def graph_frontier_from_discovery_payload(
     now = str(payload.get("created_at") or _now())
     target_asset = str(payload.get("target_asset") or payload.get("ticker") or "").strip().upper()
     target_node = str(payload.get("target_node") or "").strip() or default_graph_node_id(target_asset)
+    graph_release = payload.get("graph_release")
+    typed_release = isinstance(graph_release, dict)
     nodes: dict[str, dict] = {}
 
     def remember(node: dict) -> None:
@@ -345,11 +393,23 @@ def graph_frontier_from_discovery_payload(
                     discovered_from=target_node,
                     depth=1,
                     seen_at=now,
+                    driver_ref=item.get("driver_ref") if isinstance(item, dict) else None,
+                    driver_ref_sha256=(
+                        str(item.get("driver_ref_sha256") or "")
+                        if isinstance(item, dict)
+                        else ""
+                    ),
+                    family=(
+                        str(item.get("family") or "") if isinstance(item, dict) else ""
+                    ),
+                    source_rank=(
+                        item.get("source_rank") if isinstance(item, dict) else None
+                    ),
                 )
             )
     expansion_nodes = [node_id for node_id in sorted(nodes) if node_id != target_node]
-    return {
-        "schema_version": 1,
+    frontier = {
+        "schema_version": 2 if typed_release else 1,
         "target_asset": target_asset,
         "target_node": target_node,
         "requested_window": {"start": backtest_start, "end": None},
@@ -370,6 +430,12 @@ def graph_frontier_from_discovery_payload(
             }
         ],
     }
+    if typed_release:
+        frontier["graph_release"] = graph_release
+        frontier["graph_release_sha256"] = str(
+            payload.get("graph_release_sha256") or ""
+        )
+    return frontier
 
 
 def graph_frontier_to_discovery(frontier: dict) -> dict:
@@ -398,6 +464,9 @@ def graph_frontier_to_discovery(frontier: dict) -> dict:
             "ticker": str(node.get("asset") or "").strip().upper(),
             "field": str(node.get("field") or "price").strip(),
         }
+        for key in ("driver_ref", "driver_ref_sha256", "family", "source_rank"):
+            if node.get(key) not in (None, ""):
+                item[key] = node[key]
         roles = [str(role) for role in node.get("discovery_roles") or []]
         if "parent" in roles:
             discovery["parents"].append(item)
@@ -409,6 +478,11 @@ def graph_frontier_to_discovery(frontier: dict) -> dict:
     discovery["K_discovery"] = (
         len(discovery["parents"]) + len(discovery["blanket_new"]) + len(discovery["children"])
     )
+    if isinstance(frontier.get("graph_release"), dict):
+        discovery["graph_release"] = frontier["graph_release"]
+        discovery["graph_release_sha256"] = str(
+            frontier.get("graph_release_sha256") or ""
+        )
     return discovery
 
 
@@ -419,9 +493,20 @@ def build_frontier_node(
     discovered_from: str,
     depth: int,
     seen_at: str,
+    driver_ref: dict | None = None,
+    driver_ref_sha256: str = "",
+    family: str = "",
+    source_rank: object = None,
 ) -> dict:
-    asset, field = split_graph_node_id(node_id)
-    return {
+    typed_ref = dict(driver_ref) if isinstance(driver_ref, dict) else None
+    if typed_ref and typed_ref.get("kind") == "canonical_node":
+        asset, field = "", "value"
+    elif typed_ref and typed_ref.get("kind") == "symbol":
+        asset = str(typed_ref.get("symbol") or "").strip().upper()
+        field = str(typed_ref.get("field") or "close").strip().lower()
+    else:
+        asset, field = split_graph_node_id(node_id)
+    node = {
         "node_id": node_id,
         "asset": asset,
         "field": field,
@@ -433,6 +518,15 @@ def build_frontier_node(
         "availability_summary": None,
         "branch_usage": [],
     }
+    if typed_ref:
+        node["driver_ref"] = typed_ref
+    if driver_ref_sha256:
+        node["driver_ref_sha256"] = driver_ref_sha256
+    if family:
+        node["family"] = family
+    if source_rank is not None:
+        node["source_rank"] = int(source_rank)
+    return node
 
 
 def graph_node_id_from_item(item: object) -> str:

@@ -17,14 +17,29 @@ def handle_frontier_command(args: argparse.Namespace) -> int:
         graph_frontier.print_graph_frontier_status(session)
         return 0
     if args.frontier_command == "expand":
-        anchor = graph_frontier.normalize_graph_node_ref(args.node)
+        current = graph_frontier.load_graph_frontier(session)
+        graph_release = current.get("graph_release")
+        typed_release = isinstance(graph_release, dict)
+        anchor = (
+            str(args.node or "").strip()
+            if typed_release
+            else graph_frontier.normalize_graph_node_ref(args.node)
+        )
         if not anchor:
             raise RuntimeError("frontier expand requires a graph node such as AAPL.price")
-        payload = graph_frontier.fetch_live_graph_expansion(
-            anchor,
-            mode=args.mode,
-            limit=args.limit,
-        )
+        if typed_release and anchor not in {
+            str(node.get("node_id") or "").strip()
+            for node in current.get("nodes") or []
+            if isinstance(node, dict)
+        }:
+            raise RuntimeError(
+                "V4 frontier expansion requires the exact canonical node ID already "
+                f"present in the frontier: {anchor}"
+            )
+        expansion_kwargs = {"mode": args.mode, "limit": args.limit}
+        if typed_release:
+            expansion_kwargs["graph_release"] = graph_release
+        payload = graph_frontier.fetch_live_graph_expansion(anchor, **expansion_kwargs)
         with SessionLock(session):
             current = graph_frontier.load_graph_frontier(session)
             updated, expansion = graph_frontier.merge_graph_frontier_expansion(
@@ -63,7 +78,7 @@ def handle_frontier_command(args: argparse.Namespace) -> int:
         print("")
         print("From here:")
         print(f"  review graph_frontier.json under {session}")
-        print(f"  update exploration_path.md if this expansion changes the next candidate or search axis")
-        print(f"  create or revise branch.yaml only after naming the candidate question this expansion answered")
+        print("  update exploration_path.md if this expansion changes the next candidate or search axis")
+        print("  create or revise branch.yaml only after naming the candidate question this expansion answered")
         return 0
     raise RuntimeError(f"Unknown frontier command: {args.frontier_command}")

@@ -519,6 +519,21 @@ def build_branch_context(
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or "").strip()
+        kind = str(item.get("kind") or "bars").strip().lower()
+        if name and name != "primary" and kind == "point_in_time_series":
+            series_spec = item.get("series_spec")
+            if not isinstance(series_spec, dict):
+                raise RuntimeError(
+                    f"Prepared canonical feed '{name}' is missing its Edge series spec."
+                )
+            feeds[name] = {
+                "name": name,
+                "kind": "point_in_time_series",
+                "adapter": str(item.get("adapter") or "abel"),
+                "series_spec": series_spec,
+                "profile": str(item.get("profile") or primary_feed["profile"]),
+            }
+            continue
         symbol = str(item.get("symbol") or "").strip().upper()
         if not name or name == "primary" or not symbol:
             continue

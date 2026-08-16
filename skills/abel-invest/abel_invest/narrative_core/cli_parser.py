@@ -62,6 +62,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Maximum Abel nodes to record per discovery call",
     )
+    init_session.add_argument(
+        "--graph-release",
+        default=None,
+        help="Explicit Edge graph-release JSON; omit to keep the default V3 graph.",
+    )
 
     set_backtest_start = sub.add_parser(
         "set-backtest-start",

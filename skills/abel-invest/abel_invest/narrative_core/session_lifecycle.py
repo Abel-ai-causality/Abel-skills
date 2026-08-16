@@ -20,6 +20,10 @@ from abel_invest.narrative_core.contracts.constants import (
     READINESS_FILENAME,
     RESULTS_HEADER,
 )
+from abel_invest.narrative_core.contracts.graph_release import (
+    freeze_graph_release,
+    load_graph_release,
+)
 from abel_invest.workspace_core.doctor import build_auth_recovery_instruction, workspace_command
 from abel_invest.narrative_core.runtime.edge_commands import run_edge_verify_data
 from abel_invest.workspace_core.edge_runtime import apply_effective_abel_env
@@ -198,6 +202,7 @@ def init_session_dir(
     discover: bool = False,
     discover_limit: int = 10,
     backtest_start: str = DEFAULT_BACKTEST_START,
+    graph_release_path: str | Path | None = None,
 ) -> Path:
     session = root / ticker.lower() / exp_id
     session.mkdir(parents=True, exist_ok=True)
@@ -205,12 +210,25 @@ def init_session_dir(
     frontier_data = None
     discovery_data = None
     readiness_report = None
+    graph_release = (
+        load_graph_release(graph_release_path) if graph_release_path is not None else None
+    )
+    if graph_release is not None:
+        freeze_graph_release(session, graph_release)
     if discover:
-        frontier_data = graph_frontier.fetch_live_graph_frontier(
-            ticker,
-            limit=discover_limit,
-            backtest_start=backtest_start,
-        )
+        if graph_release is None:
+            frontier_data = graph_frontier.fetch_live_graph_frontier(
+                ticker,
+                limit=discover_limit,
+                backtest_start=backtest_start,
+            )
+        else:
+            frontier_data = graph_frontier.fetch_live_graph_frontier(
+                ticker,
+                limit=discover_limit,
+                backtest_start=backtest_start,
+                graph_release=graph_release,
+            )
         discovery_data = graph_frontier.graph_frontier_to_discovery(frontier_data)
         readiness_report = refresh_data_readiness(
             session=session,
@@ -369,7 +387,6 @@ def init_branch_dir(session: Path, branch_id: str) -> Path:
     with SessionLock(session):
         discovery = load_discovery(session)
         readiness = load_readiness(session)
-        session_state = load_session_state(session)
         frontier = graph_frontier.load_graph_frontier(session)
         branch = session / "branches" / branch_id
         branch.mkdir(parents=True, exist_ok=True)

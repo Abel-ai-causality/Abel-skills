@@ -34,6 +34,7 @@ EXPLORATION_PATH_FILENAME = "exploration_path.md"
 EVIDENCE_LEDGER_FILENAME = "evidence_ledger.json"
 DSR_TRIALS_LOG_FILENAME = "dsr_trials.jsonl"
 GRAPH_FRONTIER_FILENAME = "graph_frontier.json"
+GRAPH_RELEASE_FILENAME = "graph_release.json"
 FRONTIER_JSON_FILENAME = "frontier.json"
 FRONTIER_MARKDOWN_FILENAME = "frontier.md"
 

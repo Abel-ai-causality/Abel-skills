@@ -6,12 +6,14 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from abel_invest.narrative_core.contracts.branch_spec import (
     _get_backtest_start,
     branch_requested_start,
     branch_dependencies_payload,
+    branch_selected_input_entries,
     branch_selected_inputs,
     branch_selected_graph_nodes,
     build_context_guide_markdown,
@@ -104,6 +106,7 @@ from abel_invest.narrative_core.state import (
     should_emit_missing_hypothesis_warning,
     should_emit_readiness_warning,
 )
+from abel_invest.narrative_core.evidence.graph_frontier import load_graph_frontier
 
 
 SELECTION_TRIALS_AUDIT_WARNING = (
@@ -112,6 +115,41 @@ SELECTION_TRIALS_AUDIT_WARNING = (
     "Record the branch basis and any disposable probe, scout, or optimization influence "
     f"in {EXPLORATION_PATH_FILENAME} before continuing."
 )
+
+
+def _prepare_canonical_series_specs(
+    *,
+    entries: list[dict],
+    graph_ref: dict,
+    start: str,
+    end: str,
+    limit: int,
+) -> dict[str, dict]:
+    try:
+        from abel_edge.plugins.abel import prepare_cap_node_series_spec
+    except ImportError as exc:
+        raise RuntimeError(
+            "V4 canonical preparation requires an Abel-edge runtime with "
+            "prepare_cap_node_series_spec."
+        ) from exc
+    prepared = {}
+    for entry in entries:
+        driver_ref = entry.get("driver_ref")
+        if not isinstance(driver_ref, dict) or driver_ref.get("kind") != "canonical_node":
+            continue
+        node_id = str(entry.get("node_id") or driver_ref.get("node_id") or "").strip()
+        if not node_id:
+            raise RuntimeError("V4 canonical driver is missing its exact node_id.")
+        spec = prepare_cap_node_series_spec(
+            node_id=node_id,
+            graph_ref=graph_ref,
+            start=start,
+            end=end,
+            limit=limit,
+            config={},
+        )
+        prepared[node_id] = spec.to_mapping()
+    return prepared
 
 
 def selection_trials_audit_warning(selection_trials: int) -> str | None:
@@ -448,6 +486,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     if not target:
         raise RuntimeError("Branch spec is missing a target ticker.")
     selected_inputs = branch_selected_inputs(branch_spec)
+    selected_driver_entries = branch_selected_input_entries(branch_spec)
     selected_graph_nodes = branch_selected_graph_nodes(branch_spec)
     symbols = [target]
     for ticker in selected_inputs:
@@ -460,6 +499,24 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     data_requirements = branch_spec.get("data_requirements") or {}
     cache_adapter = str(data_requirements.get("adapter") or "abel")
     cache_path = str(data_requirements.get("path") or "").strip()
+    requested_end = str(data_requirements.get("end") or "").strip() or datetime.now(
+        timezone.utc
+    ).date().isoformat()
+    frontier = load_graph_frontier(session)
+    graph_release = frontier.get("graph_release")
+    graph_ref = (
+        graph_release.get("graph_ref")
+        if isinstance(graph_release, dict)
+        else None
+    )
+    canonical_entries = [
+        entry
+        for entry in selected_driver_entries
+        if isinstance(entry.get("driver_ref"), dict)
+        and entry["driver_ref"].get("kind") == "canonical_node"
+    ]
+    if canonical_entries and not isinstance(graph_ref, dict):
+        raise RuntimeError("V4 canonical branch is missing its frozen graph release.")
     advisory_lines = branch_runtime_advisory_lines(
         branch_requested_start=requested_start,
         discovery=discovery,
@@ -528,7 +585,17 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
             "Fix the runtime error above before continuing."
         )
     cache_payload = json.loads(output_path.read_text(encoding="utf-8"))
+    canonical_series_specs = _prepare_canonical_series_specs(
+        entries=canonical_entries,
+        graph_ref=graph_ref or {},
+        start=requested_start,
+        end=requested_end,
+        limit=args.cache_limit,
+    )
     dependencies["cache"] = cache_payload
+    if canonical_series_specs:
+        dependencies["canonical_series_end"] = requested_end
+        dependencies["canonical_series_specs"] = canonical_series_specs
     output_path.write_text(json.dumps(dependencies, indent=2), encoding="utf-8")
     runtime_profile = build_runtime_profile_payload(target=target, branch_spec=branch_spec)
     execution_constraints = build_execution_constraints_payload(branch_spec)
@@ -538,6 +605,8 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         selected_graph_nodes=selected_graph_nodes,
         cache_payload=cache_payload,
         readiness=readiness,
+        selected_driver_entries=selected_driver_entries,
+        canonical_series_specs=canonical_series_specs,
     )
     probe_samples = build_probe_samples_payload(
         target=target,
