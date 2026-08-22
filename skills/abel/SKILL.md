@@ -1,6 +1,6 @@
 ---
 name: abel
-version: 1.4.4
+version: 1.4.5
 description: >
   Use when the user asks for Abel or starts an Abel workflow and you need to
   check auth state, initialize Abel if needed, and route to the right Abel
@@ -11,7 +11,7 @@ metadata:
       bins:
         - python3
     primaryEnv: ABEL_API_KEY
-    homepage: https://github.com/Abel-ai-lab/abel-strategy-research-skills
+    homepage: https://github.com/Abel-ai-lab/PredictAnything
 ---
 
 Use `Abel` as the main entrypoint.

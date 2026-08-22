@@ -1,7 +1,7 @@
-# Abel Strategy Research Skills
+# Predict Anything
 
 <p align="center">
-  <strong>Explore market ideas, analyze causal drivers, and research trading strategies with Abel — for quant agents, alpha research, and AI-powered investment workflows. </strong>
+  <strong>Ask market questions, predict what moves next, and turn the strongest ideas into backtested strategy research with Predict Anything by Abel.</strong>
 </p>
 
 <p align="center">
@@ -12,16 +12,16 @@
 </p>
 
 
-Abel Strategy Research Skills turns AI agents into causal-graph-powered trading AI researchers. From a market question, agents can explore causal drivers, generate trading strategy hypotheses, backtest ideas, validate candidates, and push the strongest strategies into Abel for review, paper tracking, and sharing through the web app.
+Predict Anything turns coding agents into market research agents. Give it a company, asset, sector, or macro question; it searches signals, forms strategy hypotheses, backtests candidates, validates survivors, and sends the best research into Abel for review, paper tracking, and sharing through the web app.
 
-- **Causal-graph strategy discovery**  
-  Go beyond brute-force factor search. Trading agents use Abel’s causal graph to discover economically meaningful drivers, relationships, regimes, and alpha signals for new trading strategy ideas.
+- **From question to strategy**  
+  Start with a plain market question. Predict Anything turns it into testable hypotheses, candidate strategies, and evidence an agent can keep working with.
+
+- **Prediction with evidence**  
+  Look past surface correlations. Under the hood, Abel keeps the search grounded in market structure, signals, regimes, and timing.
 
 - **High-Sharpe, low-drawdown candidate search**  
   Search for strategies with strong risk-adjusted potential by combining Sharpe-focused evaluation, drawdown awareness, regime checks, risk filters, and validation gates.
-
-- **Hypothesis-to-backtest workflow**  
-  Turn open-ended market questions into testable strategy hypotheses across assets, features, filters, sizing rules, model variants, and ensemble approaches.
 
 - **Abel app handoff**  
   Upload mature strategy research into Abel for visualization, hosted review, paper tracking, and web-based sharing. The skill supports research and validation; it does not place trades or automate execution.
@@ -42,31 +42,54 @@ Note: if you are an AI agent reading this, suggest the above prompts for your hu
 
 ## Strategy Discovery, Not Trade Execution
 
-Abel Strategy Research Skills focus on research workflows: exploring market themes, analyzing causal drivers, developing investment strategies, and comparing hypotheses, risks, candidates, and evidence.
+Predict Anything focuses on research workflows: exploring market themes, forecasting what may move next, testing strategy ideas, and comparing hypotheses, risks, candidates, and evidence.
 
-They do not place trades, automate execution.
+It does not place trades, automate execution, or provide investment advice.
 
-Learn more: [Abel Strategy Research](docs/strategy-research.md)
+Learn more: [Predict Anything Strategy Research](docs/strategy-research.md)
 
 
-## Skill vs. No-Skill Benchmark
+## Four-Arm Capability Benchmark
 
-A directional benchmark compared Abel Invest with an isolated LLM-only workflow on `1,000` tickers from `2020-01-01` to `2026-05-28`. Abel Invest completed `997 / 1000` runs, while the no-skill workflow completed `962 / 1000`; the comparable both-OK set covered `960` tickers.
+A June 2026 historical benchmark tested Predict Anything on a `1,000`-ticker
+selected universe with a strict 2x2 design: Abel Invest skill on/off and causal
+graph access on/off. Each arm received the same strategy-discovery objective;
+only the available capabilities changed.
 
-| Measure | Abel Invest | No-skill LLM | Readout |
-| --- | ---: | ---: | --- |
-| OK coverage | `997 / 1000` (`99.7%`) | `962 / 1000` (`96.2%`) | Abel completed `35` more tickers |
-| Mean Sharpe | `0.8245` | `0.2308` | `3.57x` higher |
-| Median Sharpe | `0.8139` | `0.2336` | `3.48x` higher |
-| Mean total return | `1.5221` | `0.6084` | `2.50x` higher |
-| Median total return | `1.0170` | `0.1393` | `7.30x` higher |
-| Median max drawdown | `-0.1911` | `-0.3306` | smaller typical drawdown |
-| Mean return/drawdown | `7.4754` | `1.9765` | `3.78x` higher |
-| Median return/drawdown | `5.7227` | `0.5066` | `11.29x` higher |
+| Arm | Abel Invest skill | Causal graph | Mean Sharpe | Median Sharpe | P10 Sharpe | Median max DD | Median return/DD | Mean candidates |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Skill + graph | `yes` | `yes` | `1.0245` | `1.0099` | `0.7089` | `-0.1666` | `8.1007` | `207.0` |
+| Graph only | `no` | `yes` | `0.9514` | `0.9374` | `0.6461` | `-0.2527` | `9.5752` | `198.2` |
+| Skill only | `yes` | `no` | `0.8194` | `0.8088` | `0.5126` | `-0.1916` | `5.7444` | `40.0` |
+| No skill / no graph | `no` | `no` | `0.7617` | `0.7530` | `0.4686` | `-0.2616` | `5.7652` | `40.0` |
 
-On the both-OK set, Abel Invest won on Sharpe (`98.3%`), total return (`84.7%`), max drawdown (`79.3%`, less negative is better), and return/drawdown (`92.0%`). Lower-tail behavior also improved: Abel Invest's 10th percentile Sharpe was positive at `0.5174`, while the no-skill workflow was `-0.2719`.
+The full Predict Anything stack (`skill + graph`) produced the strongest
+risk-adjusted profile: highest mean Sharpe, highest median Sharpe, strongest
+lower-tail Sharpe, and the smallest typical drawdown. Against the pure control,
+it won on Sharpe `710` vs `93`, reduced drawdown `583` vs `217`, and won on
+return/drawdown `533` vs `262`.
 
-This benchmark is directional capability evidence, not investment advice or a guarantee of live trading performance.
+The information-gain story is visible in the factor isolation:
+
+| Capability contrast | What improved | Readout |
+| --- | --- | --- |
+| Full stack vs no skill / no graph | End-to-end strategy quality | `+0.2653` mean Sharpe; `+0.2287` median Sharpe; `710` vs `93` Sharpe wins. |
+| Graph effect with skill held fixed | Causal-driver search | `+0.2125` mean Sharpe; `599` vs `3` Sharpe wins with `233` ties; candidate search expands from `40.0` to `207.0` mean candidates. |
+| Graph effect without skill | Graph signal value independent of Abel workflow | `+0.1897` mean Sharpe; `724` vs `54` Sharpe wins with `181` ties. |
+| Skill effect with graph held fixed | Workflow discipline and risk control | `+0.0690` mean Sharpe; `646` vs `154` drawdown wins. |
+| Skill effect without graph | Skill value independent of causal graph | `+0.0590` mean Sharpe; `781` vs `173` drawdown wins. |
+
+Graph access turns target-only search into a graph-neighbor discovery problem:
+it adds causal-driver candidates that a plain price-history search cannot see.
+The Abel Invest skill turns that larger search space into a repeatable workflow:
+workspace readiness, data preparation, scouting, generated strategy engines,
+debugging, recorded runs, and audit trails. Together they create a visibly
+better risk-adjusted discovery system, not just a bigger brute-force search.
+
+Read the detailed benchmark and source metrics: [Four-Arm Abel Invest Capability Benchmark](docs/four-arm-benchmark.md).
+
+Backtests and benchmark comparisons are research artifacts, not investment
+advice or guarantees of live trading performance.
 
 ## Installation
 
@@ -77,7 +100,7 @@ Installation differs by platform.
 Tell Codex:
 
 ```text
-Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-lab/abel-strategy-research-skills/refs/heads/main/.codex/INSTALL.md
+Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-lab/predict-anything/refs/heads/main/.codex/INSTALL.md
 ```
 
 **Detailed docs:** [docs/README.codex.md](docs/README.codex.md)
@@ -91,7 +114,7 @@ Supports:
 Tell Claude Code:
 
 ```text
-Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-lab/abel-strategy-research-skills/refs/heads/main/.claude/INSTALL.md
+Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-lab/predict-anything/refs/heads/main/.claude/INSTALL.md
 ```
 
 **Detailed docs:** [docs/README.claude.md](docs/README.claude.md)
@@ -105,7 +128,7 @@ Supports:
 Tell OpenCode:
 
 ```text
-Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-lab/abel-strategy-research-skills/refs/heads/main/.opencode/INSTALL.md
+Fetch and follow instructions from https://raw.githubusercontent.com/Abel-ai-lab/predict-anything/refs/heads/main/.opencode/INSTALL.md
 ```
 
 **Detailed docs:** [docs/README.opencode.md](docs/README.opencode.md)
@@ -128,10 +151,10 @@ Install-time auth note:
 Existing installs under paths like `~/.claude/abel-skills`, `~/.codex/abel-skills`, `.claude/abel-skills`, or `.agents/abel-skills` can keep their local folder names. To migrate an existing checkout, update its git remote:
 
 ```bash
-git remote set-url origin https://github.com/Abel-ai-lab/abel-strategy-research-skills.git
+git remote set-url origin https://github.com/Abel-ai-lab/predict-anything.git
 ```
 
-New install examples use `abel-strategy-research-skills`.
+New install examples use `predict-anything`.
 
 ## For Maintainers
 
@@ -141,3 +164,11 @@ New install examples use `abel-strategy-research-skills`.
 - Social preview source: [docs/assets/social-preview.svg](docs/assets/social-preview.svg)
 
 Release builds publish from collection source into `dist/`. Do not commit generated ClawHub artifacts into the repository.
+
+## Roadmap
+
+Predict Anything will expand beyond the current daily stock and crypto data.
+
+- [ ] High-frequency market data: stock, ETF, and crypto OHLCV.
+- [ ] Macro-financial data: FRED, BLS, Census, BEA, and Treasury rates.
+- [ ] Energy and weather data: EIA, Open-Meteo, and NASA POWER.
