@@ -4,6 +4,18 @@ All notable changes to `causal-abel` will be documented in this file.
 
 This project follows a repo-level release log so agents can summarize user-visible changes across GitHub and ClawHub-facing revisions.
 
+## [1.4.6] - 2026-08-22
+
+### Added
+
+- Added typed graph-release configuration for Abel Invest, including canonical-node drivers, point-in-time series manifests, and V4 runtime context support through Abel Edge.
+- Added explicit strategy selection modes and sample-free session setup for workflows that do not provide an initial strategy package.
+
+### Changed
+
+- Updated Abel Invest to version `3.8.1`.
+- Preserved the default V3 symbol workflow while making V4 canonical graph releases an explicit, provenance-preserving opt-in.
+
 ## [1.4.5] - 2026-07-17
 
 ### Added
