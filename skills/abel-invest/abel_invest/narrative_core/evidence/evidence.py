@@ -8,7 +8,6 @@ from pathlib import Path
 from abel_invest.narrative_core.contracts.branch_spec import (
     branch_declaration_status,
     load_branch_spec,
-    normalize_graph_node_list,
     ordered_unique_strings,
     ordered_unique_upper,
 )
@@ -33,6 +32,52 @@ from abel_invest.narrative_core.state import (
 )
 
 
+def exact_graph_node_list(values: object) -> list[str]:
+    raw = values if isinstance(values, list) else []
+    return ordered_unique_strings(str(item or "").strip() for item in raw)
+
+
+def map_manifest_graph_node_reads(
+    runtime: dict[str, object],
+    data_manifest: object,
+) -> tuple[dict[str, object], bool]:
+    if not isinstance(data_manifest, dict):
+        return runtime, False
+    by_read_identity: dict[str, str] = {}
+    for item in data_manifest.get("feeds") or []:
+        if not isinstance(item, dict) or str(item.get("role") or "") != "driver":
+            continue
+        node_id = str(item.get("graph_node_id") or "").strip()
+        if not node_id:
+            continue
+        for value in (item.get("name"), item.get("symbol")):
+            identity = str(value or "").strip().upper()
+            if identity:
+                by_read_identity[identity] = node_id
+    if not by_read_identity:
+        return runtime, False
+    traced_inputs = ordered_unique_upper(
+        runtime.get("prepared_traced_inputs")
+        or runtime.get("auxiliary_reads")
+        or []
+    )
+    mapped = ordered_unique_strings(
+        by_read_identity[value]
+        for value in traced_inputs
+        if value in by_read_identity
+    )
+    if not mapped:
+        return runtime, False
+    updated = dict(runtime)
+    updated["actual_graph_node_reads"] = ordered_unique_strings(
+        [*exact_graph_node_list(runtime.get("actual_graph_node_reads")), *mapped]
+    )
+    updated["prepared_traced_graph_nodes"] = ordered_unique_strings(
+        [*exact_graph_node_list(runtime.get("prepared_traced_graph_nodes")), *mapped]
+    )
+    return updated, True
+
+
 def build_input_realization(
     *,
     declaration: dict[str, object],
@@ -40,13 +85,13 @@ def build_input_realization(
 ) -> dict[str, object]:
     declared_claim = str(declaration.get("input_claim") or "unspecified")
     declared_inputs = ordered_unique_upper(declaration.get("selected_inputs") or [])
-    declared_graph_nodes = normalize_graph_node_list(declaration.get("selected_graph_nodes"))
+    declared_graph_nodes = exact_graph_node_list(declaration.get("selected_graph_nodes"))
     prepared_inputs = ordered_unique_upper(runtime.get("prepared_selected_inputs") or declared_inputs)
-    prepared_graph_nodes = normalize_graph_node_list(
+    prepared_graph_nodes = exact_graph_node_list(
         runtime.get("prepared_selected_graph_nodes") or declared_graph_nodes
     )
     actual_reads = ordered_unique_upper(runtime.get("auxiliary_reads") or [])
-    actual_graph_node_reads = normalize_graph_node_list(runtime.get("actual_graph_node_reads"))
+    actual_graph_node_reads = exact_graph_node_list(runtime.get("actual_graph_node_reads"))
     if not actual_graph_node_reads and actual_reads and prepared_graph_nodes:
         by_asset = {
             node_id.split(".", 1)[0]: node_id
@@ -202,15 +247,15 @@ def evidence_runtime_facts(result: dict) -> dict[str, object]:
         )
         prepared_selected = ordered_unique_upper(prepared_summary.get("selected_inputs") or [])
         prepared_traced = ordered_unique_upper(prepared_summary.get("traced_inputs") or auxiliary_reads)
-        actual_graph_node_reads = normalize_graph_node_list(
+        actual_graph_node_reads = exact_graph_node_list(
             read_summary.get("actual_graph_node_reads")
             or read_summary.get("auxiliary_graph_node_reads")
             or read_summary.get("graph_node_reads")
         )
-        prepared_selected_graph_nodes = normalize_graph_node_list(
+        prepared_selected_graph_nodes = exact_graph_node_list(
             prepared_summary.get("selected_graph_nodes")
         )
-        prepared_traced_graph_nodes = normalize_graph_node_list(
+        prepared_traced_graph_nodes = exact_graph_node_list(
             prepared_summary.get("traced_graph_nodes") or actual_graph_node_reads
         )
         metric_failures = [
@@ -252,13 +297,13 @@ def evidence_runtime_facts(result: dict) -> dict[str, object]:
         for item in (prepared.get("traced_inputs") or [])
         if str(item).strip()
     ]
-    actual_graph_node_reads = normalize_graph_node_list(
+    actual_graph_node_reads = exact_graph_node_list(
         prepared.get("actual_graph_node_reads")
         or prepared.get("traced_graph_nodes")
         or prepared.get("graph_node_reads")
     )
-    prepared_selected_graph_nodes = normalize_graph_node_list(prepared.get("selected_graph_nodes"))
-    prepared_traced_graph_nodes = normalize_graph_node_list(
+    prepared_selected_graph_nodes = exact_graph_node_list(prepared.get("selected_graph_nodes"))
+    prepared_traced_graph_nodes = exact_graph_node_list(
         prepared.get("traced_graph_nodes") or actual_graph_node_reads
     )
     issues = [
@@ -335,7 +380,7 @@ def derive_evidence_label(
     verdict = str(runtime["verdict"])
     semantic_verdict = str(runtime["semantic_verdict"])
     auxiliary_reads = list(runtime["auxiliary_reads"])
-    actual_graph_node_reads = normalize_graph_node_list(runtime.get("actual_graph_node_reads"))
+    actual_graph_node_reads = exact_graph_node_list(runtime.get("actual_graph_node_reads"))
 
     if not result_present:
         return "workflow_blocker"
@@ -368,7 +413,7 @@ def derive_evidence_label(
     }:
         return "target_control_evidence"
     if declaration["input_claim"] == "graph_supported":
-        selected_graph_nodes = set(normalize_graph_node_list(declaration.get("selected_graph_nodes")))
+        selected_graph_nodes = set(exact_graph_node_list(declaration.get("selected_graph_nodes")))
         if selected_graph_nodes:
             if selected_graph_nodes.intersection(actual_graph_node_reads):
                 return "candidate_causal_evidence"
@@ -471,6 +516,10 @@ def build_evidence_row(
         result=result,
     )
     runtime = evidence_runtime_facts(result)
+    runtime, manifest_graph_reads_mapped = map_manifest_graph_node_reads(
+        runtime,
+        context.get("data_manifest"),
+    )
     input_realization = build_input_realization(declaration=declaration, runtime=runtime)
     if input_realization["actual_graph_node_reads"] and not runtime["actual_graph_node_reads"]:
         runtime = dict(runtime)
@@ -527,9 +576,13 @@ def build_evidence_row(
         "engine_scaffold_status": engine_scaffold_status or "unknown",
         "actual_auxiliary_reads": runtime["auxiliary_reads"],
         "actual_graph_node_reads": runtime["actual_graph_node_reads"],
-        "actual_graph_node_read_source": "asset_read_mapping"
-        if runtime["actual_graph_node_reads"]
-        else "none",
+        "actual_graph_node_read_source": (
+            "feed_manifest_mapping"
+            if manifest_graph_reads_mapped
+            else "asset_read_mapping"
+            if runtime["actual_graph_node_reads"]
+            else "none"
+        ),
         "graph_node_read_gap": input_realization["graph_input_read_gap"],
         "actual_read_count": runtime["read_count"],
         "prepared_selected_inputs": runtime["prepared_selected_inputs"],

@@ -69,6 +69,13 @@ def fetch_live_graph_frontier(
             limit=limit,
             graph_release=graph_release,
         )
+    payload = dict(payload)
+    requested_ticker = str(ticker or "").strip().upper()
+    if requested_ticker:
+        if not str(payload.get("target_asset") or "").strip():
+            payload["target_asset"] = requested_ticker
+        if not str(payload.get("ticker") or "").strip():
+            payload["ticker"] = requested_ticker
     return graph_frontier_from_discovery_payload(
         payload,
         backtest_start=backtest_start,

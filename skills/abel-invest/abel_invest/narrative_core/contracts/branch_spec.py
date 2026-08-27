@@ -403,6 +403,10 @@ def build_default_branch_spec(
     graph_frontier: dict | None = None,
 ) -> dict:
     frontier = graph_frontier or {}
+    target = str(
+        discovery.get("ticker") or branch.parent.parent.parent.name
+    ).strip().upper()
+    target_node = default_graph_node_id(target)
     suggested_nodes = graph_frontier_candidate_node_ids(frontier, readiness, limit=5)
     selected_nodes = suggested_nodes[: min(3, len(suggested_nodes))]
     frontier_nodes = {
@@ -414,11 +418,8 @@ def build_default_branch_spec(
     spec = {
         "version": 2,
         "branch_id": branch.name,
-        "target": discovery.get("ticker", branch.parent.parent.parent.name.upper()),
-        "target_node": normalize_graph_node_ref(str(frontier.get("target_node") or ""))
-        or default_graph_node_id(
-            str(discovery.get("ticker") or branch.parent.parent.parent.name).upper()
-        ),
+        "target": target,
+        "target_node": target_node,
         "hypothesis": "",
         "evidence_intent": "draft",
         "input_claim": "graph_supported" if graph_enriched else "target_only",
@@ -464,8 +465,7 @@ def branch_dependencies_payload(
         "version": 2 if canonical else 1,
         "branch_id": branch.name,
         "target": target,
-        "target_node": normalize_graph_node_ref(str(branch_spec.get("target_node") or ""))
-        or default_graph_node_id(target),
+        "target_node": default_graph_node_id(target),
         "selected_inputs": selected_inputs,
         "selected_graph_nodes": selected_graph_nodes,
         "requested_start": requested_start,

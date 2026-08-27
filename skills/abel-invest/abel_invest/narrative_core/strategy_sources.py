@@ -174,7 +174,7 @@ def prepare_round_source_snapshot(
 
     entries = collect_strategy_source_entries(branch)
     digest = _entries_digest(entries)
-    temporary_dir = final_dir.parent / f".{round_id}.{uuid.uuid4().hex}.tmp"
+    temporary_dir = final_dir.parent / f".{round_id}.{uuid.uuid4().hex[:8]}.tmp"
     source_root = temporary_dir / ROUND_SOURCE_DIRNAME
     try:
         for entry in entries:

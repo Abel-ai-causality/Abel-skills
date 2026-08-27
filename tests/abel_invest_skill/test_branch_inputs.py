@@ -110,6 +110,29 @@ def test_build_branch_context_prefers_prepared_runtime_inputs(tmp_path) -> None:
     assert context["branch_declaration"]["evidence_intent"] == "draft"
 
 
+def test_build_branch_context_uses_prepared_target_when_discovery_ticker_is_blank(
+    tmp_path,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-empty-ticker", tmp_path / "research")
+    discovery = _sample_discovery()
+    discovery["ticker"] = ""
+    ni.write_graph_frontier_from_discovery_payload(session, discovery)
+    ni.write_readiness(session, _sample_readiness())
+    branch = ni.init_branch_dir(session, "graph-v1")
+    _write_runtime_files(branch)
+
+    context = ni.build_branch_context(
+        branch=branch,
+        session=session,
+        discovery=discovery,
+        readiness=_sample_readiness(),
+        round_id="round-001",
+        backtest_start="2020-01-01",
+    )
+
+    assert context["_feeds"]["primary"]["symbol"] == "TSLA"
+
+
 def test_build_branch_context_declares_session_dsr_trials(tmp_path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-dsr-context", tmp_path / "research")
     discovery = _sample_discovery()

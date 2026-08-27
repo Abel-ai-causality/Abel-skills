@@ -10,6 +10,7 @@ from pathlib import Path
 
 from abel_invest.narrative_core.commands import main
 from abel_invest.narrative_core.contracts.branch_spec import (
+    branch_dependencies_payload,
     branch_selected_graph_nodes,
     branch_selected_input_entries,
     build_default_branch_spec,
@@ -196,6 +197,76 @@ def test_default_v3_discovery_call_does_not_inject_graph_release(monkeypatch):
     assert observed == [("AAPL", "all", 10)]
 
 
+def test_live_v4_discovery_preserves_requested_dotted_ticker_identity(
+    tmp_path,
+    monkeypatch,
+):
+    def fake_discover_graph_payload(
+        ticker,
+        *,
+        mode,
+        limit,
+        graph_release=None,
+    ):
+        assert (ticker, mode, limit, graph_release) == (
+            "000858.SZ",
+            "all",
+            10,
+            RELEASE,
+        )
+        payload = _v4_discovery()
+        payload.pop("ticker")
+        payload.pop("target_asset")
+        payload["target_node"] = "000858.SZ"
+        return payload
+
+    monkeypatch.setattr(
+        "abel_edge.plugins.abel.discover.discover_graph_payload",
+        fake_discover_graph_payload,
+    )
+    monkeypatch.setattr(
+        "abel_edge.plugins.abel.credentials.require_api_key",
+        lambda: "test",
+    )
+
+    frontier = graph_frontier.fetch_live_graph_frontier(
+        "000858.SZ",
+        limit=10,
+        backtest_start="2020-01-01",
+        graph_release=RELEASE,
+    )
+    discovery = graph_frontier.graph_frontier_to_discovery(frontier)
+    branch = (
+        tmp_path
+        / "research"
+        / "000858.sz"
+        / "000858.sz-v4"
+        / "branches"
+        / "canonical"
+    )
+    branch.mkdir(parents=True)
+    spec = build_default_branch_spec(
+        branch=branch,
+        discovery=discovery,
+        readiness={},
+        graph_frontier=frontier,
+    )
+    dependencies = branch_dependencies_payload(
+        branch=branch,
+        branch_spec=spec,
+        target="000858.SZ",
+        selected_inputs=[],
+        requested_start="2020-01-01",
+    )
+
+    assert frontier["target_asset"] == "000858.SZ"
+    assert frontier["target_node"] == "000858.SZ"
+    assert discovery["ticker"] == "000858.SZ"
+    assert spec["target"] == "000858.SZ"
+    assert spec["target_node"] == "000858.SZ.price"
+    assert dependencies["target_node"] == "000858.SZ.price"
+
+
 def test_prepare_v4_branch_materializes_canonical_feed_through_edge(
     tmp_path,
     monkeypatch,
@@ -215,6 +286,7 @@ def test_prepare_v4_branch_materializes_canonical_feed_through_edge(
         readiness={},
         graph_frontier=frontier,
     )
+    spec["data_requirements"]["end"] = "2025-06-29"
     from abel_invest.narrative_core.contracts.branch_spec import write_branch_spec
 
     write_branch_spec(branch, spec)
@@ -308,6 +380,8 @@ def test_prepare_v4_branch_materializes_canonical_feed_through_edge(
     runtime_feed = context["_feeds"][canonical["name"]]
     assert runtime_feed["kind"] == "point_in_time_series"
     assert runtime_feed["series_spec"] == point_spec
+    assert runtime_feed["source_start"] == "2020-01-01"
+    assert runtime_feed["source_end"] == "2025-06-29"
 
 
 def test_frontier_expand_preserves_v4_node_ids_and_release(
