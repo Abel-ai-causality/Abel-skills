@@ -12,6 +12,7 @@ from pathlib import Path
 from abel_invest.narrative_core.contracts.branch_spec import (
     _get_backtest_start,
     branch_requested_start,
+    branch_graph_contract,
     branch_dependencies_payload,
     branch_selected_input_entries,
     branch_selected_inputs,
@@ -47,6 +48,7 @@ from abel_invest.narrative_core.contracts.constants import (
     EXPLORATION_PATH_FILENAME,
     RESULTS_HEADER,
 )
+from abel_invest.narrative_core.contracts.graph_release import resolve_graph_contract
 from abel_invest.narrative_core.runtime.context import (
     alpha_decision,
     branch_context_summary_lines,
@@ -504,9 +506,29 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
     ).date().isoformat()
     frontier = load_graph_frontier(session)
     graph_release = frontier.get("graph_release")
+    if graph_release is not None and not isinstance(graph_release, dict):
+        raise RuntimeError("frontier graph_release must be a mapping")
+    frontier_contract = resolve_graph_contract(
+        graph_release,
+        graph_release_sha256=str(frontier.get("graph_release_sha256") or ""),
+        require_sha256=graph_release is not None,
+    )
+    branch_contract = branch_graph_contract(branch_spec)
+    if frontier_contract.is_v4:
+        if not branch_contract.is_v4 or branch_contract.sha256 != frontier_contract.sha256:
+            raise RuntimeError("V4 branch graph release does not match the session frontier.")
+        if (
+            target != str(frontier.get("target_asset") or "").strip()
+            or str(branch_spec.get("target_node") or "").strip()
+            != str(frontier.get("target_node") or "").strip()
+            or branch_spec.get("target_ref") != frontier.get("target_ref")
+        ):
+            raise RuntimeError("V4 branch target identity does not match the session frontier.")
+    elif branch_contract.is_v4:
+        raise RuntimeError("V4 branch graph release conflicts with the session frontier.")
     graph_ref = (
-        graph_release.get("graph_ref")
-        if isinstance(graph_release, dict)
+        (frontier_contract.release or {}).get("graph_ref")
+        if frontier_contract.is_v4
         else None
     )
     canonical_entries = [
@@ -515,7 +537,7 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         if isinstance(entry.get("driver_ref"), dict)
         and entry["driver_ref"].get("kind") == "canonical_node"
     ]
-    if canonical_entries and not isinstance(graph_ref, dict):
+    if canonical_entries and not frontier_contract.is_v4:
         raise RuntimeError("V4 canonical branch is missing its frozen graph release.")
     advisory_lines = branch_runtime_advisory_lines(
         branch_requested_start=requested_start,
@@ -607,6 +629,14 @@ def prepare_branch_inputs(args: argparse.Namespace) -> int:
         readiness=readiness,
         selected_driver_entries=selected_driver_entries,
         canonical_series_specs=canonical_series_specs,
+        graph_release=frontier_contract.release if frontier_contract.is_v4 else None,
+        graph_release_sha256=frontier_contract.sha256 if frontier_contract.is_v4 else "",
+        target_node=str(dependencies.get("target_node") or ""),
+        target_ref=(
+            dependencies.get("target_ref")
+            if isinstance(dependencies.get("target_ref"), dict)
+            else None
+        ),
     )
     probe_samples = build_probe_samples_payload(
         target=target,

@@ -495,6 +495,37 @@ def build_branch_context(
         selected_graph_nodes=branch_selected_graph_nodes(branch_spec),
         cache_payload=(dependencies.get("cache") or {}) if isinstance(dependencies, dict) else {},
         readiness=readiness,
+        selected_driver_entries=(
+            dependencies.get("selected_drivers") or []
+            if isinstance(dependencies, dict)
+            else []
+        ),
+        canonical_series_specs=(
+            dependencies.get("canonical_series_specs") or {}
+            if isinstance(dependencies, dict)
+            else {}
+        ),
+        graph_release=(
+            dependencies.get("graph_release")
+            if isinstance(dependencies, dict)
+            else None
+        ),
+        graph_release_sha256=(
+            str(dependencies.get("graph_release_sha256") or "")
+            if isinstance(dependencies, dict)
+            else ""
+        ),
+        target_node=(
+            str(dependencies.get("target_node") or "")
+            if isinstance(dependencies, dict)
+            else ""
+        ),
+        target_ref=(
+            dependencies.get("target_ref")
+            if isinstance(dependencies, dict)
+            and isinstance(dependencies.get("target_ref"), dict)
+            else None
+        ),
     )
     if data_manifest_path(branch).exists():
         data_manifest = json.loads(data_manifest_path(branch).read_text(encoding="utf-8"))

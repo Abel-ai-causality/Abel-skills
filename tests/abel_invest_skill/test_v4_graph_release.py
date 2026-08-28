@@ -8,6 +8,8 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
+from abel_edge.plugins.abel.graph_driver import describe_v4_node
+from abel_edge.plugins.abel.graph_release import GraphReleaseConfig
 from abel_invest.narrative_core.commands import main
 from abel_invest.narrative_core.contracts.branch_spec import (
     branch_dependencies_payload,
@@ -24,44 +26,37 @@ from abel_invest.narrative_core.runtime.context import build_branch_context
 
 
 NODE_ID = "health.openfda.drug.events:event_count#96bc3e82"
-RELEASE = {
-    "contract": "abel-edge.graph-release/v1",
-    "provider": "abel",
-    "graph_ref": {
-        "graph_id": "abel-main",
-        "graph_version": "CausalNodeV4",
-    },
-}
+_RELEASE_CONFIG = GraphReleaseConfig.from_mapping(
+    {
+        "contract": "abel-edge.graph-release/v1",
+        "provider": "abel",
+        "graph_ref": {
+            "graph_id": "abel-main",
+            "graph_version": "CausalNodeV4",
+        },
+    }
+)
+RELEASE = _RELEASE_CONFIG.payload
+RELEASE_SHA256 = _RELEASE_CONFIG.sha256
 
 
-def _v4_discovery() -> dict:
+def _v4_discovery(target_node: str = "ABG.price") -> dict:
+    target_ref = describe_v4_node(target_node)
+    parent = describe_v4_node(NODE_ID)
+    parent["source_rank"] = 1
     return {
         "contract": "abel-edge.graph-discovery/v2",
-        "ticker": "ABG",
-        "target_asset": "ABG",
-        "target_node": "ABG.price",
+        "ticker": target_ref["ticker"],
+        "target_asset": target_ref["ticker"],
+        "target_node": target_node,
+        "target_ref": target_ref,
         "source": "abel_live",
         "mode": "all",
         "K_discovery": 1,
         "created_at": "2026-08-16T00:00:00+00:00",
         "graph_release": RELEASE,
-        "graph_release_sha256": "a" * 64,
-        "parents": [
-            {
-                "node_id": NODE_ID,
-                "family": "health.openfda.drug.events",
-                "source_rank": 1,
-                "driver_ref": {
-                    "kind": "canonical_node",
-                    "node_id": NODE_ID,
-                    "retrieval_mode": "node_id",
-                    "adjustment": "none",
-                    "timezone": "UTC",
-                    "series_semantics": "point_in_time_scalar",
-                },
-                "driver_ref_sha256": "b" * 64,
-            }
-        ],
+        "graph_release_sha256": RELEASE_SHA256,
+        "parents": [parent],
         "blanket_new": [],
         "children": [],
     }
@@ -77,7 +72,8 @@ def test_v4_frontier_preserves_exact_typed_node_and_branch_selection(tmp_path):
 
     assert frontier["schema_version"] == 2
     assert frontier["graph_release"] == RELEASE
-    assert frontier["graph_release_sha256"] == "a" * 64
+    assert frontier["graph_release_sha256"] == RELEASE_SHA256
+    assert frontier["target_ref"]["node_id"] == "ABG.price"
     parent = next(node for node in frontier["nodes"] if node["node_id"] == NODE_ID)
     assert parent["asset"] == ""
     assert parent["field"] == "value"
@@ -99,7 +95,9 @@ def test_v4_frontier_preserves_exact_typed_node_and_branch_selection(tmp_path):
     entries = branch_selected_input_entries(spec)
     assert entries[0]["node_id"] == NODE_ID
     assert entries[0]["driver_ref"]["kind"] == "canonical_node"
-    assert entries[0]["driver_ref_sha256"] == "b" * 64
+    assert entries[0]["driver_ref_sha256"] == describe_v4_node(NODE_ID)[
+        "driver_ref_sha256"
+    ]
 
 
 def test_init_session_v4_freezes_release_and_passes_it_to_edge(
@@ -214,11 +212,7 @@ def test_live_v4_discovery_preserves_requested_dotted_ticker_identity(
             10,
             RELEASE,
         )
-        payload = _v4_discovery()
-        payload.pop("ticker")
-        payload.pop("target_asset")
-        payload["target_node"] = "000858.SZ"
-        return payload
+        return _v4_discovery("000858.SZ.price")
 
     monkeypatch.setattr(
         "abel_edge.plugins.abel.discover.discover_graph_payload",
@@ -260,11 +254,12 @@ def test_live_v4_discovery_preserves_requested_dotted_ticker_identity(
     )
 
     assert frontier["target_asset"] == "000858.SZ"
-    assert frontier["target_node"] == "000858.SZ"
+    assert frontier["target_node"] == "000858.SZ.price"
     assert discovery["ticker"] == "000858.SZ"
     assert spec["target"] == "000858.SZ"
     assert spec["target_node"] == "000858.SZ.price"
     assert dependencies["target_node"] == "000858.SZ.price"
+    assert dependencies["version"] == 2
 
 
 def test_prepare_v4_branch_materializes_canonical_feed_through_edge(
@@ -407,25 +402,17 @@ def test_frontier_expand_preserves_v4_node_ids_and_release(
         graph_release: dict | None = None,
     ) -> dict:
         observed.append((anchor_node, graph_release))
+        target_ref = describe_v4_node(anchor_node)
         return {
             "contract": "abel-edge.graph-discovery/v2",
+            "ticker": "",
+            "target_asset": "",
+            "target_node": anchor_node,
+            "target_ref": target_ref,
             "source": "abel_live",
-            "parents": [
-                {
-                    "node_id": child_node,
-                    "family": "macro.fred",
-                    "source_rank": 2,
-                    "driver_ref": {
-                        "kind": "canonical_node",
-                        "node_id": child_node,
-                        "retrieval_mode": "node_id",
-                        "adjustment": "none",
-                        "timezone": "UTC",
-                        "series_semantics": "point_in_time_scalar",
-                    },
-                    "driver_ref_sha256": "d" * 64,
-                }
-            ],
+            "graph_release": RELEASE,
+            "graph_release_sha256": RELEASE_SHA256,
+            "parents": [{**describe_v4_node(child_node), "source_rank": 2}],
             "blanket_new": [],
             "children": [],
             "created_at": "2026-08-16T00:01:00+00:00",

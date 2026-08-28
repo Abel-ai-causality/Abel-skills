@@ -24,8 +24,10 @@ pass a reviewed Edge graph-release file:
   --graph-release path/to/v4-graph-release.json
 ```
 
-The session freezes that file as `graph_release.json`. Do not edit it after
-session creation. See `graph-releases.md` for typed driver and feed semantics.
+The session validates the file through Abel-edge, freezes its normalized form
+as `graph_release.json`, and verifies that discovery returns the same release
+and digest. Do not edit it after session creation. See `graph-releases.md` for
+typed target, driver, artifact-version, and feed semantics.
 
 Use an explicit no-discovery fallback only when auth, service access, or
 continuity constraints make live discovery unavailable:

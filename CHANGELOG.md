@@ -15,6 +15,7 @@ This project follows a repo-level release log so agents can summarize user-visib
 
 - Updated Abel Invest to version `3.8.1`.
 - Preserved the default V3 symbol workflow while making V4 canonical graph releases an explicit, provenance-preserving opt-in.
+- Classified graph behavior by validated V3/V4 version instead of release presence, preserved dotted V4 target and driver IDs exactly, and made every V4 branch use typed V2 dependency and data-manifest artifacts, including market-only branches.
 
 ## [1.4.5] - 2026-07-17
 

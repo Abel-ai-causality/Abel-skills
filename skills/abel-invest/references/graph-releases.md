@@ -11,6 +11,11 @@ compatibility default.
 
 ## V4 Opt-In
 
+V4 requires the Abel-edge release containing the typed graph-release and
+`target_ref` contracts. Merge and publish the provider change before releasing
+this consumer; capability absence fails with an installation error instead of
+falling back to V3 parsing.
+
 Create a reviewed JSON file using the Edge contract:
 
 ```json
@@ -36,6 +41,17 @@ The session freezes the configuration in `graph_release.json`. Discovery and
 frontier expansion pass it only to Edge. Abel Invest must not call CAP,
 `day_bar`, graph-package storage, or provider-internal APIs.
 
+Abel Invest classifies this contract into exactly three states:
+
+- no release or a validated `CausalNodeV3` release: legacy V3 behavior;
+- a validated `CausalNodeV4` release: typed V4 behavior;
+- an invalid or unknown release: fail closed.
+
+Release provenance does not by itself enable V4 behavior. An explicit V3 pin
+remains frontier, dependency, and data-manifest schema v1. Its release metadata
+is retained for later frontier calls, but its symbol normalization and bars
+behavior stay unchanged.
+
 ## Typed Drivers
 
 Edge discovery v2 supplies a `driver_ref` for every V4 driver:
@@ -49,6 +65,22 @@ Canonical-node preparation emits a `point_in_time_series` feed with field
 `value`. Runtime strategy code reads that feed through
 `asof_series("value")`. It must not convert the ID to a ticker, uppercase it,
 guess a source, forward-fill missing graph observations, or call CAP directly.
+
+Edge also supplies a typed `target_ref`. Its `node_id` is the exact CAP query
+target, and `ticker`, `target_asset`, and `target_node` are checked as flat
+projections of that descriptor. Abel Invest never fills, reparses, or repairs
+missing V4 target identity. A conflict fails session creation. Session targets
+remain symbol targets; canonical nodes are supported as exact drivers and
+frontier-expansion anchors.
+
+Both symbol and canonical V4 node IDs are preserved byte-for-byte. V4 chooses
+dependency and data-manifest schema v2 from the validated graph version, so a
+market-only V4 branch is still v2. Each selected symbol driver uses bars and
+each canonical driver uses its prepared point-in-time scalar series.
+
+The requested, frozen, returned, dependency, and manifest graph releases must
+normalize to the same Edge configuration SHA-256. Missing provenance, digest
+drift, or a different returned release fails closed.
 
 ## Gate
 

@@ -19,6 +19,12 @@ from abel_invest.narrative_core.contracts.constants import (
     INPUT_CLAIMS,
     MODEL_FAMILIES,
 )
+from abel_invest.narrative_core.contracts.graph_release import (
+    GraphContract,
+    resolve_graph_contract,
+    validate_v4_selected_entries,
+    validate_v4_target_identity,
+)
 from abel_invest.narrative_core.io import _now
 from abel_invest.narrative_core.contracts.paths import branch_spec_path
 from abel_invest.narrative_core.readiness import readiness_usable_tickers
@@ -128,12 +134,49 @@ def default_graph_node_id(asset: str) -> str:
     return f"{str(asset or '').strip().upper()}.price"
 
 
+def branch_graph_contract(branch_spec: dict) -> GraphContract:
+    graph_release = branch_spec.get("graph_release")
+    if graph_release is not None and not isinstance(graph_release, dict):
+        raise ValueError("branch graph_release must be a mapping")
+    return resolve_graph_contract(
+        graph_release,
+        graph_release_sha256=str(branch_spec.get("graph_release_sha256") or ""),
+        require_sha256=graph_release is not None,
+    )
+
+
+def _artifact_graph_contract(payload: dict, *, name: str) -> GraphContract:
+    graph_release = payload.get("graph_release")
+    if not isinstance(graph_release, dict):
+        raise ValueError(f"{name} is missing its V4 graph release")
+    return resolve_graph_contract(
+        graph_release,
+        graph_release_sha256=str(payload.get("graph_release_sha256") or ""),
+        require_sha256=True,
+    )
+
+
+def _validate_v4_target(
+    *,
+    target: str,
+    target_node: str,
+    target_ref: object,
+) -> dict[str, Any]:
+    _asset, _node_id, normalized_ref = validate_v4_target_identity(
+        target_asset=target,
+        target_node=target_node,
+        target_ref=target_ref,
+    )
+    return normalized_ref
+
+
 def branch_selected_input_entries(branch_spec: dict) -> list[dict[str, Any]]:
     raw = branch_spec.get("selected_inputs")
     if not isinstance(raw, list):
         return []
     entries: list[dict[str, Any]] = []
     seen: set[str] = set()
+    contract = branch_graph_contract(branch_spec)
     for item in raw:
         if isinstance(item, dict):
             driver_ref = item.get("driver_ref")
@@ -142,7 +185,11 @@ def branch_selected_input_entries(branch_spec: dict) -> list[dict[str, Any]]:
                 and driver_ref.get("kind") == "canonical_node"
             )
             raw_node_id = str(item.get("node_id") or item.get("node") or "").strip()
-            node_id = raw_node_id if canonical else normalize_graph_node_ref(raw_node_id)
+            node_id = (
+                raw_node_id
+                if contract.is_v4 or canonical
+                else normalize_graph_node_ref(raw_node_id)
+            )
             if not node_id:
                 asset = str(item.get("asset") or item.get("ticker") or "").strip()
                 field = str(item.get("field") or "price").strip()
@@ -151,7 +198,8 @@ def branch_selected_input_entries(branch_spec: dict) -> list[dict[str, Any]]:
             source = str(item.get("source") or "frontier").strip() or "frontier"
             source_reason = str(item.get("source_reason") or "").strip()
         else:
-            node_id = normalize_graph_node_ref(str(item or "").strip())
+            raw_node_id = str(item or "").strip()
+            node_id = raw_node_id if contract.is_v4 else normalize_graph_node_ref(raw_node_id)
             role = "graph_input"
             source = "frontier"
             source_reason = ""
@@ -356,13 +404,18 @@ def graph_input_entry(
     source: str = "frontier",
     role: str = "graph_input",
     frontier_node: dict | None = None,
+    typed_v4: bool = False,
 ) -> dict[str, Any]:
     driver_ref = (frontier_node or {}).get("driver_ref")
     canonical = (
         isinstance(driver_ref, dict) and driver_ref.get("kind") == "canonical_node"
     )
     entry: dict[str, Any] = {
-        "node_id": str(node_id).strip() if canonical else normalize_graph_node_ref(node_id),
+        "node_id": (
+            str(node_id).strip()
+            if typed_v4 or canonical
+            else normalize_graph_node_ref(node_id)
+        ),
         "role": role,
         "source": source,
     }
@@ -403,10 +456,31 @@ def build_default_branch_spec(
     graph_frontier: dict | None = None,
 ) -> dict:
     frontier = graph_frontier or {}
+    graph_release = frontier.get("graph_release")
+    if graph_release is not None and not isinstance(graph_release, dict):
+        raise ValueError("frontier graph_release must be a mapping")
+    contract = resolve_graph_contract(
+        graph_release,
+        graph_release_sha256=str(frontier.get("graph_release_sha256") or ""),
+        require_sha256=graph_release is not None,
+    )
     target = str(
         discovery.get("ticker") or branch.parent.parent.parent.name
     ).strip().upper()
-    target_node = default_graph_node_id(target)
+    target_node = (
+        str(frontier.get("target_node") or "").strip()
+        if contract.is_v4
+        else default_graph_node_id(target)
+    )
+    if contract.is_v4 and not target_node:
+        raise ValueError("V4 frontier is missing target_node")
+    target_ref = None
+    if contract.is_v4:
+        target_ref = _validate_v4_target(
+            target=target,
+            target_node=target_node,
+            target_ref=frontier.get("target_ref"),
+        )
     suggested_nodes = graph_frontier_candidate_node_ids(frontier, readiness, limit=5)
     selected_nodes = suggested_nodes[: min(3, len(suggested_nodes))]
     frontier_nodes = {
@@ -433,7 +507,11 @@ def build_default_branch_spec(
         "resolved_start_policy": "requested",
         "overlap_mode": "target_only",
         "selected_inputs": [
-            graph_input_entry(node_id, frontier_node=frontier_nodes.get(node_id))
+            graph_input_entry(
+                node_id,
+                frontier_node=frontier_nodes.get(node_id),
+                typed_v4=contract.is_v4,
+            )
             for node_id in selected_nodes
         ],
         "data_requirements": {
@@ -441,6 +519,10 @@ def build_default_branch_spec(
             "fields": ["close"],
         },
     }
+    if contract.is_v4:
+        spec["graph_release"] = contract.release
+        spec["graph_release_sha256"] = contract.sha256
+        spec["target_ref"] = target_ref
     return spec
 
 
@@ -453,19 +535,33 @@ def branch_dependencies_payload(
     requested_start: str,
 ) -> dict:
     selected_inputs = ordered_unique_upper(selected_inputs)
+    contract = branch_graph_contract(branch_spec)
     selected_entries = branch_selected_input_entries(branch_spec)
     selected_graph_nodes = branch_selected_graph_nodes(branch_spec)
-    canonical = [
-        entry
-        for entry in selected_entries
-        if isinstance(entry.get("driver_ref"), dict)
-        and entry["driver_ref"].get("kind") == "canonical_node"
-    ]
+    if contract.is_v4:
+        validate_v4_selected_entries(selected_entries)
+    target_node = (
+        str(branch_spec.get("target_node") or "").strip()
+        if contract.is_v4
+        else default_graph_node_id(target)
+    )
+    if contract.is_v4 and not target_node:
+        raise ValueError("V4 branch spec is missing target_node")
+    target_ref = None
+    if contract.is_v4:
+        target_ref = _validate_v4_target(
+            target=target,
+            target_node=target_node,
+            target_ref=branch_spec.get("target_ref"),
+        )
+        expected_inputs = branch_selected_inputs(branch_spec)
+        if selected_inputs != expected_inputs:
+            raise ValueError("V4 selected_inputs conflict with selected driver references")
     payload = {
-        "version": 2 if canonical else 1,
+        "version": 2 if contract.is_v4 else 1,
         "branch_id": branch.name,
         "target": target,
-        "target_node": default_graph_node_id(target),
+        "target_node": target_node,
         "selected_inputs": selected_inputs,
         "selected_graph_nodes": selected_graph_nodes,
         "requested_start": requested_start,
@@ -473,27 +569,57 @@ def branch_dependencies_payload(
         "data_requirements": branch_spec.get("data_requirements") or {"timeframe": "1d"},
         "prepared_at": _now(),
     }
-    if canonical:
+    if contract.is_v4:
         payload["selected_drivers"] = selected_entries
+        payload["graph_release"] = contract.release
+        payload["graph_release_sha256"] = contract.sha256
+        payload["target_ref"] = target_ref
     return payload
 
 
 def canonicalize_dependencies_payload(payload: dict) -> dict:
     dependencies = dict(payload)
+    version = int(dependencies.get("version") or 1)
+    if version >= 2:
+        contract = _artifact_graph_contract(dependencies, name="dependencies")
+        if not contract.is_v4:
+            raise ValueError("dependencies v2 requires a CausalNodeV4 graph release")
+        _validate_v4_target(
+            target=str(dependencies.get("target") or ""),
+            target_node=str(dependencies.get("target_node") or ""),
+            target_ref=dependencies.get("target_ref"),
+        )
     raw = dependencies.get("selected_inputs")
     selected = ordered_unique_upper(raw if isinstance(raw, list) else [])
     selected_graph_nodes = (
         ordered_unique_strings(dependencies.get("selected_graph_nodes") or [])
-        if int(dependencies.get("version") or 1) >= 2
+        if version >= 2
         else normalize_graph_node_list(dependencies.get("selected_graph_nodes"))
     )
     if not selected_graph_nodes:
         selected_graph_nodes = [default_graph_node_id(asset) for asset in selected]
+    if version >= 2:
+        selected_drivers = dependencies.get("selected_drivers")
+        if not isinstance(selected_drivers, list) or not all(
+            isinstance(item, dict) for item in selected_drivers
+        ):
+            raise ValueError("dependencies v2 requires selected_drivers")
+        validate_v4_selected_entries(selected_drivers)
+        expected_nodes = ordered_unique_strings(
+            str(item.get("node_id") or "") for item in selected_drivers
+        )
+        expected_inputs = ordered_unique_upper(
+            str(item["driver_ref"].get("symbol") or "")
+            for item in selected_drivers
+            if item["driver_ref"].get("kind") == "symbol"
+        )
+        if selected_graph_nodes != expected_nodes or selected != expected_inputs:
+            raise ValueError("dependencies v2 selected inputs conflict with selected_drivers")
     if selected or "selected_inputs" in dependencies:
         dependencies["selected_inputs"] = selected
     if selected_graph_nodes or "selected_graph_nodes" in dependencies:
         dependencies["selected_graph_nodes"] = selected_graph_nodes
-    if int(dependencies.get("version") or 1) < 2:
+    if version < 2:
         dependencies.pop("selected_drivers", None)
     return dependencies
 
@@ -529,9 +655,34 @@ def build_data_manifest_payload(
     readiness: dict,
     selected_driver_entries: list[dict[str, Any]] | None = None,
     canonical_series_specs: dict[str, dict] | None = None,
+    graph_release: dict | None = None,
+    graph_release_sha256: str = "",
+    target_node: str = "",
+    target_ref: dict | None = None,
 ) -> dict:
     selected_inputs = ordered_unique_upper(selected_inputs)
     selected_driver_entries = selected_driver_entries or []
+    contract = resolve_graph_contract(
+        graph_release,
+        graph_release_sha256=graph_release_sha256,
+        require_sha256=graph_release is not None,
+    )
+    if contract.is_v4:
+        validate_v4_selected_entries(selected_driver_entries)
+        normalized_target_ref = _validate_v4_target(
+            target=target,
+            target_node=target_node,
+            target_ref=target_ref,
+        )
+        expected_inputs = ordered_unique_upper(
+            str(entry["driver_ref"].get("symbol") or "")
+            for entry in selected_driver_entries
+            if entry["driver_ref"].get("kind") == "symbol"
+        )
+        if selected_inputs != expected_inputs:
+            raise ValueError("V4 selected_inputs conflict with selected driver references")
+    else:
+        normalized_target_ref = None
     canonical_entries = [
         entry
         for entry in selected_driver_entries
@@ -540,12 +691,31 @@ def build_data_manifest_payload(
     ]
     selected_graph_nodes = (
         ordered_unique_strings(selected_graph_nodes or [])
-        if canonical_entries
+        if contract.is_v4
         else normalize_graph_node_list(selected_graph_nodes)
     )
     if not selected_graph_nodes:
         selected_graph_nodes = [default_graph_node_id(asset) for asset in selected_inputs]
-    graph_by_asset = graph_nodes_by_asset([graph_input_entry(node_id) for node_id in selected_graph_nodes])
+    if contract.is_v4:
+        expected_nodes = ordered_unique_strings(
+            str(entry.get("node_id") or "") for entry in selected_driver_entries
+        )
+        if selected_graph_nodes != expected_nodes:
+            raise ValueError("V4 selected_graph_nodes conflict with selected driver references")
+    if contract.is_v4:
+        graph_by_asset: dict[str, list[str]] = {}
+        for entry in selected_driver_entries:
+            driver_ref = entry.get("driver_ref")
+            if not isinstance(driver_ref, dict) or driver_ref.get("kind") != "symbol":
+                continue
+            symbol = str(driver_ref.get("symbol") or "").strip().upper()
+            node_id = str(entry.get("node_id") or "").strip()
+            if symbol and node_id:
+                graph_by_asset.setdefault(symbol, []).append(node_id)
+    else:
+        graph_by_asset = graph_nodes_by_asset(
+            [graph_input_entry(node_id) for node_id in selected_graph_nodes]
+        )
     cache_results = {
         str(item.get("symbol") or "").strip().upper(): item
         for item in (cache_payload.get("results") or [])
@@ -570,7 +740,7 @@ def build_data_manifest_payload(
             "name": "primary" if symbol == target else symbol,
             "symbol": symbol,
             "role": "target" if symbol == target else "driver",
-            "graph_node_id": default_graph_node_id(symbol)
+            "graph_node_id": (target_node or default_graph_node_id(symbol))
             if symbol == target
             else (graph_by_asset.get(symbol) or [default_graph_node_id(symbol)])[0],
             "adapter": adapter,
@@ -582,7 +752,7 @@ def build_data_manifest_payload(
             "readiness_status": readiness_item.get("status", "unknown"),
             "covers_requested_start": bool(readiness_item.get("covers_requested_start", False)),
         }
-        if canonical_entries:
+        if contract.is_v4:
             feed_entry["kind"] = "bars"
         if cache_root:
             feed_entry["cache_root"] = cache_root
@@ -626,29 +796,59 @@ def build_data_manifest_payload(
             }
         )
     manifest = {
-        "version": 2 if canonical_entries else 1,
+        "version": 2 if contract.is_v4 else 1,
         "target": target,
-        "target_node": default_graph_node_id(target),
+        "target_node": target_node or default_graph_node_id(target),
         "selected_inputs": selected_inputs,
         "selected_graph_nodes": selected_graph_nodes,
         "feeds": feeds,
     }
-    if canonical_entries:
+    if contract.is_v4:
         manifest["selected_drivers"] = selected_driver_entries
+        manifest["graph_release"] = contract.release
+        manifest["graph_release_sha256"] = contract.sha256
+        manifest["target_ref"] = normalized_target_ref
     return manifest
 
 
 def canonicalize_data_manifest_payload(payload: dict) -> dict:
     manifest = dict(payload)
+    version = int(manifest.get("version") or 1)
+    if version >= 2:
+        contract = _artifact_graph_contract(manifest, name="data manifest")
+        if not contract.is_v4:
+            raise ValueError("data manifest v2 requires a CausalNodeV4 graph release")
+        _validate_v4_target(
+            target=str(manifest.get("target") or ""),
+            target_node=str(manifest.get("target_node") or ""),
+            target_ref=manifest.get("target_ref"),
+        )
     raw_selected = manifest.get("selected_inputs")
     selected = ordered_unique_upper(raw_selected if isinstance(raw_selected, list) else [])
     selected_graph_nodes = (
         ordered_unique_strings(manifest.get("selected_graph_nodes") or [])
-        if int(manifest.get("version") or 1) >= 2
+        if version >= 2
         else normalize_graph_node_list(manifest.get("selected_graph_nodes"))
     )
     if not selected_graph_nodes:
         selected_graph_nodes = [default_graph_node_id(asset) for asset in selected]
+    if version >= 2:
+        selected_drivers = manifest.get("selected_drivers")
+        if not isinstance(selected_drivers, list) or not all(
+            isinstance(item, dict) for item in selected_drivers
+        ):
+            raise ValueError("data manifest v2 requires selected_drivers")
+        validate_v4_selected_entries(selected_drivers)
+        expected_nodes = ordered_unique_strings(
+            str(item.get("node_id") or "") for item in selected_drivers
+        )
+        expected_inputs = ordered_unique_upper(
+            str(item["driver_ref"].get("symbol") or "")
+            for item in selected_drivers
+            if item["driver_ref"].get("kind") == "symbol"
+        )
+        if selected_graph_nodes != expected_nodes or selected != expected_inputs:
+            raise ValueError("data manifest v2 inputs conflict with selected_drivers")
     feeds: list[dict[str, object]] = []
     seen_feeds: set[str] = set()
     for item in manifest.get("feeds") or []:
@@ -668,9 +868,12 @@ def canonicalize_data_manifest_payload(payload: dict) -> dict:
         feeds.append(feed)
         seen_feeds.add(key)
     manifest["selected_inputs"] = selected
-    manifest["target_node"] = normalize_graph_node_ref(str(manifest.get("target_node") or ""))
+    raw_target_node = str(manifest.get("target_node") or "").strip()
+    manifest["target_node"] = (
+        raw_target_node if version >= 2 else normalize_graph_node_ref(raw_target_node)
+    )
     manifest["selected_graph_nodes"] = selected_graph_nodes
-    if int(manifest.get("version") or 1) < 2:
+    if version < 2:
         manifest.pop("selected_drivers", None)
     manifest["feeds"] = feeds
     return manifest
