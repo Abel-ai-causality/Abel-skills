@@ -273,8 +273,9 @@ def merge_graph_frontier_expansion(
         if contract.is_v4
         else normalize_graph_node_ref(anchor_node)
     )
+    returned_target_ref = None
     if returned_contract.is_v4:
-        _target_asset, returned_target, _target_ref = _v4_target_identity(
+        _target_asset, returned_target, returned_target_ref = _v4_target_identity(
             payload,
             require_symbol=False,
         )
@@ -304,6 +305,8 @@ def merge_graph_frontier_expansion(
     }
     anchor = node_map.get(anchor_node)
     if anchor is None:
+        if contract.is_v4:
+            raise ValueError("V4 expansion anchor is not present in the frontier")
         anchor = build_frontier_node(
             node_id=anchor_node,
             roles=["expansion_anchor"],
@@ -312,6 +315,12 @@ def merge_graph_frontier_expansion(
             seen_at=now,
         )
         node_map[anchor_node] = anchor
+    elif contract.is_v4:
+        _require_matching_v4_node_identity(
+            anchor,
+            returned_target_ref,
+            context="V4 expansion anchor",
+        )
     anchor["last_expanded_at"] = now
     anchor_depth = int(anchor.get("depth") or 0)
 
@@ -356,6 +365,12 @@ def merge_graph_frontier_expansion(
                 new_nodes.append(node_id)
                 continue
             existing = node_map[node_id]
+            if contract.is_v4:
+                _require_matching_v4_node_identity(
+                    existing,
+                    item,
+                    context=f"rediscovered V4 node '{node_id}'",
+                )
             existing["discovery_roles"] = ordered_unique_strings(
                 list(existing.get("discovery_roles") or []) + roles
             )
@@ -417,6 +432,12 @@ def graph_frontier_from_discovery_payload(
             nodes[key] = node
             return
         existing = nodes[key]
+        if contract.is_v4:
+            _require_matching_v4_node_identity(
+                existing,
+                node,
+                context=f"duplicate V4 discovery node '{key}'",
+            )
         existing["discovery_roles"] = ordered_unique_strings(
             list(existing.get("discovery_roles") or []) + list(node.get("discovery_roles") or [])
         )
@@ -624,6 +645,18 @@ def _v4_target_identity(
         check_ticker=require_ticker,
         require_symbol=require_symbol,
     )
+
+
+def _require_matching_v4_node_identity(
+    stored: dict,
+    returned: object,
+    *,
+    context: str,
+) -> None:
+    returned_descriptor = validate_v4_node_descriptor(returned, context=context)
+    for key in ("node_id", "driver_ref", "driver_ref_sha256", "family"):
+        if stored.get(key) != returned_descriptor.get(key):
+            raise ValueError(f"{context} conflicts on {key}")
 
 
 def graph_roles_from_item(item: object, *, fallback: str) -> list[str]:

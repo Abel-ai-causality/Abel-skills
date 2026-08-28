@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 import pytest
 
 from abel_edge.plugins.abel.graph_driver import describe_v4_node
@@ -17,6 +20,7 @@ from abel_invest.narrative_core.contracts.branch_spec import (
 from abel_invest.narrative_core.evidence.graph_frontier import (
     graph_frontier_from_discovery_payload,
     graph_frontier_to_discovery,
+    merge_graph_frontier_expansion,
 )
 
 
@@ -66,6 +70,21 @@ def _frontier(payload: dict, *, expected_graph_release: dict | None = None) -> d
         expansion_limit=10,
         expected_graph_release=expected_graph_release,
     )
+
+
+def _rerouted_symbol(node_id: str, symbol: str) -> dict:
+    descriptor = describe_v4_node(node_id)
+    descriptor["ticker"] = symbol
+    descriptor["driver_ref"]["symbol"] = symbol
+    descriptor["driver_ref_sha256"] = hashlib.sha256(
+        json.dumps(
+            descriptor["driver_ref"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return descriptor
 
 
 def test_explicit_v3_release_retains_provenance_but_stays_schema_v1(tmp_path):
@@ -272,3 +291,26 @@ def test_edge_to_invest_uses_one_dotted_v4_target_identity(monkeypatch):
         "BRK.B.price",
         "000858.SZ.volume",
     }
+
+
+def test_v4_rediscovery_rejects_conflicting_stored_driver_identity():
+    original = describe_v4_node("MSFT.price")
+    frontier = _frontier(_v4_payload(parents=[original]))
+    conflicting = _rerouted_symbol("MSFT.price", "WRONG")
+
+    with pytest.raises(ValueError, match="rediscovered V4 node.*driver_ref"):
+        merge_graph_frontier_expansion(
+            frontier,
+            _v4_payload(parents=[conflicting]),
+            anchor_node="BRK.B.price",
+            mode="parents",
+            limit=10,
+        )
+
+
+def test_v4_initial_discovery_rejects_duplicate_identity_conflict():
+    payload = _v4_payload(parents=[describe_v4_node("MSFT.price")])
+    payload["blanket_new"] = [_rerouted_symbol("MSFT.price", "WRONG")]
+
+    with pytest.raises(ValueError, match="duplicate V4 discovery node.*driver_ref"):
+        _frontier(payload)
