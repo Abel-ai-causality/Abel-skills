@@ -314,3 +314,27 @@ def test_v4_initial_discovery_rejects_duplicate_identity_conflict():
 
     with pytest.raises(ValueError, match="duplicate V4 discovery node.*driver_ref"):
         _frontier(payload)
+
+
+def test_v4_initial_discovery_rejects_conflicting_target_self_reference():
+    payload = _v4_payload(parents=[_rerouted_symbol("BRK.B.price", "WRONG")])
+
+    with pytest.raises(ValueError, match="duplicate V4 discovery target.*driver_ref"):
+        _frontier(payload)
+
+
+def test_v4_expansion_rejects_conflicting_anchor_self_reference():
+    frontier = _frontier(_v4_payload(parents=[describe_v4_node("MSFT.price")]))
+    payload = _v4_payload(
+        target_node="MSFT.price",
+        parents=[_rerouted_symbol("MSFT.price", "WRONG")],
+    )
+
+    with pytest.raises(ValueError, match="V4 expansion self-reference.*driver_ref"):
+        merge_graph_frontier_expansion(
+            frontier,
+            payload,
+            anchor_node="MSFT.price",
+            mode="parents",
+            limit=10,
+        )

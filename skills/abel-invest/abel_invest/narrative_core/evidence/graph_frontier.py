@@ -337,7 +337,15 @@ def merge_graph_frontier_expansion(
                 if contract.is_v4
                 else normalize_graph_node_ref(raw_node_id)
             )
-            if not node_id or node_id == anchor_node:
+            if not node_id:
+                continue
+            if node_id == anchor_node:
+                if contract.is_v4:
+                    _require_matching_v4_node_identity(
+                        anchor,
+                        item,
+                        context=f"V4 expansion self-reference '{anchor_node}'",
+                    )
                 continue
             roles = graph_roles_from_item(item, fallback=role)
             if node_id not in node_map:
@@ -463,7 +471,15 @@ def graph_frontier_from_discovery_payload(
             if contract.is_v4:
                 validate_v4_node_descriptor(item, context=f"discovery {section}")
             node_id = graph_node_id_from_item(item)
-            if not node_id or node_id == target_node:
+            if not node_id:
+                continue
+            if node_id == target_node:
+                if contract.is_v4:
+                    _require_matching_v4_node_identity(
+                        nodes[target_node],
+                        item,
+                        context=f"duplicate V4 discovery target '{target_node}'",
+                    )
                 continue
             remember(
                 build_frontier_node(
