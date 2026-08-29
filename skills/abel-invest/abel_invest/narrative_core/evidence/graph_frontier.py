@@ -36,6 +36,7 @@ def fetch_live_graph_frontier(
     backtest_start: str,
     graph_release: dict | None = None,
 ) -> dict:
+    requested_ticker = ticker.upper()
     try:
         from abel_edge.plugins.abel.credentials import (
             MissingAbelApiKeyError,
@@ -67,21 +68,24 @@ def fetch_live_graph_frontier(
         ) from exc
 
     if graph_release is None:
-        payload = discover_graph_payload(ticker.upper(), mode="all", limit=limit)
+        payload = discover_graph_payload(requested_ticker, mode="all", limit=limit)
     else:
         payload = discover_graph_payload(
-            ticker.upper(),
+            requested_ticker,
             mode="all",
             limit=limit,
             graph_release=graph_release,
         )
-    return graph_frontier_from_discovery_payload(
+    frontier = graph_frontier_from_discovery_payload(
         dict(payload),
         backtest_start=backtest_start,
         expansion_mode="all",
         expansion_limit=limit,
         expected_graph_release=graph_release,
     )
+    if frontier.get("schema_version") == 2 and frontier.get("target_asset") != requested_ticker:
+        raise ValueError("V4 discovery returned a different target asset than requested")
+    return frontier
 
 
 def fetch_live_graph_expansion(

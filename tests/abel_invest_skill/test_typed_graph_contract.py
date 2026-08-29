@@ -18,6 +18,7 @@ from abel_invest.narrative_core.contracts.branch_spec import (
     build_default_branch_spec,
 )
 from abel_invest.narrative_core.evidence.graph_frontier import (
+    fetch_live_graph_frontier,
     graph_frontier_from_discovery_payload,
     graph_frontier_to_discovery,
     merge_graph_frontier_expansion,
@@ -337,4 +338,34 @@ def test_v4_expansion_rejects_conflicting_anchor_self_reference():
             anchor_node="MSFT.price",
             mode="parents",
             limit=10,
+        )
+
+
+def test_live_v4_discovery_rejects_target_that_differs_from_request(monkeypatch):
+    release = _release("CausalNodeV4")
+
+    def fake_discover_graph_payload(ticker, *, mode, limit, graph_release):
+        assert (ticker, mode, limit, graph_release) == (
+            "AAPL",
+            "all",
+            10,
+            release.payload,
+        )
+        return _v4_payload(target_node="MSFT.price", release=release)
+
+    monkeypatch.setattr(
+        "abel_edge.plugins.abel.discover.discover_graph_payload",
+        fake_discover_graph_payload,
+    )
+    monkeypatch.setattr(
+        "abel_edge.plugins.abel.credentials.require_api_key",
+        lambda: "test",
+    )
+
+    with pytest.raises(ValueError, match="different target asset than requested"):
+        fetch_live_graph_frontier(
+            "AAPL",
+            limit=10,
+            backtest_start="2020-01-01",
+            graph_release=release.payload,
         )
