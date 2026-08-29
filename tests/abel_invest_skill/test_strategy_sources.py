@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from abel_invest.narrative_core import strategy_sources as strategy_sources_module
 from abel_invest.narrative_core.strategy_sources import (
     ROUND_SOURCE_SNAPSHOT_FILENAME,
     SOURCE_VERSION_LEGACY_BRANCH_FALLBACK,
@@ -70,6 +71,39 @@ def test_round_snapshot_preserves_strategy_and_runtime_files_only(
     indexed_paths = {item["path"] for item in index["files"]}
     assert "helper.py" in indexed_paths
     assert "inputs/data_manifest.json" in indexed_paths
+
+
+def test_round_snapshot_temp_path_fits_legacy_windows_limit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    base = tmp_path / "session" / "branches"
+    longest_relative = (
+        Path("rounds")
+        / "round-001"
+        / "source"
+        / "inputs"
+        / "execution_constraints.json"
+    )
+    candidate = base / "candidate"
+    filler = max(1, 235 - len(str(candidate / longest_relative)))
+    branch = base / f"candidate-{'x' * filler}"
+    _write_branch_sources(branch)
+    final_destination = branch / longest_relative
+    assert len(str(final_destination)) < 260
+
+    original_copy2 = strategy_sources_module.shutil.copy2
+
+    def windows_legacy_copy2(source, destination):
+        if len(str(destination)) >= 260:
+            raise FileNotFoundError(3, "simulated Windows legacy path limit", destination)
+        return original_copy2(source, destination)
+
+    monkeypatch.setattr(strategy_sources_module.shutil, "copy2", windows_legacy_copy2)
+
+    pending = prepare_round_source_snapshot(branch, "round-001")
+    verify_round_source_unchanged(pending)
+    cleanup_pending_round_source_snapshot(pending)
 
 
 def test_round_snapshot_is_immutable_after_live_branch_changes(tmp_path: Path) -> None:

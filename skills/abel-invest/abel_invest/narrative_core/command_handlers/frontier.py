@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from abel_invest.narrative_core.contracts.constants import EVENTS_HEADER, GRAPH_FRONTIER_FILENAME
+from abel_invest.narrative_core.contracts.graph_release import resolve_graph_contract
 from abel_invest.narrative_core.evidence import graph_frontier
 from abel_invest.narrative_core.io import SessionLock, _now, append_tsv_row
 from abel_invest.narrative_core.rendering.session_rendering import render_session
@@ -17,14 +18,35 @@ def handle_frontier_command(args: argparse.Namespace) -> int:
         graph_frontier.print_graph_frontier_status(session)
         return 0
     if args.frontier_command == "expand":
-        anchor = graph_frontier.normalize_graph_node_ref(args.node)
+        current = graph_frontier.load_graph_frontier(session)
+        graph_release = current.get("graph_release")
+        if graph_release is not None and not isinstance(graph_release, dict):
+            raise RuntimeError("frontier graph_release must be a mapping")
+        contract = resolve_graph_contract(
+            graph_release,
+            graph_release_sha256=str(current.get("graph_release_sha256") or ""),
+            require_sha256=graph_release is not None,
+        )
+        anchor = (
+            str(args.node or "").strip()
+            if contract.is_v4
+            else graph_frontier.normalize_graph_node_ref(args.node)
+        )
         if not anchor:
             raise RuntimeError("frontier expand requires a graph node such as AAPL.price")
-        payload = graph_frontier.fetch_live_graph_expansion(
-            anchor,
-            mode=args.mode,
-            limit=args.limit,
-        )
+        if contract.is_v4 and anchor not in {
+            str(node.get("node_id") or "").strip()
+            for node in current.get("nodes") or []
+            if isinstance(node, dict)
+        }:
+            raise RuntimeError(
+                "V4 frontier expansion requires the exact graph node ID already "
+                f"present in the frontier: {anchor}"
+            )
+        expansion_kwargs = {"mode": args.mode, "limit": args.limit}
+        if contract.has_release:
+            expansion_kwargs["graph_release"] = contract.release
+        payload = graph_frontier.fetch_live_graph_expansion(anchor, **expansion_kwargs)
         with SessionLock(session):
             current = graph_frontier.load_graph_frontier(session)
             updated, expansion = graph_frontier.merge_graph_frontier_expansion(
@@ -63,7 +85,7 @@ def handle_frontier_command(args: argparse.Namespace) -> int:
         print("")
         print("From here:")
         print(f"  review graph_frontier.json under {session}")
-        print(f"  update exploration_path.md if this expansion changes the next candidate or search axis")
-        print(f"  create or revise branch.yaml only after naming the candidate question this expansion answered")
+        print("  update exploration_path.md if this expansion changes the next candidate or search axis")
+        print("  create or revise branch.yaml only after naming the candidate question this expansion answered")
         return 0
     raise RuntimeError(f"Unknown frontier command: {args.frontier_command}")

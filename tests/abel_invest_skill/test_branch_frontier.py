@@ -78,6 +78,75 @@ def test_evidence_rows_record_graph_node_runtime_facts(tmp_path) -> None:
     assert frontier["graph_node_reads"] == ["MSFT.volume"]
 
 
+def test_evidence_rows_map_prepared_feed_alias_to_exact_v4_node(tmp_path) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v4-alias-runtime", tmp_path / "research")
+    ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())
+    ni.write_readiness(session, _sample_readiness())
+    branch = ni.init_branch_dir(session, "graph-node-v4")
+    node_id = "market.forex.price.daily:low#9b620295"
+    feed_alias = "graph_node_379b82caceb4"
+    driver_ref = {
+        "kind": "canonical_node",
+        "node_id": node_id,
+        "retrieval_mode": "node_id",
+    }
+    spec = ni.load_branch_spec(branch)
+    spec.update(
+        {
+            "hypothesis": "The exact typed V4 driver leads TSLA next-day risk appetite.",
+            "evidence_intent": "candidate",
+            "input_claim": "graph_supported",
+            "mechanism_family": "typed_v4_driver",
+            "model_family": "rule_signal",
+            "complexity_class": "simple_signal",
+            "exploration_role": "candidate",
+            "invalidation_condition": "The prepared V4 feed is not read or validation fails.",
+            "requested_start": "2020-01-01",
+            "selected_inputs": [
+                {
+                    "node_id": node_id,
+                    "role": "graph_input",
+                    "source": "frontier",
+                    "driver_ref": driver_ref,
+                }
+            ],
+        }
+    )
+    _record_synthetic_round(
+        session,
+        branch,
+        spec=spec,
+        result=_edge_result(traced_inputs=[feed_alias]),
+    )
+    context_path = branch / "outputs" / "round-001-alpha-context.json"
+    context = json.loads(context_path.read_text(encoding="utf-8"))
+    context["data_manifest"] = {
+        "version": 2,
+        "feeds": [
+            {
+                "name": feed_alias,
+                "role": "driver",
+                "graph_node_id": node_id,
+                "driver_ref": driver_ref,
+            }
+        ],
+    }
+    context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+
+    ni.render_session(session)
+
+    ledger = json.loads((session / ni.EVIDENCE_LEDGER_FILENAME).read_text(encoding="utf-8"))
+    row = ledger["rows"][-1]
+    realization = row["input_realization"]
+    assert row["evidence_label"] == "candidate_causal_evidence"
+    assert row["actual_graph_node_reads"] == [node_id]
+    assert row["prepared_traced_graph_nodes"] == [node_id]
+    assert row["actual_graph_node_read_source"] == "feed_manifest_mapping"
+    assert realization["actual_graph_node_reads"] == [node_id]
+    assert realization["selected_graph_node_reads"] == [node_id]
+    assert realization["graph_input_read_gap"] is False
+
+
 def test_frontier_surfaces_candidate_failures_and_resume_facts(tmp_path) -> None:
     session = ni.init_session_dir("TSLA", "tsla-frontier-fail-facts", tmp_path / "research")
     ni.write_graph_frontier_from_discovery_payload(session, _sample_discovery())

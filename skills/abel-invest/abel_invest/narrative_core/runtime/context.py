@@ -495,6 +495,37 @@ def build_branch_context(
         selected_graph_nodes=branch_selected_graph_nodes(branch_spec),
         cache_payload=(dependencies.get("cache") or {}) if isinstance(dependencies, dict) else {},
         readiness=readiness,
+        selected_driver_entries=(
+            dependencies.get("selected_drivers") or []
+            if isinstance(dependencies, dict)
+            else []
+        ),
+        canonical_series_specs=(
+            dependencies.get("canonical_series_specs") or {}
+            if isinstance(dependencies, dict)
+            else {}
+        ),
+        graph_release=(
+            dependencies.get("graph_release")
+            if isinstance(dependencies, dict)
+            else None
+        ),
+        graph_release_sha256=(
+            str(dependencies.get("graph_release_sha256") or "")
+            if isinstance(dependencies, dict)
+            else ""
+        ),
+        target_node=(
+            str(dependencies.get("target_node") or "")
+            if isinstance(dependencies, dict)
+            else ""
+        ),
+        target_ref=(
+            dependencies.get("target_ref")
+            if isinstance(dependencies, dict)
+            and isinstance(dependencies.get("target_ref"), dict)
+            else None
+        ),
     )
     if data_manifest_path(branch).exists():
         data_manifest = json.loads(data_manifest_path(branch).read_text(encoding="utf-8"))
@@ -505,7 +536,12 @@ def build_branch_context(
         "kind": "bars",
         "adapter": str((cache or {}).get("adapter") or "abel"),
         "timeframe": str((cache or {}).get("timeframe") or "1d"),
-        "symbol": discovery.get("ticker", session.parent.name.upper()),
+        "symbol": str(
+            discovery.get("ticker")
+            or runtime_profile.get("target")
+            or branch_spec.get("target")
+            or session.parent.name
+        ).strip().upper(),
         "profile": str((cache or {}).get("profile") or "daily"),
     }
     cache_root = (cache or {}).get("cache_root")
@@ -519,6 +555,27 @@ def build_branch_context(
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or "").strip()
+        kind = str(item.get("kind") or "bars").strip().lower()
+        if name and name != "primary" and kind == "point_in_time_series":
+            series_spec = item.get("series_spec")
+            if not isinstance(series_spec, dict):
+                raise RuntimeError(
+                    f"Prepared canonical feed '{name}' is missing its Edge series spec."
+                )
+            feed_payload = {
+                "name": name,
+                "kind": "point_in_time_series",
+                "adapter": str(item.get("adapter") or "abel"),
+                "series_spec": series_spec,
+                "profile": str(item.get("profile") or primary_feed["profile"]),
+            }
+            source_start = dependencies.get("requested_start")
+            source_end = dependencies.get("canonical_series_end")
+            if source_start and source_end:
+                feed_payload["source_start"] = str(source_start)[:10]
+                feed_payload["source_end"] = str(source_end)[:10]
+            feeds[name] = feed_payload
+            continue
         symbol = str(item.get("symbol") or "").strip().upper()
         if not name or name == "primary" or not symbol:
             continue

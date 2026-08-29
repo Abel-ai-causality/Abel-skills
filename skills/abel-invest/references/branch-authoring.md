@@ -181,6 +181,14 @@ When an insight should become a strategy conclusion, cite evidence such as
 - `inputs/probe_samples.json`
 - `inputs/dependencies.json`
 
+V3 symbol drivers remain `bars` feeds. V4 arbitrary nodes are
+`point_in_time_series` feeds whose runtime field is `value`; their manifest
+entry retains the exact node ID, typed driver reference, Edge series spec, and
+source receipt. Strategy code reads a prepared canonical feed with
+`asof_series("value")`, which exposes only the last value already visible at
+each decision time. It must not reinterpret the node ID, call CAP
+directly, or substitute a ticker feed.
+
 Inspect these files before changing strategy logic. Prefer prepared branch
 inputs over frontier-side inference. `data_manifest.json` and
 `dependencies.json` include selected graph node facts alongside the ticker feeds

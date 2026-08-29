@@ -16,6 +16,19 @@ Live graph discovery is the normal session opening:
 <command_prefix> init-session --ticker <TICKER> --exp-id <exp-id>
 ```
 
+This no-argument path is the V3 compatibility path. To opt into a V4 release,
+pass a reviewed Edge graph-release file:
+
+```bash
+<command_prefix> init-session --ticker <TICKER> --exp-id <exp-id> \
+  --graph-release path/to/v4-graph-release.json
+```
+
+The session validates the file through Abel-edge, freezes its normalized form
+as `graph_release.json`, and verifies that discovery returns the same release
+and digest. Do not edit it after session creation. See `graph-releases.md` for
+typed target, driver, artifact-version, and feed semantics.
+
 Use an explicit no-discovery fallback only when auth, service access, or
 continuity constraints make live discovery unavailable:
 
@@ -133,6 +146,10 @@ selected_inputs:
     source: external
     source_reason: market-liquidity contrast outside the current frontier
 ```
+
+For V4, copy the complete structured entry from `graph_frontier.json`. Keep its
+exact canonical node ID and `driver_ref`; do not uppercase it or rewrite it as
+a ticker. `prepare-branch` asks Edge to materialize that reference.
 
 Do not collapse every branch onto the latest common start unless the candidate
 expression truly requires strict overlap.

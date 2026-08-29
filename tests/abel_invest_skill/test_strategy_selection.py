@@ -1100,6 +1100,63 @@ def test_select_strategy_artifact_for_session_requires_strategy_for_round(
         ni.select_strategy_artifact_for_session(session, round_id="round-006")
 
 
+def test_explicit_export_accepts_external_selection_mode(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+    branch = ni.init_branch_dir(session, "momentum_lead")
+    _write_strategy_artifact_inputs(branch)
+    _write_strategy_result_row(
+        session,
+        branch,
+        round_id="round-006",
+        verdict="PASS",
+        sharpe=1.8,
+        lo_adj=1.4,
+        max_dd=-0.1,
+    )
+    captured = {}
+
+    def fake_export(candidate, **kwargs):
+        captured["candidate"] = candidate
+        captured["selection"] = kwargs["selection"]
+        return {"artifactExported": True}
+
+    monkeypatch.setitem(
+        ni.export_selected_strategy_artifact.__globals__,
+        "_export_strategy_artifact_candidate",
+        fake_export,
+    )
+    result = ni.export_selected_strategy_artifact(
+        session,
+        strategy=branch,
+        round_id="round-006",
+        selection_mode="production_sweep_branch_best_v1",
+    )
+
+    assert result["artifactExported"] is True
+    assert captured["candidate"].selection_mode == "production_sweep_branch_best_v1"
+    assert captured["selection"].selected.selection_mode == "production_sweep_branch_best_v1"
+
+
+def test_external_selection_mode_requires_explicit_strategy(tmp_path: Path) -> None:
+    session = ni.init_session_dir("TSLA", "tsla-v1", tmp_path / "research")
+
+    with pytest.raises(ValueError, match="requires an explicit strategy"):
+        ni.export_selected_strategy_artifact(
+            session,
+            selection_mode="production_sweep_branch_best_v1",
+        )
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        ni.export_selected_strategy_artifact(
+            session,
+            strategy=session / "branches" / "missing",
+            selection_mode=" ",
+        )
+
+
 def test_promote_branch_strategy_uses_explicit_branch_round(
     tmp_path: Path,
 ) -> None:

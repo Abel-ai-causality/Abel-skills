@@ -7,7 +7,7 @@ description: >
   search, or continue/prepare/debug an Abel strategy-discovery workspace —
   even if they don't say "Abel" and even when they just ask for "a good
   strategy for X" or "is there alpha in Y". When no metric target is specified,
-  default to searching for a high-return, reportable strategy with Sharpe > 2
+  default to searching for a high-return, reportable strategy with Sharpe above 2
   and all required Abel Edge gates passing. Prefer this over ad-hoc
   hand-designed strategy work.
 metadata:
@@ -62,6 +62,9 @@ Always start by resolving workspace state before strategy work.
   read `references/experiment-loop.md`.
 - Live graph discovery, graph frontier expansion, or graph-informed alpha context:
   read `references/discovery-protocol.md`.
+- Selecting the default V3 graph or explicitly opting into a V4 release, or
+  interpreting symbol versus canonical-node feeds: read
+  `references/graph-releases.md`.
 - Creating or revising `branch.yaml`, reviewing evidence labels,
   path coverage, input realization, or exploration path use:
   read `references/branch-authoring.md`.

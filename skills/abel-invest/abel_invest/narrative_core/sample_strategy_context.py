@@ -23,6 +23,7 @@ SAMPLE_STRATEGY_CONTEXT_FILENAME = "seed_context.json"
 SAMPLE_STRATEGY_LOOKUP_SCHEMA = "abel-invest.sample-strategy-lookup/v1"
 SAMPLE_STRATEGY_ENDPOINT = "/api/v1/official-strategy-pool/sample-strategies"
 SAMPLE_STRATEGY_TIMEOUT_SECONDS = 20
+FORCE_EMPTY_SAMPLE_STRATEGIES_ENV = "ABEL_INVEST_FORCE_EMPTY_SAMPLE_STRATEGIES"
 
 _TERMINAL_STATUSES = {"available", "not_found", "unavailable"}
 _CLIENT_OWNED_PATHS = {
@@ -52,26 +53,28 @@ def ensure_sample_strategy_context(
         return existing
 
     attempted_at = datetime.now(UTC).isoformat()
-    api_key = _resolve_api_key()
-    if not api_key:
-        return _persist_terminal_receipt_safely(
-            session=session,
-            receipt=_build_receipt(
-                ticker=normalized_ticker,
-                status="unavailable",
-                attempted_at=attempted_at,
-                reason_code="auth_missing",
-                sample_count=0,
-            ),
-        )
-
     try:
-        payload = _fetch_sample_strategy(
-            ticker=normalized_ticker,
-            api_key=api_key,
-            opener=opener,
-            timeout=timeout,
-        )
+        if os.getenv(FORCE_EMPTY_SAMPLE_STRATEGIES_ENV, "").strip() == "1":
+            payload = {"items": []}
+        else:
+            api_key = _resolve_api_key()
+            if not api_key:
+                return _persist_terminal_receipt_safely(
+                    session=session,
+                    receipt=_build_receipt(
+                        ticker=normalized_ticker,
+                        status="unavailable",
+                        attempted_at=attempted_at,
+                        reason_code="auth_missing",
+                        sample_count=0,
+                    ),
+                )
+            payload = _fetch_sample_strategy(
+                ticker=normalized_ticker,
+                api_key=api_key,
+                opener=opener,
+                timeout=timeout,
+            )
         items = payload.get("items")
         if not isinstance(items, list):
             raise SampleStrategyPackageError("items must be a list")

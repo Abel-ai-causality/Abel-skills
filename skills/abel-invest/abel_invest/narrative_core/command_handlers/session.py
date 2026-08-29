@@ -58,6 +58,7 @@ def handle_init_session(args: argparse.Namespace) -> int:
         discover=args.discover,
         discover_limit=args.discover_limit,
         backtest_start=args.backtest_start,
+        graph_release_path=getattr(args, "graph_release", None),
     )
     sample_receipt = ensure_sample_strategy_context(
         session=session,

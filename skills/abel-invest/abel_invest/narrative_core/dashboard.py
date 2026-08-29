@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -91,6 +92,12 @@ def upload_skill_dashboard_session(args: argparse.Namespace) -> int:
     api_key = resolve_skill_dashboard_api_key(args.api_key, workspace_root=workspace_root)
     strategy = getattr(args, "strategy", None)
     round_id = getattr(args, "round", None)
+    raw_selection_mode = getattr(args, "selection_mode", None)
+    if raw_selection_mode is not None and not str(raw_selection_mode).strip():
+        raise RuntimeError("--selection-mode must not be empty")
+    selection_mode = str(raw_selection_mode).strip() if raw_selection_mode is not None else None
+    if selection_mode is not None and not str(strategy or "").strip():
+        raise RuntimeError("--selection-mode requires an explicit --strategy")
     artifact_export_result = export_selected_strategy_artifact(
         session,
         strategy=strategy,
@@ -99,10 +106,12 @@ def upload_skill_dashboard_session(args: argparse.Namespace) -> int:
         if getattr(args, "artifact_output_dir", None)
         else None,
         python_bin=getattr(args, "python_bin", None),
+        selection_mode=selection_mode,
         rerun_command=_visualize_session_rerun_command(
             session=session,
             strategy=strategy,
             round_id=round_id,
+            selection_mode=selection_mode,
         ),
     )
     skipped = artifact_export_result.get("artifactUploadSkipped")
@@ -132,14 +141,18 @@ def _visualize_session_rerun_command(
     session: Path,
     strategy: str | None,
     round_id: str | None,
+    selection_mode: str | None,
 ) -> str:
-    command = f"abel-invest visualize-session --session {session}"
+    command = f"abel-invest visualize-session --session {shlex.quote(str(session))}"
     if not strategy or not str(strategy).strip():
         return command
-    command += f" --strategy {strategy}"
+    command += f" --strategy {shlex.quote(str(strategy))}"
     normalized_round = str(round_id or "").strip()
     if normalized_round:
-        command += f" --round {normalized_round}"
+        command += f" --round {shlex.quote(normalized_round)}"
+    normalized_mode = str(selection_mode or "").strip()
+    if normalized_mode:
+        command += f" --selection-mode {shlex.quote(normalized_mode)}"
     return command
 
 
